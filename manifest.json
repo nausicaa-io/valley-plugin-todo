@@ -1,0 +1,16 @@
+{
+  "apiVersion": 5,
+  "id": "todo",
+  "name": "To-Do",
+  "version": "3.0.0",
+  "description": "Structured task manager with smart lists, multi-group filters, statuses, swipe actions, nested subtasks, attachment-linked panels, and timestamped activity.",
+  "author": [
+    "Yanik"
+  ],
+  "authorUrl": [
+    "https://github.com/yanik02"
+  ],
+  "isDesktopOnly": true,
+  "minAppVersion": "0.1.0",
+  "enabled": true
+}

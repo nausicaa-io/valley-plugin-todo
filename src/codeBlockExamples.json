@@ -1,0 +1,46 @@
+{
+  "todo": [
+    {
+      "id": "openTasks",
+      "label": "Open tasks",
+      "labelKey": "markdown.examples.openTasks",
+      "code": "status: open\nlimit: 10"
+    },
+    {
+      "id": "completedTasks",
+      "label": "Completed tasks",
+      "labelKey": "markdown.examples.completedTasks",
+      "code": "status: completed\nlimit: 10"
+    },
+    {
+      "id": "allTasks",
+      "label": "All tasks",
+      "labelKey": "markdown.examples.allTasks",
+      "code": "status: all\nlimit: 20"
+    },
+    {
+      "id": "overdueTasks",
+      "label": "Overdue tasks",
+      "labelKey": "markdown.examples.overdueTasks",
+      "code": "status: open\ndue: overdue"
+    },
+    {
+      "id": "weekTasks",
+      "label": "Tasks due this week",
+      "labelKey": "markdown.examples.weekTasks",
+      "code": "status: open\ndue: week"
+    },
+    {
+      "id": "dayTasks",
+      "label": "Tasks due today",
+      "labelKey": "markdown.examples.dayTasks",
+      "code": "status: open\ndue: today"
+    },
+    {
+      "id": "filtered",
+      "label": "Filtered results",
+      "labelKey": "markdown.examples.filtered",
+      "code": "tag: #focus\nstatus: all\nlimit: 10"
+    }
+  ]
+}

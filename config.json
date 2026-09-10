@@ -1,0 +1,742 @@
+{
+  "icon": "list-todo",
+  "main": "runtime/index.js",
+  "noteDocuments": [
+    {
+      "id": "tasks",
+      "dataset": "tasks",
+      "idColumn": "id",
+      "titleColumn": "title",
+      "bodyColumn": "note",
+      "tags": {
+        "dataset": "task_tags",
+        "itemIdColumn": "taskId",
+        "valueColumn": "tag"
+      },
+      "sourcePathColumn": "filePath",
+      "updatedAtColumn": "updatedAt",
+      "navigation": {
+        "command": "todo:open",
+        "itemIdArg": "id"
+      },
+      "label": "To-Do",
+      "labelKey": "manifest.name",
+      "searchSourceId": "todo",
+      "cardKind": "todo"
+    }
+  ],
+  "uiSlots": {
+    "left_sidebar": "todo.panel",
+    "right_sidebar": "todo.file",
+    "main_workspace": "todo.page"
+  },
+  "slotDefaults": {
+    "left_sidebar": {
+      "order": 10
+    },
+    "right_sidebar": {
+      "order": 70
+    }
+  },
+  "settingsView": "todo.settings",
+  "datasets": [
+    {
+      "id": "tasks",
+      "store": "durable",
+      "version": 1,
+      "title": "Tasks",
+      "primaryKey": [
+        "id"
+      ],
+      "columns": {
+        "id": {
+          "type": "text"
+        },
+        "title": {
+          "type": "text"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "priority": {
+          "type": "text",
+          "enum": [
+            "normal",
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "dueDate": {
+          "type": "text"
+        },
+        "startTime": {
+          "type": "text",
+          "nullable": true
+        },
+        "endTime": {
+          "type": "text",
+          "nullable": true
+        },
+        "color": {
+          "type": "text",
+          "nullable": true
+        },
+        "note": {
+          "type": "text"
+        },
+        "estimatedMinutes": {
+          "type": "integer",
+          "nullable": true
+        },
+        "actualMinutes": {
+          "type": "integer",
+          "nullable": true
+        },
+        "status": {
+          "type": "text",
+          "nullable": true,
+          "enum": [
+            "open",
+            "inprogress",
+            "waiting",
+            "onhold",
+            "delegated",
+            "deferred",
+            "canceled",
+            "completed"
+          ]
+        },
+        "filePath": {
+          "type": "text",
+          "nullable": true
+        },
+        "group": {
+          "type": "text",
+          "nullable": true
+        },
+        "flagged": {
+          "type": "boolean",
+          "nullable": true
+        },
+        "parentId": {
+          "type": "text",
+          "nullable": true
+        },
+        "location": {
+          "type": "json",
+          "nullable": true
+        },
+        "remindAt": {
+          "type": "text",
+          "nullable": true
+        },
+        "reminderFiredAt": {
+          "type": "datetime",
+          "nullable": true
+        },
+        "createdAt": {
+          "type": "datetime"
+        },
+        "updatedAt": {
+          "type": "datetime"
+        }
+      },
+      "indexes": [
+        {
+          "id": "due_date",
+          "columns": [
+            "dueDate",
+            "completed"
+          ]
+        },
+        {
+          "id": "parent",
+          "columns": [
+            "parentId"
+          ]
+        },
+        {
+          "id": "file_path",
+          "columns": [
+            "filePath"
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "kind": "foreign-key",
+          "columns": [
+            "parentId"
+          ],
+          "targetDataset": "tasks",
+          "targetColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "visibility": "shared",
+      "titleKey": "auto.090ec5f560fc"
+    },
+    {
+      "id": "task_tags",
+      "store": "durable",
+      "version": 1,
+      "title": "Task tags",
+      "primaryKey": [
+        "taskId",
+        "tag"
+      ],
+      "columns": {
+        "taskId": {
+          "type": "text"
+        },
+        "tag": {
+          "type": "text"
+        }
+      },
+      "relations": [
+        {
+          "kind": "foreign-key",
+          "columns": [
+            "taskId"
+          ],
+          "targetDataset": "tasks",
+          "targetColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "titleKey": "auto.0b2982c66cec"
+    },
+    {
+      "id": "task_links",
+      "store": "durable",
+      "version": 1,
+      "title": "Task links",
+      "primaryKey": [
+        "taskId",
+        "position"
+      ],
+      "columns": {
+        "taskId": {
+          "type": "text"
+        },
+        "position": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "text"
+        }
+      },
+      "relations": [
+        {
+          "kind": "foreign-key",
+          "columns": [
+            "taskId"
+          ],
+          "targetDataset": "tasks",
+          "targetColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "titleKey": "auto.3218ad8a4865"
+    },
+    {
+      "id": "task_attachments",
+      "store": "durable",
+      "version": 1,
+      "title": "Task attachments",
+      "primaryKey": [
+        "taskId",
+        "position"
+      ],
+      "columns": {
+        "taskId": {
+          "type": "text"
+        },
+        "position": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "text"
+        }
+      },
+      "relations": [
+        {
+          "kind": "foreign-key",
+          "columns": [
+            "taskId"
+          ],
+          "targetDataset": "tasks",
+          "targetColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "titleKey": "auto.584186da6898"
+    },
+    {
+      "id": "focus_sessions",
+      "store": "durable",
+      "version": 1,
+      "title": "Focus sessions",
+      "primaryKey": [
+        "taskId",
+        "position"
+      ],
+      "columns": {
+        "taskId": {
+          "type": "text"
+        },
+        "position": {
+          "type": "integer"
+        },
+        "startedAt": {
+          "type": "datetime"
+        },
+        "endedAt": {
+          "type": "datetime"
+        },
+        "activeMinutes": {
+          "type": "integer"
+        },
+        "pauseMinutes": {
+          "type": "integer"
+        }
+      },
+      "relations": [
+        {
+          "kind": "foreign-key",
+          "columns": [
+            "taskId"
+          ],
+          "targetDataset": "tasks",
+          "targetColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "titleKey": "auto.f783bdbe8fa8"
+    },
+    {
+      "id": "status_history",
+      "store": "durable",
+      "version": 1,
+      "title": "Status history",
+      "primaryKey": [
+        "taskId",
+        "position"
+      ],
+      "columns": {
+        "taskId": {
+          "type": "text"
+        },
+        "position": {
+          "type": "integer"
+        },
+        "from": {
+          "type": "text"
+        },
+        "to": {
+          "type": "text"
+        },
+        "changedAt": {
+          "type": "datetime"
+        }
+      },
+      "relations": [
+        {
+          "kind": "foreign-key",
+          "columns": [
+            "taskId"
+          ],
+          "targetDataset": "tasks",
+          "targetColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "titleKey": "auto.70ceb3f38ee9"
+    }
+  ],
+  "pathRefs": [
+    {
+      "source": "dataset",
+      "dataset": "todo.tasks",
+      "pathColumn": "filePath"
+    },
+    {
+      "source": "dataset",
+      "dataset": "todo.task_attachments",
+      "pathColumn": "path"
+    }
+  ],
+  "drivers": [
+    "notifications"
+  ],
+  "notifications": [
+    {
+      "id": "reminder",
+      "label": "Todo reminder",
+      "labelKey": "plugin.todo.notification.reminder",
+      "description": "Announces a dated todo at its reminder time, including with every window closed.",
+      "descriptionKey": "plugin.todo.notification.reminderDesc",
+      "defaultChannel": "system"
+    }
+  ],
+  "searchSources": [
+    {
+      "id": "todo",
+      "label": "To-Do",
+      "labelKey": "manifest.name",
+      "source": "dataset",
+      "dataset": "todo.tasks",
+      "fields": [
+        "title",
+        "note",
+        "tags",
+        "group",
+        "location"
+      ],
+      "joins": [
+        {
+          "dataset": "todo.task_tags",
+          "baseColumns": [
+            "id"
+          ],
+          "relatedColumns": [
+            "taskId"
+          ],
+          "valueColumn": "tag",
+          "as": "tags"
+        }
+      ],
+      "mode": "tags",
+      "pathField": "filePath",
+      "display": [
+        "title",
+        "note"
+      ],
+      "default": true,
+      "cardKind": "todo",
+      "hintKey": "auto.303631ca5c86"
+    }
+  ],
+  "provides": [
+    {
+      "id": "agent.toolProvider",
+      "kind": "service",
+      "version": "1.0.0"
+    },
+    {
+      "id": "calendar.itemSource",
+      "kind": "service",
+      "version": "1.3.0"
+    },
+    {
+      "id": "calendar.itemSourceRevision",
+      "kind": "state",
+      "version": "1.0.0"
+    },
+    {
+      "id": "search.resultCard",
+      "kind": "extension",
+      "version": "1.0.0"
+    },
+    {
+      "id": "workspace.surface",
+      "kind": "extension",
+      "version": "1.0.0"
+    },
+    {
+      "id": "metadataPanel.segment",
+      "kind": "extension",
+      "version": "1.0.0"
+    }
+  ],
+  "consumes": [
+    {
+      "id": "geo.search",
+      "kind": "service",
+      "range": "^1.0.0",
+      "optional": true
+    },
+    {
+      "id": "geo.navigator",
+      "kind": "service",
+      "range": "^1.0.0",
+      "optional": true
+    },
+    {
+      "id": "calendar.navigator",
+      "kind": "service",
+      "range": "^1.0.0",
+      "optional": true
+    },
+    {
+      "id": "calendar.panelSelection",
+      "kind": "state",
+      "range": "^1.0.0",
+      "optional": true
+    }
+  ],
+  "guardPresets": {
+    "schemaVersion": 1,
+    "defaultPreset": "recommended",
+    "presets": [
+      {
+        "id": "recommended",
+        "label": "Recommended",
+        "version": 1,
+        "description": "Adding and completing tasks is low-risk and runs without asking.",
+        "entries": {
+          "commands": {
+            "add": {
+              "decision": "allow"
+            },
+            "complete": {
+              "decision": "allow"
+            },
+            "done": {
+              "decision": "allow"
+            },
+            "reopen": {
+              "decision": "allow"
+            },
+            "cancel": {
+              "decision": "allow"
+            },
+            "pause": {
+              "decision": "allow"
+            },
+            "status": {
+              "decision": "allow"
+            },
+            "edit": {
+              "decision": "allow"
+            },
+            "delete": {
+              "decision": "allow"
+            },
+            "subtask-add": {
+              "decision": "allow"
+            },
+            "subtask-done": {
+              "decision": "allow"
+            }
+          },
+          "tools": {
+            "add_todo": {
+              "decision": "allow"
+            },
+            "complete_todo": {
+              "decision": "allow"
+            },
+            "list_todos": {
+              "decision": "allow"
+            }
+          }
+        }
+      },
+      {
+        "id": "ask-for-writes",
+        "label": "Ask for writes",
+        "version": 1,
+        "description": "Confirm every task change.",
+        "entries": {
+          "commands": {
+            "add": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "complete": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "done": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "reopen": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "cancel": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "pause": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "status": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "edit": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "delete": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "subtask-add": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "subtask-done": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            }
+          },
+          "tools": {
+            "add_todo": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            },
+            "complete_todo": {
+              "decision": "confirm",
+              "allowPreApproval": false
+            }
+          }
+        }
+      },
+      {
+        "id": "read-only",
+        "label": "Read-only",
+        "version": 1,
+        "description": "Browse tasks; no edits.",
+        "entries": {
+          "commands": {
+            "add": {
+              "decision": "deny"
+            },
+            "complete": {
+              "decision": "deny"
+            },
+            "done": {
+              "decision": "deny"
+            },
+            "reopen": {
+              "decision": "deny"
+            },
+            "cancel": {
+              "decision": "deny"
+            },
+            "pause": {
+              "decision": "deny"
+            },
+            "status": {
+              "decision": "deny"
+            },
+            "edit": {
+              "decision": "deny"
+            },
+            "delete": {
+              "decision": "deny"
+            },
+            "subtask-add": {
+              "decision": "deny"
+            },
+            "subtask-done": {
+              "decision": "deny"
+            }
+          },
+          "tools": {
+            "add_todo": {
+              "decision": "deny"
+            },
+            "complete_todo": {
+              "decision": "deny"
+            }
+          }
+        }
+      },
+      {
+        "id": "blocked",
+        "label": "Blocked",
+        "version": 1,
+        "description": "No todo actions at all.",
+        "entries": {
+          "tools": {
+            "add_todo": {
+              "decision": "deny"
+            },
+            "complete_todo": {
+              "decision": "deny"
+            },
+            "list_todos": {
+              "decision": "deny"
+            }
+          },
+          "commands": {
+            "list": {
+              "decision": "deny"
+            },
+            "open-page": {
+              "decision": "deny"
+            },
+            "search": {
+              "decision": "deny"
+            },
+            "group-list": {
+              "decision": "deny"
+            },
+            "add": {
+              "decision": "deny"
+            },
+            "complete": {
+              "decision": "deny"
+            },
+            "done": {
+              "decision": "deny"
+            },
+            "reopen": {
+              "decision": "deny"
+            },
+            "cancel": {
+              "decision": "deny"
+            },
+            "pause": {
+              "decision": "deny"
+            },
+            "status": {
+              "decision": "deny"
+            },
+            "edit": {
+              "decision": "deny"
+            },
+            "delete": {
+              "decision": "deny"
+            },
+            "subtask-add": {
+              "decision": "deny"
+            },
+            "subtask-done": {
+              "decision": "deny"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "locales": {
+    "en": "runtime/locales/en.json",
+    "de": "runtime/locales/de.json",
+    "es": "runtime/locales/es.json",
+    "fr": "runtime/locales/fr.json",
+    "zh-CN": "runtime/locales/zh-CN.json"
+  },
+  "runtime": {
+    "ui": "runtime/index.js"
+  }
+}
