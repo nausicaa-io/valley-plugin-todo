@@ -604,13 +604,14 @@ export const SwipeRow = ({
   // has to re-tier live rather than at the next gesture.
   React.useEffect(() => {
     const root = rootRef.current
-    if (!root || typeof ResizeObserver === 'undefined') return
+    const Observer = (root?.ownerDocument.defaultView as typeof window | null)?.ResizeObserver ?? globalThis.ResizeObserver
+    if (!root || !Observer) return
     // The observer keeps its own record of the width rather than comparing
     // against the geometry: `measure()` is called from several places, and a
     // re-render triggered by the very same resize gets there first, so by the
     // time this fires the geometry already agrees with the new width.
     let observed = 0
-    const observer = new ResizeObserver(() => {
+    const observer = new Observer(() => {
       const width = root.clientWidth
       const resized = observed !== width
       observed = width

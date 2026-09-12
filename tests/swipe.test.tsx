@@ -34,7 +34,7 @@ const todo: TodoRecord = {
   updatedAt: '2026-01-01T00:00:00.000Z'
 }
 
-function setup(): { actions: SwipeRowActions; root: HTMLDivElement } {
+function setup(container?: HTMLElement): { actions: SwipeRowActions; root: HTMLDivElement } {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-08-26T12:00:00'))
   const mock = createMockValleyApi({ manifest: { id: 'todo' } })
@@ -50,9 +50,10 @@ function setup(): { actions: SwipeRowActions; root: HTMLDivElement } {
   render(
     <SwipeRow todo={todo} disabled={false} actions={actions}>
       <div>Observe moss</div>
-    </SwipeRow>
+    </SwipeRow>,
+    { container }
   )
-  const root = document.querySelector('.todo-swipe') as HTMLDivElement
+  const root = (container ?? document).querySelector('.todo-swipe') as HTMLDivElement
   Object.defineProperty(root, 'clientWidth', { configurable: true, value: 259 })
   root.setPointerCapture = vi.fn()
   return { actions, root }
@@ -366,7 +367,10 @@ describe('SwipeRow', () => {
     expect(actions.remove).toHaveBeenCalledTimes(1)
   })
 
-  it('closes immediately when the panel is resized under an open tray', () => {
+  it.each([false, true])('closes immediately on an owning-window resize (iframe: %s)', (nested) => {
+    const frame = nested ? document.createElement('iframe') : null
+    if (frame) document.body.append(frame)
+    const container = frame?.contentDocument!.body.appendChild(frame.contentDocument!.createElement('div'))
     // vitest.setup stubs ResizeObserver as a no-op; this one hands back its
     // callback so the resize can actually be fired.
     const observers: ResizeObserverCallback[] = []
@@ -383,10 +387,11 @@ describe('SwipeRow', () => {
       disconnect(): void {}
       unobserve(): void {}
     }
-    globalThis.ResizeObserver = Fake as unknown as typeof ResizeObserver
+    if (frame) Object.defineProperty(frame.contentWindow, 'ResizeObserver', { value: Fake })
+    else globalThis.ResizeObserver = Fake as unknown as typeof ResizeObserver
     try {
       vi.useFakeTimers()
-      const { root } = setup()
+      const { root } = setup(container)
       pointer('pointerDown', root, { pointerId: 1, button: 0, clientX: 0, clientY: 0, t: 1 })
       pointer('pointerMove', root, { pointerId: 1, clientX: 120, clientY: 0, t: 401 })
       pointer('pointerUp', root, { pointerId: 1, clientX: 120, clientY: 0, t: 401 })
@@ -408,6 +413,8 @@ describe('SwipeRow', () => {
       act(() => observers.forEach((cb) => cb([], {} as ResizeObserver)))
       expect(transformOf(root)).toBe(open)
     } finally {
+      cleanup()
+      frame?.remove()
       globalThis.ResizeObserver = real
     }
   })
