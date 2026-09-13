@@ -5,6 +5,7 @@ import {
   appendTodo,
   deleteTodo,
   deleteTodoSubtree,
+  loadTodo,
   loadTodos,
   logTodoSession,
   normalizeTodoUrl,
@@ -32,6 +33,23 @@ function todo(overrides: Partial<TodoRecord> = {}): TodoRecord {
 
 describe('todo data layer', () => {
   beforeEach(() => installTodoNotes())
+
+  it.each([999, 1000, 1001])('coalesces selected-task reads and loads every one of %i history rows without reading other tasks', async (count) => {
+    const history = Array.from({ length: count }, (_, position) => ({ from: 'open' as const, to: 'waiting' as const, changedAt: new Date(Date.UTC(2026, 0, 1, 0, position)).toISOString() }))
+    const { mock } = installTodoNotes([todo({ statusHistory: history }), todo({ id: 'unrelated', title: 'Other task', statusHistory: history })] as unknown as DataRecord[])
+    const dataset = mock.api.data.dataset
+    const reads: { id: string; where: unknown }[] = []
+    mock.api.data.dataset = ((id: string) => {
+      const handle = dataset(id)
+      return { ...handle, query: async (query) => { reads.push({ id, where: query?.where }); return handle.query(query) } }
+    }) as typeof dataset
+    const results = await Promise.all(Array.from({ length: 20 }, () => loadTodo('todo_test')))
+    expect(results.every((record) => record?.id === 'todo_test' && record.statusHistory?.length === count)).toBe(true)
+    for (const read of reads) expect(read.where).toEqual(read.id === 'todo.tasks' ? { id: 'todo_test' } : { taskId: 'todo_test' })
+    expect(reads.filter((read) => read.id === 'todo.tasks')).toHaveLength(1)
+    expect(reads.filter((read) => read.id === 'todo.status_history')).toHaveLength(count > 1000 ? 2 : 1)
+    expect(await loadTodo('missing')).toBeNull()
+  })
 
   it('shares full reads during relationship bursts and returns the latest complete history', async () => {
     const { mock } = installTodoNotes([todo({ statusHistory: Array.from({ length: 1001 }, (_, position) => ({

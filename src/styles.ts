@@ -2902,13 +2902,13 @@ button.todo-status-setting-handle:active { cursor: grabbing; }
 .todo-status-setting-row.drop-after::before { bottom: 0; }
 
 .todo-filter-popover {
-  width: 264px;
-  padding: var(--space-2);
+  width: var(--todo-filter-width, 264px);
+  padding: var(--popover-padding, var(--space-3));
 }
 
 .todo-sort-popover {
-  width: 240px;
-  padding: var(--space-2);
+  width: var(--todo-sort-width, 240px);
+  padding: var(--popover-padding, var(--space-3));
 }
 
 .todo-sort-options {
@@ -2920,9 +2920,9 @@ button.todo-status-setting-handle:active { cursor: grabbing; }
 .todo-sort-option {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-button);
   min-width: 0;
-  height: 30px;
+  min-height: var(--menu-item-height);
   padding: 0 var(--space-2);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
@@ -2967,8 +2967,8 @@ button.todo-status-setting-handle:active { cursor: grabbing; }
 .todo-sort-direction {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 26px;
+  width: var(--menu-item-height);
+  height: var(--menu-item-height);
   padding: 0;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
@@ -3008,8 +3008,8 @@ button.todo-status-setting-handle:active { cursor: grabbing; }
 
 .todo-completed-choice {
   min-width: 0;
-  height: 28px;
-  padding: 0 8px;
+  min-height: var(--menu-item-height);
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   background: var(--surface-color-alt);
@@ -3030,7 +3030,7 @@ button.todo-status-setting-handle:active { cursor: grabbing; }
 .todo-filter-popover-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .todo-filter-control-row {

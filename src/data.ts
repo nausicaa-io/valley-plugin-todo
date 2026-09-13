@@ -277,8 +277,8 @@ function relationDeletes(taskId: string, relations: TodoRelations): DatasetTrans
   ]
 }
 
-async function readTodos(includeHistory: boolean): Promise<TodoRecord[]> {
-  const [raw, relations] = await Promise.all([allRows(TASKS_DATASET), todoRelations(undefined, includeHistory)])
+async function readTodos(includeHistory: boolean, taskId?: string): Promise<TodoRecord[]> {
+  const [raw, relations] = await Promise.all([allRows(TASKS_DATASET, taskId ? { id: taskId } : undefined), todoRelations(taskId, includeHistory)])
   const groups = normalizeGroups(api.getState().groups)
   const byTask = (rows: DatasetRecord[], ordered = false): Map<unknown, DatasetRecord[]> => {
     const index = new Map<unknown, DatasetRecord[]>()
@@ -313,31 +313,39 @@ async function readTodos(includeHistory: boolean): Promise<TodoRecord[]> {
 
 interface TodoReadState {
   revision: number
-  pending: Promise<TodoRecord[]> | null
+  pending: Map<string, Promise<TodoRecord[]>>
 }
 
-function loadTodoProjection(includeHistory: boolean): Promise<TodoRecord[]> {
+function loadTodoProjection(includeHistory: boolean, taskId?: string): Promise<TodoRecord[]> {
   const state = api.runtime.getOrCreate<TodoReadState>(includeHistory ? 'todo.fullRead' : 'todo.calendarRead', () => {
-    const state: TodoReadState = { revision: 0, pending: null }
+    const state: TodoReadState = { revision: 0, pending: new Map() }
     for (const dataset of includeHistory ? ALL_DATASETS : CALENDAR_DATASETS) {
       api.data.dataset(dataset).subscribe(() => { state.revision++ })
     }
     return state
   })
-  if (!state.pending) {
-    state.pending = (async () => {
+  const key = taskId ?? ''
+  let pending = state.pending.get(key)
+  if (!pending) {
+    pending = (async () => {
       for (;;) {
         const revision = state.revision
-        const todos = await readTodos(includeHistory)
+        const todos = await readTodos(includeHistory, taskId)
         if (revision === state.revision) return todos
       }
-    })().finally(() => { state.pending = null })
+    })().finally(() => { state.pending.delete(key) })
+    state.pending.set(key, pending)
   }
-  return state.pending
+  return pending
 }
 
 export function loadTodos(): Promise<TodoRecord[]> {
   return loadTodoProjection(true)
+}
+
+export async function loadTodo(id: string): Promise<TodoRecord | null> {
+  if (!id) return null
+  return (await loadTodoProjection(true, id))[0] ?? null
 }
 
 export function loadCalendarTodos(): Promise<TodoRecord[]> {
@@ -367,7 +375,7 @@ async function rawUpdateData(id: string, record: TodoRecord, expectedUpdatedAt?:
     const ref = { pluginId: api.pluginId, sourceId: 'tasks', itemId: id }
     const baseline = await api.documents.read(ref)
     if (!baseline) return false
-    const current = (await loadTodos()).find((todo) => todo.id === id)
+    const current = await loadTodo(id)
     if (!current || (expectedUpdatedAt !== undefined && current.updatedAt !== expectedUpdatedAt)) return false
     let next = { ...record, id }
     const from = effectiveStatus(current)
@@ -424,7 +432,7 @@ export async function appendTodo(record: TodoRecord): Promise<boolean> {
 
 export async function updateTodo(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision): Promise<boolean> {
   if (!id || !record.title.trim()) return false
-  const prev = (await loadTodos()).find((todo) => todo.id === id)
+  const prev = await loadTodo(id)
   const ok = await rawUpdate(id, record, expectedUpdatedAt, documentRevision)
   if (ok && prev) {
     api.undo.push({
@@ -437,7 +445,7 @@ export async function updateTodo(id: string, record: TodoRecord, expectedUpdated
 }
 
 export async function deleteTodo(id: string): Promise<boolean> {
-  const prev = (await loadTodos()).find((todo) => todo.id === id)
+  const prev = await loadTodo(id)
   const ok = await rawDelete(id)
   if (ok && prev) {
     api.undo.push({
@@ -521,7 +529,7 @@ export async function logTodoSession(
   session: TodoSession,
   opts?: { complete?: boolean }
 ): Promise<boolean> {
-  const current = (await loadTodos()).find((todo) => todo.id === id)
+  const current = await loadTodo(id)
   if (!current) return false
   const banked = normalizeHistory([session])
   if (!banked.length) return false
@@ -547,7 +555,7 @@ export async function logTodoSession(
  * caller's "stamp, then notify" order fire exactly once.
  */
 export async function setReminderFired(id: string): Promise<boolean> {
-  const current = (await loadTodos()).find((todo) => todo.id === id)
+  const current = await loadTodo(id)
   if (!current || current.reminderFiredAt) return false
   const now = new Date().toISOString()
   return rawUpdate(id, { ...current, reminderFiredAt: now, updatedAt: now })
@@ -555,7 +563,7 @@ export async function setReminderFired(id: string): Promise<boolean> {
 
 /** Set a todo's focus-lifecycle status, rewriting only its record. */
 export async function setTodoStatus(id: string, status: TodoStatus): Promise<boolean> {
-  const current = (await loadTodos()).find((todo) => todo.id === id)
+  const current = await loadTodo(id)
   if (!current) return false
   return updateTodo(id, { ...current, ...patchForStatus(status), updatedAt: new Date().toISOString() })
 }

@@ -5,7 +5,7 @@ import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { React, api, revealRequestStore } from './runtime'
 import { getSharedTodos, onSharedTodos } from './sharedTodos'
 import { applyTodoVisibleState, getViewHistoryState, goViewHistory, onView, readTodoVisibleState, setView, useView } from './viewStore'
-import { loadTodos } from './data'
+import { loadTodo } from './data'
 import { uiText } from './localization'
 import { GroupFilterPopover } from './TodoPanel'
 import { getGroups, useGroups } from './groupStore'
@@ -60,7 +60,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 async function restore(raw: PluginLinkState, surface: SlotId, background = false): Promise<void> {
-  if (typeof raw.todoId === 'string' && !(await loadTodos()).some((todo) => todo.id === raw.todoId)) throw new Error('The bookmarked task no longer exists.')
+  if (typeof raw.todoId === 'string' && !(await loadTodo(raw.todoId))) throw new Error('The bookmarked task no longer exists.')
   if (!applyTodoVisibleState(raw)) throw new Error('Unsupported To-Do bookmark.')
   selectTodoProperties(typeof raw.todoId === 'string' ? raw.todoId : null, surface)
   if (!background && typeof raw.todoId === 'string') revealRequestStore().request(raw.todoId, 'focus')
@@ -118,7 +118,7 @@ export function registerTodoSurfaces(pluginApi: ValleyPluginApi): () => void {
   offs.push(pluginApi.interop.extensions.provide(METADATA_PANEL_SEGMENT_V1, {
     id: 'todo.properties', label: 'To-Do', labelKey: 'manifest.name', icon: 'list-todo', pluginSurfaces: ['main_workspace'],
     inspect: async ({ subject }) => {
-      const todo = (await loadTodos()).find((entry) => entry.id === subject?.item?.id)
+      const todo = subject?.item?.id ? await loadTodo(subject.item.id) : null
       return todo ? Object.entries(todo).map(([id, value]) => ({ id, label: uiText(`todo.field.${id}`), value: value ?? null, readOnly: true })) : []
     },
     render: () => <Properties />

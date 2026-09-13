@@ -79,13 +79,14 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
   // Ordered by stable display order — never re-sorts on completion toggle
   const ordered = React.useMemo(() => {
     const map = new Map(todos.map((t) => [t.id, t]))
+    const displayedIds = new Set(displayOrderRef.current)
     const result: TodoRecord[] = []
     for (const id of displayOrderRef.current) {
       const t = map.get(id)
       if (t) result.push(t)
     }
     for (const t of todos) {
-      if (!displayOrderRef.current.includes(t.id)) result.push(t)
+      if (!displayedIds.has(t.id)) result.push(t)
     }
     return result
     // orderNonce re-derives the order when a sort control changes

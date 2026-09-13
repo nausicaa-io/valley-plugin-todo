@@ -14,7 +14,7 @@ import { parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { openLocation } from './LocationField'
 import { api, revealRequestStore } from './runtime'
 import type { TodoPriority, TodoRecord } from './types'
-import { appendTodo, deleteTodo, loadCalendarTodos, loadTodos, onCalendarItemsChanged, updateTodo } from './data'
+import { appendTodo, deleteTodo, loadCalendarTodos, loadTodo, onCalendarItemsChanged, updateTodo } from './data'
 import { groupColorFor, type TodoGroup } from './groups'
 import { getGroups, onGroupsChanged } from './groupStore'
 import { DEFAULT_VIEW, setView } from './viewStore'
@@ -94,7 +94,7 @@ function merge(todo: TodoRecord, patch: CalendarItemPatch): TodoRecord {
 }
 
 async function todoById(itemId: string): Promise<TodoRecord | null> {
-  return (await loadTodos()).find((todo) => todo.id === itemId) ?? null
+  return loadTodo(itemId)
 }
 
 /** `Archive/Images/Apple - Lantern.png` → `Apple - Lantern.png`. */

@@ -7,7 +7,7 @@
  */
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import type { ValleyPluginApi } from '@valley/plugin-sdk'
-import { loadTodos, normalizeTodoRecord, rawAppend, rawDelete, rawUpdate } from './data'
+import { loadTodo, loadTodos, normalizeTodoRecord, rawAppend, rawDelete, rawUpdate } from './data'
 import { matchesSearch } from './search'
 import { allGroups, groupForName, groupKey } from './groups'
 import { getGroups } from './groupStore'
@@ -203,14 +203,14 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
         return { id }
       } },
       run: async ({ id }) => {
-        const todo = (await loadTodos()).find((item) => item.id === id)
+        const todo = await loadTodo(id)
         if (!todo) throw new Error('The task no longer exists. Open To-Do to choose another task.')
         api.workspace.openMainTab()
         revealRequestStore().request(id, 'edit')
         return todo
       }
     }),
-    api.commands.register({ id: 'get', label: 'To-Do: Get task', labelKey: 'todo.command.get', paletteSafe: false, sideEffect: 'read', input: { schema: { type: 'object', properties: { id: fieldText }, required: ['id'], additionalProperties: false }, parse: (raw) => { const id = asStr((raw as Record<string, unknown>)?.id).trim(); if (!id) throw new Error('Expected a task id.'); return { id } } }, run: async ({ id }) => { const todo = (await loadTodos()).find((item) => item.id === id); if (!todo) throw new Error('The task no longer exists.'); return todo } }),
+    api.commands.register({ id: 'get', label: 'To-Do: Get task', labelKey: 'todo.command.get', paletteSafe: false, sideEffect: 'read', input: { schema: { type: 'object', properties: { id: fieldText }, required: ['id'], additionalProperties: false }, parse: (raw) => { const id = asStr((raw as Record<string, unknown>)?.id).trim(); if (!id) throw new Error('Expected a task id.'); return { id } } }, run: async ({ id }) => { const todo = await loadTodo(id); if (!todo) throw new Error('The task no longer exists.'); return todo } }),
     api.commands.register({
       id: 'edit-fields',
       label: 'To-Do: Edit task fields',
