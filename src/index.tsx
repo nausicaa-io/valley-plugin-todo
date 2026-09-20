@@ -29,7 +29,7 @@ import { registerTodoSurfaces } from './surfaces'
 
 export function register(api: ValleyPluginApi): () => void {
   initLocalization(api)
-  initRuntime(api)
+  const disposeRuntime = initRuntime(api)
   const disposeStyles = injectStyles()
   const disposeStatusVocabulary = startStatusVocabulary()
   resetViewCache()
@@ -57,6 +57,7 @@ export function register(api: ValleyPluginApi): () => void {
   const offGroupUsage = startGroupUsageReporting()
 
   return () => {
+    disposeRuntime()
     offCommands()
     offSurfaces()
     offAgentTools()

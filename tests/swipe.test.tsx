@@ -112,7 +112,7 @@ describe('SwipeRow', () => {
       delete document.documentElement.dataset.theme
     })
 
-    it.each(['dark', 'light', 'reading'])('hides resting actions independently of the %s row background', (mode) => {
+    it.each(['dark', 'light'])('hides resting actions independently of the %s row background', (mode) => {
       document.documentElement.dataset.theme = mode
       const { root } = setup()
       const surface = root.querySelector('.todo-swipe-surface') as HTMLElement

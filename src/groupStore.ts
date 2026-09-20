@@ -1,5 +1,5 @@
-import { React, api } from './runtime'
-import { loadTodos, onChanged as onTodosChanged } from './data'
+import { React, api, captureTodoScope } from './runtime'
+import { loadTodoList, onTodoListChanged as onTodosChanged } from './data'
 import {
   countGroupUsage,
   normalizeTodoGroups,
@@ -25,17 +25,19 @@ export function useGroups(): TodoGroup[] {
 }
 
 export function startGroupUsageReporting(): () => void {
+  const scope = captureTodoScope()
   let cancelled = false
   const push = (): void => {
-    void loadTodos().then((todos) => {
-      if (!cancelled) api.workspace.reportGroupUsage(countGroupUsage(todos.map((todo) => todo.group)))
-    })
+    void loadTodoList(scope).then((todos) => {
+      scope.assertActive()
+      if (!cancelled) scope.api.workspace.reportGroupUsage(countGroupUsage(todos.map((todo) => todo.group)))
+    }).catch(() => {})
   }
   push()
   const off = onTodosChanged(push)
   return () => {
     cancelled = true
     off()
-    api.workspace.reportGroupUsage({})
+    scope.api.workspace.reportGroupUsage({})
   }
 }

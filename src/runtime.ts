@@ -11,6 +11,17 @@ export let React!: typeof import('react')
 export let api!: ValleyPluginApi
 const renderedRows = new Map<string, Set<HTMLElement>>()
 
+export interface TodoRuntimeScope {
+  api: ValleyPluginApi
+  assertActive(): void
+  onDispose(dispose: () => void): () => void
+  dispose(): void
+}
+
+let scope: TodoRuntimeScope
+
+export function captureTodoScope(): TodoRuntimeScope { return scope }
+
 export function registerTodoRow(id: string, row: HTMLElement): () => void {
   const rows = renderedRows.get(id) ?? new Set<HTMLElement>()
   rows.add(row)
@@ -18,9 +29,28 @@ export function registerTodoRow(id: string, row: HTMLElement): () => void {
   return () => { rows.delete(row); if (!rows.size) renderedRows.delete(id) }
 }
 
-export function initRuntime(a: ValleyPluginApi): void {
+export function initRuntime(a: ValleyPluginApi): () => void {
+  scope?.dispose()
   api = a
   React = a.React
+  let active = true
+  const disposers = new Set<() => void>()
+  scope = {
+    api: a,
+    assertActive: () => { if (!active) throw new Error('To-Do read scope disposed') },
+    onDispose: (dispose) => {
+      if (active) disposers.add(dispose)
+      else dispose()
+      return () => { disposers.delete(dispose) }
+    },
+    dispose: () => {
+      if (!active) return
+      active = false
+      for (const dispose of disposers) dispose()
+      disposers.clear()
+    }
+  }
+  return scope.dispose
 }
 
 /**

@@ -1,6 +1,5 @@
 import { React, api } from './runtime'
 import type { ReactElement } from 'react'
-import type { IndexEntry } from '@valley/plugin-sdk/types'
 import { uiText } from './localization'
 
 // ── FilePathInput ─────────────────────────────────────────────────────────────
@@ -14,7 +13,6 @@ export function FilePathInput({
 }: {
   value: string
   onChange: (v: string) => void
-  indexEntries: IndexEntry[]
   disabled?: boolean
 }): ReactElement {
   const ResourcePicker = api.ui.ResourcePicker

@@ -1,4 +1,5 @@
-import { React } from './runtime'
+import { React, revealRequestStore } from './runtime'
+import { useVisibleRange } from './visibleRange'
 import type { DragEvent, ReactElement } from 'react'
 import type { TodoRecord } from '@valley/plugin-sdk/types'
 import type { TodoGroup } from './groups'
@@ -30,9 +31,16 @@ export const TodoList = ({
   c: TodoListController
 }): ReactElement => {
   const rows: TodoTreeRow[] = React.useMemo(() => buildTodoTree(todos), [todos])
-  const listRef = React.useRef<HTMLDivElement>(null)
   const [draggedId, setDraggedId] = React.useState<string | null>(null)
   const [dropTargetId, setDropTargetId] = React.useState<string | null>(null)
+  const reveals = revealRequestStore()
+  const reveal = React.useSyncExternalStore(reveals.subscribe, reveals.get, reveals.get)
+  const ids = React.useMemo(() => rows.map(row => row.todo.id), [rows])
+  const visible = useVisibleRange(React, { ids, estimate: compact ? 52 : 84, enabled: c.todos.length > 80, layoutKey: compact, pinned: [c.editingId, c.menuId, draggedId, dropTargetId, c.lastCreatedId, reveal?.todoId] })
+  const show = visible.show
+  React.useLayoutEffect(() => {
+    if (reveal && ids.includes(reveal.todoId)) show(reveal.todoId)
+  }, [reveal, ids, show])
 
   const clearDrag = React.useCallback((): void => {
     setDraggedId(null)
@@ -67,17 +75,15 @@ export const TodoList = ({
     clearDrag()
   }, [c, canDropOn, clearDrag, draggedId])
 
-  /** ↑/↓ walk the rendered rows, so the list is usable without a mouse. */
   const moveFocus = React.useCallback((from: number, delta: number): void => {
-    const items = listRef.current?.querySelectorAll<HTMLElement>('.todo-row')
-    if (!items?.length) return
-    const next = items[Math.max(0, Math.min(items.length - 1, from + delta))]
-    next?.focus()
-  }, [])
+    const next = rows[Math.max(0, Math.min(rows.length - 1, from + delta))]
+    if (next) show(next.todo.id, '.todo-row')
+  }, [rows, show])
 
   return (
-    <div className="todo-list-rows" ref={listRef}>
-      {rows.map((row, index) => {
+    <div className="todo-list-rows" ref={visible.ref}>
+      {visible.render(index => {
+        const row = rows[index]
         const patch = indentPatch(rows, index)
         return (
           <TodoRow

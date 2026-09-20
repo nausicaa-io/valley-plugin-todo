@@ -12,11 +12,11 @@
  * data layer); the header opens the To-Do page.
  */
 import codeBlockExamples from './codeBlockExamples.json'
-import { React, api } from './runtime'
+import { React, api, captureTodoScope } from './runtime'
 import type { FC } from 'react'
 import type { TodoRecord } from '@valley/plugin-sdk/types'
 import { fenceInt, parseFenceParams } from '@valley/plugin-sdk/fenceParams'
-import { loadTodos, onChanged, updateTodo } from './data'
+import { loadTodoList, onTodoListChanged, updateTodo } from './data'
 import { PRIORITIES } from './sort'
 import { uiText } from './localization'
 
@@ -103,14 +103,16 @@ export function filterFenceTodos(todos: TodoRecord[], filter: FenceFilter): Todo
 const TodoFence: FC<{ code: string }> = ({ code }) => {
   const [todos, setTodos] = React.useState<TodoRecord[] | null>(null)
   React.useEffect(() => {
+    const scope = captureTodoScope()
     let alive = true
     const reload = (): void => {
-      void loadTodos().then((records) => {
+      void loadTodoList(scope).then((records) => {
+        scope.assertActive()
         if (alive) setTodos(records)
-      })
+      }).catch(() => {})
     }
     reload()
-    const off = onChanged(reload)
+    const off = onTodoListChanged(reload)
     return () => {
       alive = false
       off()

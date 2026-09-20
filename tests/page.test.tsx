@@ -452,3 +452,29 @@ describe('the To-Do page', () => {
   })
 
 })
+
+
+it.each(['scheduled', 'completed'] as const)('bounds the %s date section containers for a large timeline', async (id) => {
+  const records = Array.from({ length: 500 }, (_, index) => ({
+    id: `date-${index}`, title: `Date task ${index}`, completed: id === 'completed',
+    dueDate: new Date(Date.UTC(2020, 0, index + 1)).toISOString().slice(0, 10),
+    ...(id === 'completed' ? { completedAt: new Date(Date.UTC(2020, 0, index + 1)).toISOString() } : {})
+  }))
+  store = installTodoNotes(records, { panelChip: serializeView({ kind: 'smart', id }), pageShowCompleted: true })
+  const view = render(<Page navigation={{ setController: vi.fn() }} />)
+  await waitFor(() => expect(view.container.querySelector('.todo-row')).not.toBeNull())
+  expect(view.container.querySelectorAll(id === 'completed' ? '.todo-schedule-block' : '.todo-page-days').length).toBeLessThan(40)
+  expect(view.container.querySelectorAll('.todo-row').length).toBeLessThan(40)
+})
+
+it('bounds future month containers while retaining month expansion', async () => {
+  store = installTodoNotes(Array.from({ length: 500 }, (_, index) => ({ id: `month-${index}`, title: `Future task ${index}`, completed: false, dueDate: new Date(Date.UTC(2090, index, 1)).toISOString().slice(0, 10) })), { panelChip: serializeView({ kind: 'smart', id: 'scheduled' }) })
+  const view = render(<Page navigation={{ setController: vi.fn() }} />)
+  await waitFor(() => expect(view.container.querySelector('.todo-month')).not.toBeNull())
+  expect(view.container.querySelectorAll('.todo-month').length).toBeLessThan(40)
+  const header = view.container.querySelector('.todo-month-head')!
+  fireEvent.click(header)
+  expect(header).toHaveAttribute('aria-expanded', 'true')
+  expect(await screen.findByText('Future task 0')).toBeTruthy()
+  expect(view.container.querySelectorAll('.todo-month').length).toBeLessThan(40)
+})

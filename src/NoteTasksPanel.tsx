@@ -66,7 +66,7 @@ function LocalStatusPopover({
 
 /** Structured To-Dos linked to the attachment currently open in the workspace. */
 export const NoteTasksPanel = (): ReactElement => {
-  const { activePath, indexEntries, weekStart } = useHostState()
+  const { activePath, weekStart } = useHostState('activePath', 'weekStart')
   const path = normalizeRelPathOpt(activePath) ?? ''
   const groups = useGroups()
   const dateBreakdown = useDateBreakdown()
@@ -150,7 +150,7 @@ export const NoteTasksPanel = (): ReactElement => {
           <div className="right-sidebar-empty"><p>{uiText('todo.attachmentTasks.none')}</p></div>
         )}
       </div>
-      <TodoDetailModal c={c} indexEntries={indexEntries} />
+      <TodoDetailModal c={c} />
     </div>
   )
 }

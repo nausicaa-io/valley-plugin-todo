@@ -3,18 +3,18 @@ import type {
   CalendarItemBadge,
   CalendarItemPatch,
   CalendarSourceItem,
-  CalendarItemSource
+  CalendarItemSourceV2
 } from '@valley/plugin-sdk'
 import {
   CALENDAR_ITEM_SOURCE_REVISION_V1,
-  CALENDAR_ITEM_SOURCE_V1,
+  CALENDAR_ITEM_SOURCE_V2,
   GEO_NAVIGATOR_V1
 } from '@valley/plugin-sdk'
 import { parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { openLocation } from './LocationField'
-import { api, revealRequestStore } from './runtime'
+import { api, captureTodoScope, revealRequestStore } from './runtime'
 import type { TodoPriority, TodoRecord } from './types'
-import { appendTodo, deleteTodo, loadCalendarTodos, loadTodo, onCalendarItemsChanged, updateTodo } from './data'
+import { appendTodo, deleteTodo, loadCalendarTodoPage, loadTodo, onCalendarItemsChanged, updateTodo } from './data'
 import { groupColorFor, type TodoGroup } from './groups'
 import { getGroups, onGroupsChanged } from './groupStore'
 import { DEFAULT_VIEW, setView } from './viewStore'
@@ -216,7 +216,11 @@ async function runTodoAction(todo: TodoRecord, actionId: string): Promise<boolea
 }
 
 export function registerCalendarSource(): () => void {
-  const source: CalendarItemSource = {
+  const scope = captureTodoScope()
+  const session = generateId('calendar-source')
+  let revision = 0
+  let active = true
+  const source: CalendarItemSourceV2 = {
     integration: {
       name: 'To-Do',
       version: '2.0.0',
@@ -241,14 +245,33 @@ export function registerCalendarSource(): () => void {
         }
       }
     },
-    list: async () => {
+    list: async ({ startDate, endDate, limit, cursor }) => {
+      let queryCursor: string | undefined
+      const currentRevision = (): string => `${session}:${revision}`
+      if (cursor) {
+        let previous: { startDate?: unknown; endDate?: unknown; limit?: unknown; revision?: unknown; cursor?: unknown }
+        try { previous = JSON.parse(cursor) } catch { throw new Error('Invalid Calendar source cursor.') }
+        if (!previous || previous.startDate !== startDate || previous.endDate !== endDate || previous.limit !== limit || previous.revision !== currentRevision() || typeof previous.cursor !== 'string' || !previous.cursor) throw new Error('Calendar source cursor is stale or belongs to another range.')
+        queryCursor = previous.cursor
+      }
+      scope.assertActive()
+      if (!active) throw new Error('Calendar source was disposed.')
+      const accepted = currentRevision()
+      const page = await loadCalendarTodoPage(startDate, endDate, limit, queryCursor)
+      scope.assertActive()
+      if (!active) throw new Error('Calendar source was disposed.')
+      if (cursor && accepted !== currentRevision()) throw new Error('Calendar source cursor is stale; restart the range.')
       const groups = getGroups()
-      return (await loadCalendarTodos())
-        .map((todo) => toItem(todo, groups))
-        .filter((item): item is CalendarSourceItem => !!item)
+      const published = currentRevision()
+      return {
+        items: page.todos.map(todo => toItem(todo, groups)).filter((item): item is CalendarSourceItem => !!item),
+        revision: published,
+        ...(page.cursor ? { cursor: JSON.stringify({ startDate, endDate, limit, revision: published, cursor: page.cursor }) } : {})
+      }
     },
 
     create: async (date, patch) => {
+      if (patch.endDate && patch.endDate !== date) return false
       const title = patch.title?.trim()
       if (!title) return false
       const now = new Date().toISOString()
@@ -274,6 +297,7 @@ export function registerCalendarSource(): () => void {
 
     update: async (itemId, patch) => {
       const todo = await todoById(itemId)
+      if (todo && patch.endDate && patch.endDate !== (patch.date ?? todo.dueDate)) return false
       return todo ? updateTodo(todo.id, merge(todo, patch), todo.updatedAt) : false
     },
 
@@ -301,7 +325,6 @@ export function registerCalendarSource(): () => void {
     }
   }
 
-  let revision = 0
   const bump = (): void => {
     api.interop.state.publish(CALENDAR_ITEM_SOURCE_REVISION_V1, ++revision)
   }
@@ -310,8 +333,9 @@ export function registerCalendarSource(): () => void {
   // Recolouring a group is a settings write, not a todo write — without this the
   // calendar keeps serving the old colour until some unrelated todo changes.
   const offGroups = onGroupsChanged(bump)
-  const offSource = api.interop.services.provide(CALENDAR_ITEM_SOURCE_V1, source)
+  const offSource = api.interop.services.provide(CALENDAR_ITEM_SOURCE_V2, source)
   return () => {
+    active = false
     offChanges()
     offGroups()
     offSource()

@@ -1,9 +1,9 @@
 import { React, api } from './runtime'
 import type { ReactElement } from 'react'
-import type { IndexEntry, TodoPriority, TodoRecord, TodoStatus } from '@valley/plugin-sdk/types'
+import type { TodoPriority, TodoRecord, TodoStatus } from '@valley/plugin-sdk/types'
 import { parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { getSharedTodos, onSharedTodos } from './sharedTodos'
-import { confirmDeleteTodo, normalizeTodoUrl, type DocumentRevision } from './data'
+import { confirmDeleteTodo, normalizeTodoUrl, useTodoStatusHistory, type DocumentRevision } from './data'
 import { FilePathInput } from './fields'
 import { AttachmentCard } from './AttachmentCard'
 import { Flag, Link, MapPin, Paperclip, Plus, X } from './icons'
@@ -20,7 +20,6 @@ import { todoStatusLabel, uiText } from './localization'
 interface DetailProps {
   todoId: string
   c: TodoListController
-  indexEntries: IndexEntry[]
   close: () => void
 }
 
@@ -150,11 +149,12 @@ function detailDraft(todoId: string): DetailDraft {
   return draft
 }
 
-const TodoDetail = ({ todoId, c, indexEntries, close }: DetailProps): ReactElement | null => {
+const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
   const { Toggle, SelectField, Segmented, DateField, TimeField } = api.ui.settings
   const [todos, setTodos] = React.useState<TodoRecord[]>(getSharedTodos)
   React.useEffect(() => onSharedTodos(setTodos), [])
   const todo = todos.find((t) => t.id === todoId)
+  const statusHistory = useTodoStatusHistory(todoId)
   const groups = useGroups()
 
   const [addingAttachment, setAddingAttachment] = React.useState(false)
@@ -317,9 +317,7 @@ const TodoDetail = ({ todoId, c, indexEntries, close }: DetailProps): ReactEleme
                 value={attachmentDraft}
                 onChange={(v) => {
                   setAttachmentDraft(v)
-                  // The picker reports a full relPath the moment a suggestion is
-                  // chosen; a half-typed query never matches an index entry.
-                  if (indexEntries.some((e) => e.relPath === v)) {
+                  if (v) {
                     if (!(todo.attachments ?? []).includes(v)) {
                       setAttachments([...(todo.attachments ?? []), v])
                     }
@@ -327,7 +325,6 @@ const TodoDetail = ({ todoId, c, indexEntries, close }: DetailProps): ReactEleme
                     setAddingAttachment(false)
                   }
                 }}
-                indexEntries={indexEntries}
               />
             ) : (
               <button
@@ -349,7 +346,6 @@ const TodoDetail = ({ todoId, c, indexEntries, close }: DetailProps): ReactEleme
               <FilePathInput
                 value={todo.filePath ?? ''}
                 onChange={(v) => patch({ filePath: v.trim() || undefined })}
-                indexEntries={indexEntries}
               />
             </label>
             {(todo.urls ?? []).map((url) => (
@@ -561,9 +557,9 @@ const TodoDetail = ({ todoId, c, indexEntries, close }: DetailProps): ReactEleme
 
           <div className="todo-detail-block todo-activity-block">
             <div className="todo-detail-group-label">{uiText('todo.activity')}</div>
-            {(todo.statusHistory ?? []).length ? (
+            {statusHistory.length ? (
               <ol className="todo-activity-list">
-                {[...(todo.statusHistory ?? [])].reverse().map((change, index) => (
+                {[...statusHistory].reverse().map((change, index) => (
                   <li key={`${change.changedAt}:${index}`}>
                     <span>{todoStatusLabel(change.from)} → {todoStatusLabel(change.to)}</span>
                     <time dateTime={change.changedAt}>{new Date(change.changedAt).toLocaleString(api.ui.language())}</time>
@@ -596,10 +592,8 @@ function todayIso(): string {
  */
 export const TodoDetailModal = ({
   c,
-  indexEntries
 }: {
   c: TodoListController
-  indexEntries: IndexEntry[]
 }): ReactElement | null => {
   if (!c.editingId) return null
   return (
@@ -607,7 +601,6 @@ export const TodoDetailModal = ({
       key={c.editingId}
       todoId={c.editingId}
       c={c}
-      indexEntries={indexEntries}
       close={c.closeDetail}
     />
   )

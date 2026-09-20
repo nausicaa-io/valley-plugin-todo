@@ -320,7 +320,7 @@ const SMART_ICONS: Record<SmartListId, () => ReactElement> = {
  * refills the main-workspace page.
  */
 export const TodoPanel = (): ReactElement => {
-  const { activePluginTab, indexEntries, dateFormat } = useHostState()
+  const { activePluginTab, dateFormat } = useHostState('activePluginTab', 'dateFormat')
   const { selectedDate, selectedDateRange } = useActiveCalendarSelection()
   const groups = useGroups()
   const view = useView()
@@ -755,7 +755,7 @@ export const TodoPanel = (): ReactElement => {
         </>
       )}
 
-      <TodoDetailModal c={c} indexEntries={indexEntries} />
+      <TodoDetailModal c={c} />
     </div>
   )
 }

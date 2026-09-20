@@ -771,6 +771,7 @@ export const SwipeRow = ({
     <div
       ref={rootRef}
       className="todo-swipe"
+      data-visible-key={todo.id}
       onPointerDown={(e) => {
         if (disabled || (e.pointerType === 'mouse' && e.button !== 0)) return
         // A press on a tray button is that button's, not a new gesture.

@@ -48,7 +48,7 @@ export function installTodoNotes(
       ? record[field].map((value, position) => build(String(record.id), value, position))
       : [])
   const mock = createMockValleyApi({
-    manifest: { id: 'todo', noteDocuments: CONFIG.noteDocuments, datasets: CONFIG.datasets as unknown as ValleyPluginManifest['datasets'] },
+    manifest: { id: 'todo', indexState: 'scoped', noteDocuments: CONFIG.noteDocuments, datasets: CONFIG.datasets as unknown as ValleyPluginManifest['datasets'] },
     datasets: {
       'todo.tasks': tasks,
       'todo.task_tags': relationRows('tags', (taskId, tag) => ({ taskId, tag })),

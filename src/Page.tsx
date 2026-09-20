@@ -7,6 +7,7 @@ import { matchesSearch } from './search'
 import { ChevronDown, FolderInput, GroupGlyph, Link, Plus, Search, Settings, X } from './icons'
 import { useTodoListController } from './controller'
 import { TodoList } from './TodoList'
+import { TodoSections } from './TodoSections'
 import { TodoDetailModal } from './TodoDetail'
 import { openManageGroups } from './GroupEditor'
 import { useGroups } from './groupStore'
@@ -64,7 +65,7 @@ function readCollapsed(): Set<TodoSectionId> {
  * which are what makes an unordered pile readable.
  */
 export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
-  const { indexEntries, dateFormat, shortDateFormat } = useHostState()
+  const { dateFormat, shortDateFormat } = useHostState('dateFormat', 'shortDateFormat')
   const { selectedDate, selectedDateRange } = useActiveCalendarSelection()
   // The host's styled dropdown — never a raw `<select>`, whose popup Chromium
   // hands to the OS unthemed and which ignores the native/custom menu setting.
@@ -201,6 +202,8 @@ export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
     () => rollUpFutureDays(daySections.filter((s) => !s.key || s.key > today), today),
     [daySections, today]
   )
+
+  const monthSections = React.useMemo(() => futureMonths.map(month => ({ ...month, todos: month.days.flatMap(day => day.todos) })), [futureMonths])
 
   const sections = React.useMemo(() => {
     if (dated) return null
@@ -441,8 +444,8 @@ export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
           <div className="right-sidebar-empty"><p>{uiText('auto.b5868978587a')}</p></div>
         ) : completedTimeline ? (
           completedTimeline.length ? (
-            <div className="todo-completed-timeline">
-              {completedTimeline.map((section) => (
+            <TodoSections className="todo-completed-timeline" sections={completedTimeline} c={c}>
+              {(section) => (
                 <section className="todo-schedule-block" key={section.key}>
                   <h2 className="todo-schedule-head todo-schedule-completed">
                     <span>{formatDayHeader(section.key, api.ui.language(), shortDateFormat)}</span>
@@ -450,8 +453,8 @@ export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
                   </h2>
                   <TodoList todos={section.todos} groups={groups} compact={false} c={c} />
                 </section>
-              ))}
-            </div>
+              )}
+            </TodoSections>
           ) : (
             <div className="right-sidebar-empty"><p>{uiText('auto.cec28cbe4204')}</p></div>
           )
@@ -476,14 +479,16 @@ export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
                       {overdueDaySections.reduce((count, section) => count + section.todos.length, 0)}
                     </span>
                   </h2>
-                  {overdueDaySections.map((section) => (
+                  <TodoSections sections={overdueDaySections} c={c}>
+                  {(section) => (
                     <div key={section.key} className="todo-page-days">
                       <h3 className="todo-day-head is-overdue">
                         {formatDayHeader(section.key, api.ui.language(), shortDateFormat)}
                       </h3>
                       <TodoList todos={section.todos} groups={groups} compact={false} hideDate c={c} />
                     </div>
-                  ))}
+                  )}
+                  </TodoSections>
                 </section>
               )}
 
@@ -518,7 +523,8 @@ export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
                 </section>
               ))}
 
-              {futureMonths.map((month) => {
+              <TodoSections sections={monthSections} c={c} layoutKey={expandedMonths} estimate={month => expandedMonths.has(month.key) ? 48 + month.days.length * 32 + month.todos.length * 84 : 48}>
+              {(month) => {
                 const collapsed = !expandedMonths.has(month.key)
                 const count = month.days.reduce((n, d) => n + d.todos.length, 0)
                 return (
@@ -549,7 +555,8 @@ export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
                       ))}
                   </section>
                 )
-              })}
+              }}
+              </TodoSections>
             </>
           ) : (
             <div className="right-sidebar-empty"><p>{uiText('auto.cec28cbe4204')}</p></div>
@@ -611,7 +618,7 @@ export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
         <Plus />
       </button>
 
-      <TodoDetailModal c={c} indexEntries={indexEntries} />
+      <TodoDetailModal c={c} />
     </div>
   )
 }

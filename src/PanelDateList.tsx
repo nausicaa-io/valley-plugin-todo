@@ -5,6 +5,7 @@ import { React, api } from './runtime'
 import type { TodoListController } from './controller'
 import type { TodoGroup } from './groups'
 import { TodoList } from './TodoList'
+import { TodoSections } from './TodoSections'
 import { addDays, formatDayHeader } from './sort'
 import {
   completionTimestamp,
@@ -53,7 +54,7 @@ export function PanelDateList({
   timeline?: boolean
 }): ReactElement {
   const today = todayIso()
-  const { shortDateFormat } = useHostState()
+  const { shortDateFormat } = useHostState('shortDateFormat')
   const locale = api.ui.language()
   const sections = React.useMemo(
     () => {
@@ -67,13 +68,13 @@ export function PanelDateList({
     [mode, timeline, todos, weekStart]
   )
   return (
-    <div className="todo-panel-date-sections">
-      {sections.map((section) => (
+    <TodoSections className="todo-panel-date-sections" sections={sections} c={controller} compact={compact}>
+      {(section) => (
         <section className="todo-panel-date-section" key={`${section.kind}:${section.key}`}>
           <div className="todo-panel-date-head">{sectionLabel(section.kind, section.key, today, shortDateFormat, locale)}</div>
           <TodoList todos={section.todos} groups={groups} compact={compact} c={controller} />
         </section>
-      ))}
-    </div>
+      )}
+    </TodoSections>
   )
 }

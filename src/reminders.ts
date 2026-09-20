@@ -1,6 +1,6 @@
 import type { TodoRecord } from '@valley/plugin-sdk/types'
-import { api } from './runtime'
-import { loadTodos, onChanged, setReminderFired } from './data'
+import { api, captureTodoScope } from './runtime'
+import { loadTodoList, onTodoListChanged, setReminderFired } from './data'
 import { uiText } from './localization'
 
 /**
@@ -111,13 +111,16 @@ let disposed = false
  */
 async function rearm(): Promise<void> {
   if (disposed) return
-  const todos = await loadTodos().catch(() => [] as TodoRecord[])
+  const scope = captureTodoScope()
+  let todos: TodoRecord[]
+  try { todos = await loadTodoList(scope); scope.assertActive() } catch { return }
   if (disposed) return
   const { settled, upcoming } = dueReminders(todos, Date.now())
-  await api.notifications.cancelAll(KEY_PREFIX)
+  await scope.api.notifications.cancelAll(KEY_PREFIX)
+  try { scope.assertActive() } catch { return }
   if (disposed) return
   for (const { todo, at } of upcoming) {
-    void api.notifications.schedule(reminderKey(todo.id), [at], {
+    void scope.api.notifications.schedule(reminderKey(todo.id), [at], {
       eventId: 'reminder',
       ...reminderSpec(todo)
     })
@@ -135,20 +138,22 @@ async function rearm(): Promise<void> {
  * and a hot reload would otherwise disarm every reminder the user had set.
  */
 export function startReminders(): () => void {
+  const scope = captureTodoScope()
   disposed = false
   void rearm()
   // Any mutation can add, move, clear or complete a reminder.
-  const offChanged = onChanged(() => void rearm())
+  const offChanged = onTodoListChanged(() => void rearm())
   // Clicking the banner opens the todo it is about; main has already focused the
   // window by the time this arrives.
   const offAction = api.notifications.onAction(({ key, action }) => {
     if (action !== 'click' || !key.startsWith(KEY_PREFIX)) return
     const id = key.slice(KEY_PREFIX.length)
-    void loadTodos()
+    void loadTodoList(scope)
       .then((todos) => {
+        scope.assertActive()
         const todo = todos.find((candidate) => candidate.id === id)
-        if (todo?.filePath) void api.workspace.openFile(todo.filePath)
-        else void api.commands.executeOwn('open-page', {})
+        if (todo?.filePath) void scope.api.workspace.openFile(todo.filePath)
+        else void scope.api.commands.executeOwn('open-page', {})
       })
       .catch(() => {
         /* the todo is gone — opening the page is still the useful answer */

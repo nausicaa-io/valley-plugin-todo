@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } 
 import * as React from 'react'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import {
-  CALENDAR_ITEM_SOURCE_V1,
+  CALENDAR_ITEM_SOURCE_V2,
   CALENDAR_ITEM_SOURCE_REVISION_V1,
   CALENDAR_NAVIGATOR_V1,
   CALENDAR_PANEL_SELECTION_V1,
@@ -523,8 +523,8 @@ describe('TodoPanel', () => {
       labelKey: 'plugin.calendar.name',
       openDate
     } satisfies CalendarNavigator, 'calendar')
-    store.mock.provideInterop(CALENDAR_ITEM_SOURCE_V1, { list: async () => [] }, 'todo')
-    const sourceId = store.mock.api.interop.services.providers(CALENDAR_ITEM_SOURCE_V1)
+    store.mock.provideInterop(CALENDAR_ITEM_SOURCE_V2, { list: async () => ({ items: [], revision: 'fixture' }) }, 'todo')
+    const sourceId = store.mock.api.interop.services.providers(CALENDAR_ITEM_SOURCE_V2)
       .find((provider) => provider.owner === 'todo')?.providerId
     render(<TodoPanel />)
     const title = await screen.findByText('Linked')
@@ -553,7 +553,7 @@ describe('TodoPanel', () => {
       labelKey: 'plugin.calendar.name',
       openDate
     } satisfies CalendarNavigator, 'calendar')
-    store.mock.provideInterop(CALENDAR_ITEM_SOURCE_V1, { list: async () => [] }, 'todo')
+    store.mock.provideInterop(CALENDAR_ITEM_SOURCE_V2, { list: async () => ({ items: [], revision: 'fixture' }) }, 'todo')
     render(<TodoPanel />)
 
     // The date stops the click: the row would otherwise navigate a second time
@@ -574,8 +574,8 @@ describe('TodoPanel', () => {
       labelKey: 'plugin.calendar.name',
       openDate
     } satisfies CalendarNavigator, 'calendar')
-    store.mock.provideInterop(CALENDAR_ITEM_SOURCE_V1, { list: async () => [] }, 'todo')
-    const sourceId = store.mock.api.interop.services.providers(CALENDAR_ITEM_SOURCE_V1)
+    store.mock.provideInterop(CALENDAR_ITEM_SOURCE_V2, { list: async () => ({ items: [], revision: 'fixture' }) }, 'todo')
+    const sourceId = store.mock.api.interop.services.providers(CALENDAR_ITEM_SOURCE_V2)
       .find((provider) => provider.owner === 'todo')?.providerId
     render(<TodoPanel />)
 
@@ -1135,7 +1135,7 @@ describe('the calendar item source', () => {
     store = installTodoNotes(records, settings)
     const dispose = registerCalendarSource()
     const provider = store.mock.api.interop.services
-      .providers(CALENDAR_ITEM_SOURCE_V1)
+      .providers(CALENDAR_ITEM_SOURCE_V2)
       .find((entry) => entry.owner === 'todo')!
     return { provider, dispose }
   }
@@ -1171,11 +1171,11 @@ describe('the calendar item source', () => {
       } }
     }) as typeof dataset
     const reloads: ReturnType<typeof provider.invoke>[] = []
-    const revisions = vi.fn(() => { reloads.push(provider.invoke('list')) })
+    const revisions = vi.fn(() => { reloads.push(provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])) })
     const off = store.mock.api.interop.state.subscribe(CALENDAR_ITEM_SOURCE_REVISION_V1, revisions)
     try {
-      const result = await provider.invoke('list')
-      expect(result.ok && result.value).toEqual([expect.objectContaining({
+      const result = await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
+      expect(result.ok && (result.value as { items: unknown[] }).items).toEqual([expect.objectContaining({
         id: 'todo-1', title: 'Prepare the introduction', date: '2026-08-24',
         startTime: '09:00', endTime: '10:00', priority: 'high', status: 'waiting', completed: false,
         tags: ['fern'], note: 'Survey [[Ferns]]', filePath: 'Notes/Ferns.md',
@@ -1187,7 +1187,7 @@ describe('the calendar item source', () => {
       expect(reads).not.toContain('todo.status_history')
       let release!: () => void
       holdNextTask = new Promise<void>((resolve) => { release = resolve })
-      const pending = provider.invoke('list')
+      const pending = provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
       for (let position = 1; position <= 20; position++) {
         await dataset('todo.status_history').insert({ taskId: 'todo-1', position, from: 'open', to: 'waiting', changedAt: '2026-08-01T10:00:00.000Z' })
       }
@@ -1196,27 +1196,27 @@ describe('the calendar item source', () => {
       expect(reads.filter((id) => id === 'todo.tasks')).toHaveLength(2)
       release()
       const [updated] = await Promise.all([pending, ...reloads])
-      expect(updated.ok && updated.value).toEqual([expect.objectContaining({ tags: ['fern', 'moss'] })])
+      expect(updated.ok && (updated.value as { items: unknown[] }).items).toEqual([expect.objectContaining({ tags: ['fern', 'moss'] })])
       expect(reads.filter((id) => id === 'todo.tasks')).toHaveLength(3)
       expect(reads).not.toContain('todo.focus_sessions')
       expect(reads).not.toContain('todo.status_history')
       await dataset('todo.tasks').update({ id: 'todo-1' }, { status: 'completed' })
-      const completed = await provider.invoke('list')
-      expect(completed.ok && completed.value).toEqual([expect.objectContaining({ completed: true, status: 'completed' })])
+      const completed = await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
+      expect(completed.ok && (completed.value as { items: unknown[] }).items).toEqual([expect.objectContaining({ completed: true, status: 'completed' })])
     } finally { off(); dispose() }
   })
 
   it('hands the calendar the colour of the todo’s group, so one task is one colour', async () => {
     const { provider, dispose } = await source([todo({ group: 'Next' })], GROUPS)
-    const result = await provider.invoke('list')
-    expect(result.ok && (result.value as { color?: string }[])[0].color).toBe('palette:yellow')
+    const result = await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
+    expect(result.ok && (result.value as { items: { color?: string }[] }).items[0].color).toBe('palette:yellow')
     dispose()
   })
 
   it('provides the owning document identity for contributed Markdown', async () => {
     const { provider, dispose } = await source([todo({ note: '[[Ferns]]', filePath: 'Notes/Ferns.md' })])
-    const result = await provider.invoke('list')
-    expect(result.ok && result.value).toEqual([expect.objectContaining({
+    const result = await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
+    expect(result.ok && (result.value as { items: unknown[] }).items).toEqual([expect.objectContaining({
       documentRef: { pluginId: 'todo', sourceId: 'tasks', itemId: 'todo-1' },
       note: '[[Ferns]]', filePath: 'Notes/Ferns.md'
     })])
@@ -1231,7 +1231,7 @@ describe('the calendar item source', () => {
     const history = structuredClone(store.mock.datasets.get('todo.focus_sessions'))
     const statusHistory = structuredClone(store.mock.datasets.get('todo.status_history'))
     try {
-      expect((await provider.invoke('list')).ok).toBe(true)
+      expect((await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])).ok).toBe(true)
       expect(await provider.invoke('update', ['todo-1', { note: 'Revised fern survey' }])).toMatchObject({ ok: true, value: true })
       expect(store.records[0].note).toBe('Revised fern survey')
       expect(store.mock.datasets.get('todo.focus_sessions')).toEqual(history)
@@ -1240,7 +1240,7 @@ describe('the calendar item source', () => {
   })
 
   it('validates contributed document references at the shared service boundary', () => {
-    const valid = CALENDAR_ITEM_SOURCE_V1.serviceCalls!.list.result
+    const valid = (items: unknown[]) => CALENDAR_ITEM_SOURCE_V2.serviceCalls!.list.result({ items, revision: 'fixture' })
     const item = { id: 't1', title: 'Ferns', date: '2026-06-08' }
     expect(valid([item])).toBe(true)
     expect(valid([{ ...item, documentRef: { pluginId: 'todo', sourceId: 'tasks', itemId: 't1' } }])).toBe(true)
@@ -1250,15 +1250,15 @@ describe('the calendar item source', () => {
 
   it('sends no colour for an ungrouped todo, leaving the calendar’s rules in charge', async () => {
     const { provider, dispose } = await source([todo()], GROUPS)
-    const result = await provider.invoke('list')
-    expect(result.ok && (result.value as { color?: string }[])[0].color).toBeUndefined()
+    const result = await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
+    expect(result.ok && (result.value as { items: { color?: string }[] }).items[0].color).toBeUndefined()
     dispose()
   })
 
   it('lets an explicit per-task colour win over the group', async () => {
     const { provider, dispose } = await source([todo({ group: 'Next', color: '#abcdef' })], GROUPS)
-    const result = await provider.invoke('list')
-    expect(result.ok && (result.value as { color?: string }[])[0].color).toBe('#abcdef')
+    const result = await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
+    expect(result.ok && (result.value as { items: { color?: string }[] }).items[0].color).toBe('#abcdef')
     dispose()
   })
 
@@ -1285,16 +1285,16 @@ describe('the calendar item source', () => {
         location: { name: 'Room 3' }
       })
     ])
-    const result = await provider.invoke('list')
-    const item = result.ok ? (result.value as { badges?: string[] }[])[0] : undefined
+    const result = await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
+    const item = result.ok ? (result.value as { items: { badges?: string[] }[] }).items[0] : undefined
     expect(item?.badges).toEqual(['note', 'attachment', 'link', 'location'])
     dispose()
   })
 
   it('sends no badges at all for a todo that carries nothing', async () => {
     const { provider, dispose } = await source([todo()])
-    const result = await provider.invoke('list')
-    const item = result.ok ? (result.value as { badges?: string[] }[])[0] : undefined
+    const result = await provider.invoke('list', [{ startDate: '0001-01-01', endDate: '9999-12-31', limit: 256 }])
+    const item = result.ok ? (result.value as { items: { badges?: string[] }[] }).items[0] : undefined
     expect(item?.badges).toBeUndefined()
     dispose()
   })

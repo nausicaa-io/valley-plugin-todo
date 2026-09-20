@@ -3,7 +3,8 @@ import type { DatasetRecord, DatasetTransactionOperation, DatasetWhere, NoteInpu
 import { asColor, asString, asTime, isRecord } from '@valley/plugin-sdk/normalize'
 import { isAllowedExternalUrl, normalizeRelPathOpt, parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { canonicalGroupName, normalizeGroups } from '@valley/plugin-sdk/groups'
-import { React, api } from './runtime'
+import { React, api, captureTodoScope, type TodoRuntimeScope } from './runtime'
+import { isTodoListRecord, readCompletionSummaries, type TodoListRecord } from './completionHistory'
 import { uiText } from './localization'
 import { effectiveStatus, parseTodoStatus, patchForStatus } from './statuses'
 import type { TodoPriority, TodoRecord, TodoSession, TodoStatus, TodoStatusChange } from './types'
@@ -16,11 +17,19 @@ const SESSIONS_DATASET = 'todo.focus_sessions'
 const STATUS_HISTORY_DATASET = 'todo.status_history'
 const CALENDAR_DATASETS = [TASKS_DATASET, TAGS_DATASET, LINKS_DATASET, ATTACHMENTS_DATASET]
 const ALL_DATASETS = [...CALENDAR_DATASETS, SESSIONS_DATASET, STATUS_HISTORY_DATASET]
+const LIST_DATASETS = [...CALENDAR_DATASETS, STATUS_HISTORY_DATASET]
 
-export function onChanged(listener: () => void): () => void {
-  const disposers = ALL_DATASETS.map((dataset) => api.data.dataset(dataset).subscribe(listener))
-  return () => disposers.forEach((dispose) => dispose())
+function subscribeDatasets(datasets: string[], listener: () => void): () => void {
+  const scope = captureTodoScope()
+  const disposers = datasets.map((dataset) => scope.api.data.dataset(dataset).subscribe(listener))
+  const dispose = (): void => disposers.forEach((off) => off())
+  const detach = scope.onDispose(dispose)
+  return () => { detach(); dispose() }
 }
+
+export function onChanged(listener: () => void): () => void { return subscribeDatasets(ALL_DATASETS, listener) }
+
+export function onTodoListChanged(listener: () => void): () => void { return subscribeDatasets(LIST_DATASETS, listener) }
 
 export function onCalendarItemsChanged(listener: () => void): () => void {
   const disposers = CALENDAR_DATASETS.map((dataset) => api.data.dataset(dataset).subscribe(listener))
@@ -206,11 +215,13 @@ function taskRow(record: TodoRecord): DatasetRecord {
   }
 }
 
-async function allRows(dataset: string, where?: DatasetWhere): Promise<DatasetRecord[]> {
+async function allRows(dataset: string, where?: DatasetWhere, scope = captureTodoScope()): Promise<DatasetRecord[]> {
   const rows: DatasetRecord[] = []
   let cursor: string | undefined
   do {
-    const page = await api.data.dataset(dataset).query({ where, limit: 1000, cursor })
+    scope.assertActive()
+    const page = await scope.api.data.dataset(dataset).query({ where, limit: 1000, cursor })
+    scope.assertActive()
     rows.push(...page.rows)
     cursor = page.cursor
   } while (cursor)
@@ -225,15 +236,19 @@ interface TodoRelations {
   statusHistory: DatasetRecord[]
 }
 
-async function todoRelations(taskId?: string, includeHistory = true, includeTags = true): Promise<TodoRelations> {
+async function todoRelations(taskId?: string, includeHistory = true, includeTags = true, scope = captureTodoScope()): Promise<TodoRelations> {
   const where = taskId ? { taskId } : undefined
-  const [tags, links, attachments, sessions, statusHistory] = await Promise.all([
-    includeTags ? allRows(TAGS_DATASET, where) : [],
-    allRows(LINKS_DATASET, where),
-    allRows(ATTACHMENTS_DATASET, where),
-    includeHistory ? allRows(SESSIONS_DATASET, where) : [],
-    includeHistory ? allRows(STATUS_HISTORY_DATASET, where) : []
+  const results = await Promise.allSettled([
+    includeTags ? allRows(TAGS_DATASET, where, scope) : [],
+    allRows(LINKS_DATASET, where, scope),
+    allRows(ATTACHMENTS_DATASET, where, scope),
+    includeHistory ? allRows(SESSIONS_DATASET, where, scope) : [],
+    includeHistory ? allRows(STATUS_HISTORY_DATASET, where, scope) : []
   ])
+  const [tags, links, attachments, sessions, statusHistory] = results.map((result) => {
+    if (result.status === 'rejected') throw result.reason
+    return result.value
+  })
   return { tags, links, attachments, sessions, statusHistory }
 }
 
@@ -277,9 +292,15 @@ function relationDeletes(taskId: string, relations: TodoRelations): DatasetTrans
   ]
 }
 
-async function readTodos(includeHistory: boolean, taskId?: string): Promise<TodoRecord[]> {
-  const [raw, relations] = await Promise.all([allRows(TASKS_DATASET, taskId ? { id: taskId } : undefined), todoRelations(taskId, includeHistory)])
-  const groups = normalizeGroups(api.getState().groups)
+async function readTodos(scope: TodoRuntimeScope, includeHistory: boolean, taskId?: string): Promise<TodoRecord[]> {
+  const [tasksResult, relationsResult] = await Promise.allSettled([allRows(TASKS_DATASET, taskId ? { id: taskId } : undefined, scope), todoRelations(taskId, includeHistory, true, scope)])
+  if (tasksResult.status === 'rejected') throw tasksResult.reason
+  if (relationsResult.status === 'rejected') throw relationsResult.reason
+  scope.assertActive()
+  return hydrateTodos(tasksResult.value, relationsResult.value, normalizeGroups(scope.api.getState().groups))
+}
+
+function hydrateTodos(raw: DatasetRecord[], relations: TodoRelations, groups: ReturnType<typeof normalizeGroups>): TodoRecord[] {
   const byTask = (rows: DatasetRecord[], ordered = false): Map<unknown, DatasetRecord[]> => {
     const index = new Map<unknown, DatasetRecord[]>()
     for (const row of rows) {
@@ -313,30 +334,119 @@ async function readTodos(includeHistory: boolean, taskId?: string): Promise<Todo
 
 interface TodoReadState {
   revision: number
-  pending: Map<string, Promise<TodoRecord[]>>
+  pending: Map<string, Promise<unknown>>
 }
 
-function loadTodoProjection(includeHistory: boolean, taskId?: string): Promise<TodoRecord[]> {
-  const state = api.runtime.getOrCreate<TodoReadState>(includeHistory ? 'todo.fullRead' : 'todo.calendarRead', () => {
-    const state: TodoReadState = { revision: 0, pending: new Map() }
-    for (const dataset of includeHistory ? ALL_DATASETS : CALENDAR_DATASETS) {
-      api.data.dataset(dataset).subscribe(() => { state.revision++ })
-    }
-    return state
-  })
-  const key = taskId ?? ''
+const reads = new WeakMap<TodoRuntimeScope, Map<string, TodoReadState>>()
+
+function coalescedRead<T>(scope: TodoRuntimeScope, kind: string, datasets: string[], key: string, read: () => Promise<T>): Promise<T> {
+  try { scope.assertActive() } catch (error) { return Promise.reject(error) }
+  let states = reads.get(scope)
+  if (!states) { states = new Map(); reads.set(scope, states) }
+  let state = states.get(kind)
+  if (!state) {
+    state = { revision: 0, pending: new Map() }
+    const owner = state
+    const offs = datasets.map((dataset) => scope.api.data.dataset(dataset).subscribe(() => { owner.revision++ }))
+    scope.onDispose(() => { offs.forEach((off) => off()); states.clear() })
+    states.set(kind, state)
+  }
   let pending = state.pending.get(key)
   if (!pending) {
     pending = (async () => {
+      await Promise.resolve()
       for (;;) {
+        scope.assertActive()
         const revision = state.revision
-        const todos = await readTodos(includeHistory, taskId)
+        const todos = await read()
+        scope.assertActive()
         if (revision === state.revision) return todos
       }
     })().finally(() => { state.pending.delete(key) })
     state.pending.set(key, pending)
   }
-  return pending
+  return pending as Promise<T>
+}
+
+function loadTodoProjection(includeHistory: boolean, taskId?: string): Promise<TodoRecord[]> {
+  const scope = captureTodoScope()
+  return coalescedRead(scope, includeHistory ? 'full' : 'calendar', includeHistory ? ALL_DATASETS : CALENDAR_DATASETS, taskId ?? '', () => readTodos(scope, includeHistory, taskId))
+}
+
+export function loadTodoList(scope = captureTodoScope()): Promise<TodoListRecord[]> {
+  return coalescedRead(scope, 'list', LIST_DATASETS, '', async () => {
+    const todos = await readTodos(scope, false)
+    const summaries = await readCompletionSummaries(scope.api, todos.map((todo) => todo.id), scope.assertActive)
+    return todos.map((todo) => ({ ...todo, historyLoaded: false, completionSummary: summaries.get(todo.id) ?? null }))
+  })
+}
+
+interface SelectedHistoryReader {
+  scope: TodoRuntimeScope
+  users: number
+  key: string
+}
+
+const selectedReaders = new WeakMap<TodoRuntimeScope, Map<string, SelectedHistoryReader>>()
+let selectionSequence = 0
+
+function acquireSelectedHistory(scope: TodoRuntimeScope, id: string): { reader: SelectedHistoryReader; release(): void } {
+  let readers = selectedReaders.get(scope)
+  if (!readers) { readers = new Map(); selectedReaders.set(scope, readers) }
+  let reader = readers.get(id)
+  if (!reader) {
+    const created: SelectedHistoryReader = {
+      users: 0,
+      key: String(++selectionSequence),
+      scope: { ...scope, assertActive: () => {
+        scope.assertActive()
+        if (!created.users) throw new Error('To-Do selection disposed')
+      } }
+    }
+    reader = created
+    readers.set(id, reader)
+  }
+  reader.users++
+  const captured = reader
+  let active = true
+  return { reader, release: () => {
+    if (!active) return
+    active = false
+    captured.users--
+    if (!captured.users) readers.delete(id)
+  } }
+}
+
+function selectedStatusHistory(scope: TodoRuntimeScope, id: string, reader: SelectedHistoryReader): Promise<TodoStatusChange[]> {
+  return coalescedRead(scope, 'statusHistory', [STATUS_HISTORY_DATASET], reader.key, async () => {
+    const rows = await allRows(STATUS_HISTORY_DATASET, { taskId: id }, reader.scope)
+    rows.sort((a, b) => Number(a.position) - Number(b.position))
+    return normalizeStatusHistory(rows)
+  })
+}
+
+export function useTodoStatusHistory(id: string): TodoStatusChange[] {
+  const scope = captureTodoScope()
+  const [value, setValue] = React.useState<{ scope: TodoRuntimeScope; id: string; history: TodoStatusChange[] } | null>(null)
+  React.useEffect(() => {
+    const { reader, release } = acquireSelectedHistory(scope, id)
+    let generation = 0
+    let disposed = false
+    const reload = (): void => {
+      const revision = ++generation
+      void selectedStatusHistory(scope, id, reader).then((history) => {
+        if (!disposed && revision === generation) setValue({ scope, id, history })
+      }).catch(() => {})
+    }
+    const off = scope.api.data.dataset(STATUS_HISTORY_DATASET).subscribe((event) => {
+      if (!event.keys || event.keys.some((key) => key.taskId === id)) reload()
+    })
+    const dispose = (): void => { disposed = true; off(); release() }
+    const detach = scope.onDispose(dispose)
+    reload()
+    return () => { detach(); dispose() }
+  }, [id, scope])
+  return value?.id === id && value.scope === scope ? value.history : []
 }
 
 export function loadTodos(): Promise<TodoRecord[]> {
@@ -348,8 +458,32 @@ export async function loadTodo(id: string): Promise<TodoRecord | null> {
   return (await loadTodoProjection(true, id))[0] ?? null
 }
 
-export function loadCalendarTodos(): Promise<TodoRecord[]> {
-  return loadTodoProjection(false)
+export function loadCalendarTodoPage(startDate: string, endDate: string, limit: number, cursor?: string): Promise<{ todos: TodoRecord[]; cursor?: string }> {
+  const scope = captureTodoScope()
+  return coalescedRead(scope, 'calendarPage', CALENDAR_DATASETS, JSON.stringify([startDate, endDate, limit, cursor]), async () => {
+    scope.assertActive()
+    const page = await scope.api.data.dataset(TASKS_DATASET).query({
+      where: { dueDate: { gte: startDate, lt: `${endDate}\uffff` } },
+      orderBy: [{ field: 'dueDate', direction: 'asc' }, { field: 'id', direction: 'asc' }],
+      limit,
+      cursor
+    })
+    scope.assertActive()
+    const related = async (dataset: string): Promise<DatasetRecord[]> => {
+      const rows: DatasetRecord[] = []
+      for (let offset = 0; offset < page.rows.length; offset += 100) {
+        rows.push(...await allRows(dataset, { taskId: { in: page.rows.slice(offset, offset + 100).map(row => String(row.id)) } }, scope))
+      }
+      return rows
+    }
+    const results = await Promise.allSettled([related(TAGS_DATASET), related(LINKS_DATASET), related(ATTACHMENTS_DATASET)])
+    const [tags, links, attachments] = results.map(result => {
+      if (result.status === 'rejected') throw result.reason
+      return result.value
+    })
+    scope.assertActive()
+    return { todos: hydrateTodos(page.rows, { tags, links, attachments, sessions: [], statusHistory: [] }, normalizeGroups(scope.api.getState().groups)), ...(page.cursor ? { cursor: page.cursor } : {}) }
+  })
 }
 
 // Raw record IO — no change event, no undo registration. The exported CRUD
@@ -377,7 +511,7 @@ async function rawUpdateData(id: string, record: TodoRecord, expectedUpdatedAt?:
     if (!baseline) return false
     const current = await loadTodo(id)
     if (!current || (expectedUpdatedAt !== undefined && current.updatedAt !== expectedUpdatedAt)) return false
-    let next = { ...record, id }
+    let next = { ...record, id, history: isTodoListRecord(record) && record.history === undefined ? current.history : record.history }
     const from = effectiveStatus(current)
     const to = effectiveStatus(next)
     const statusHistory = [...(current.statusHistory ?? [])]
@@ -433,12 +567,17 @@ export async function appendTodo(record: TodoRecord): Promise<boolean> {
 export async function updateTodo(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision): Promise<boolean> {
   if (!id || !record.title.trim()) return false
   const prev = await loadTodo(id)
-  const ok = await rawUpdate(id, record, expectedUpdatedAt, documentRevision)
+  const next = isTodoListRecord(record) ? { ...record, history: record.history === undefined ? prev?.history : record.history } : record
+  if (isTodoListRecord(next)) {
+    delete (next as Partial<TodoListRecord>).historyLoaded
+    delete (next as Partial<TodoListRecord>).completionSummary
+  }
+  const ok = await rawUpdate(id, next, expectedUpdatedAt, documentRevision)
   if (ok && prev) {
     api.undo.push({
       label: uiText('todo.undo.edit', { title: prev.title }),
       undo: async () => ({ ok: await rawUpdate(id, prev) }),
-      redo: async () => ({ ok: await rawUpdate(id, record) })
+      redo: async () => ({ ok: await rawUpdate(id, next) })
     })
   }
   return ok

@@ -2,7 +2,7 @@ import { React, api, registerTodoRow } from './runtime'
 import { renderInlineMarkdown } from './markdown'
 import type { DragEvent, ReactElement } from 'react'
 import type { TodoRecord } from '@valley/plugin-sdk/types'
-import { CALENDAR_ITEM_SOURCE_V1, CALENDAR_NAVIGATOR_V1 } from '@valley/plugin-sdk'
+import { CALENDAR_ITEM_SOURCE_V2, CALENDAR_NAVIGATOR_V1 } from '@valley/plugin-sdk'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { allGroups, groupColorFor, type TodoGroup } from './groups'
 import {
@@ -162,7 +162,7 @@ export const TodoRow = ({
     if (!date) return
     const navigator = api.interop.services.providers(CALENDAR_NAVIGATOR_V1)[0]
     if (!navigator) return
-    const sourceId = api.interop.services.providers(CALENDAR_ITEM_SOURCE_V1)
+    const sourceId = api.interop.services.providers(CALENDAR_ITEM_SOURCE_V2)
       .find((source) => source.owner === api.pluginId)?.providerId
     void navigator.invoke('openDate', [{
       date,

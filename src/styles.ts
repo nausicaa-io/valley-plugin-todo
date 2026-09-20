@@ -2903,12 +2903,12 @@ button.todo-status-setting-handle:active { cursor: grabbing; }
 
 .todo-filter-popover {
   width: var(--todo-filter-width, 264px);
-  padding: var(--popover-padding, var(--space-3));
+  padding: calc(var(--space-3) / 2);
 }
 
 .todo-sort-popover {
   width: var(--todo-sort-width, 240px);
-  padding: var(--popover-padding, var(--space-3));
+  padding: calc(var(--space-3) / 2);
 }
 
 .todo-sort-options {
@@ -3079,7 +3079,7 @@ button.todo-status-setting-handle:active { cursor: grabbing; }
 
 .todo-status-filter-popover {
   width: 224px;
-  padding: var(--space-1);
+  padding: calc(var(--space-3) / 2);
 }
 
 .todo-status-filter-menu {
@@ -3138,7 +3138,7 @@ button.todo-status-setting-handle:active { cursor: grabbing; }
    several groups can be selected in one visit. */
 .todo-groups-popover {
   width: min(244px, calc(100vw - 16px));
-  padding: var(--space-1);
+  padding: calc(var(--space-3) / 2);
   border-color: var(--border-light);
   border-radius: var(--radius-sm);
   background: var(--container-color);

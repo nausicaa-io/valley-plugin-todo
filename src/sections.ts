@@ -2,6 +2,7 @@ import type { TodoPriority, TodoRecord } from '@valley/plugin-sdk/types'
 import { byPriorityThenName, byStartTimeThenPriority, compareByName } from './sort'
 import { descendantIds } from './tree'
 import { parseLocalDate, startOfWeek } from '@valley/plugin-sdk/dateGrid'
+import { isTodoListRecord } from './completionHistory'
 
 /**
  * Pure logic behind the main-workspace To-Do page: section bucketing, header
@@ -127,6 +128,7 @@ export interface PanelDateSection {
 }
 
 export function completionTimestamp(todo: TodoRecord): string {
+  if (isTodoListRecord(todo)) return todo.completionSummary?.changedAt || todo.updatedAt || todo.createdAt
   const transition = [...(todo.statusHistory ?? [])]
     .reverse()
     .find((change) => change.to === 'completed' || change.to === 'canceled')

@@ -1,7 +1,7 @@
-import { React } from './runtime'
+import { React, captureTodoScope } from './runtime'
 import type { SlotId, TodoRecord } from '@valley/plugin-sdk/types'
 import { selectTodoProperties } from './surfaces'
-import { appendTodo, deleteTodoSubtree, loadTodos, onChanged, updateTodo, type DocumentRevision } from './data'
+import { appendTodo, deleteTodoSubtree, loadTodoList, onTodoListChanged, updateTodo, type DocumentRevision } from './data'
 import { getSharedTodos, onSharedTodos, setSharedTodos } from './sharedTodos'
 import { newTodo } from './draft'
 import { usePendingIds } from './hooks'
@@ -59,6 +59,7 @@ export interface TodoListController {
 }
 
 export function useTodoListController(sortField: SortField, sortDir: SortDir, surface: SlotId = 'main_workspace'): TodoListController {
+  const scope = React.useRef(captureTodoScope()).current
   const [todos, setTodos] = React.useState<TodoRecord[]>(getSharedTodos())
   const [lastCreatedId, setLastCreatedId] = React.useState<string | null>(null)
   const [menuId, setMenuId] = React.useState<string | null>(null)
@@ -96,7 +97,8 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
   const load = React.useCallback((initial: boolean): void => {
     const generation = ++refreshGenerationRef.current
     if (initial) setLoading(true)
-    void loadTodos().then((records) => {
+    void loadTodoList(scope).then((records) => {
+      scope.assertActive()
       if (generation !== refreshGenerationRef.current) return
       if (initial) {
         const { sortField: field, sortDir: direction } = sortRef.current
@@ -115,16 +117,17 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
     }).catch(() => {
       if (generation === refreshGenerationRef.current) setLoading(false)
     })
-  }, [])
+  }, [scope])
 
   React.useEffect(() => {
     load(true)
+    return () => { refreshGenerationRef.current++ }
   }, [load])
 
   // Reconcile after any mutation without returning the mounted surfaces to their
   // initial Loading state. This matters most in the attachment-linked panel,
   // where completing its only row used to blank the entire panel before settling.
-  React.useEffect(() => onChanged(() => load(false)), [load])
+  React.useEffect(() => onTodoListChanged(() => load(false)), [load])
 
   // Re-derive the stable display order only when a sort control changes,
   // never on an in-place edit (toggling a checkbox bumps updatedAt but the row stays put).

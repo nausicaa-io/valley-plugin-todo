@@ -4,13 +4,11 @@ import {
   type ValleyReadonlyState
 } from '@valley/plugin-sdk'
 
-/**
- * Subscribe a view to the host's read-only core state (active file, calendar
- * selection, vault index). Snapshot identity changes only when the host's does,
- * so renders stay cheap.
- */
-export function useHostState(): ValleyReadonlyState {
-  return React.useSyncExternalStore(api.subscribe, api.getState, api.getState)
+export function useHostState<K extends keyof ValleyReadonlyState>(...fields: K[]): Pick<ValleyReadonlyState, K> {
+  const signature = fields.slice().sort().join('\0')
+  const keys = React.useMemo(() => signature.split('\0') as K[], [signature])
+  const subscribe = React.useCallback((listener: () => void) => api.subscribeState(keys, listener), [keys])
+  return React.useSyncExternalStore(subscribe, api.getState, api.getState)
 }
 
 /** The persisted Calendar selection while its right-sidebar surface is active. */
