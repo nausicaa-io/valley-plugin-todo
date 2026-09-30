@@ -1,0 +1,91 @@
+import { describe, expect, it, vi } from 'vitest'
+import { createMockValleyApi } from '@valley/plugin-testkit'
+import type { PluginBackendApi, PluginBackendOperationContext, WorkflowExecutionResult } from '@valley/plugin-sdk'
+import type { ValleyPluginManifest } from '@valley/plugin-sdk/types'
+import { register } from '../src/backend'
+import { appendTodo, updateTodo } from '../src/data'
+import { initRuntime } from '../src/runtime'
+import type { TodoRecord } from '../src/types'
+import config from '../config.json'
+
+function setup() {
+  const mock = createMockValleyApi({ manifest: { id: 'todo', noteDocuments: config.noteDocuments, datasets: config.datasets as unknown as ValleyPluginManifest['datasets'] } })
+  const handlers = new Map<string, (input: unknown, context?: PluginBackendOperationContext) => unknown>()
+  const emit = vi.fn(async (_service: string, _event: string, _payload: unknown) => {})
+  const scopedEmit = vi.fn(async (_service: string, _event: string, _payload: unknown) => {})
+  const report = vi.fn()
+  const api = { index: mock.api.index, vault: mock.api.vault, notifications: { ...mock.api.notifications, onOccurrence: () => () => {} }, lifecycle: { onResume: () => () => {} }, i18n: { t: mock.api.ui.t, language: () => 'en', onLanguageChanged: () => () => {} }, pluginId: 'todo', data: mock.api.data, documents: mock.api.documents, settings: mock.api.settings, services: { emit }, rpc: {
+    emit: report,
+    handle: (method: string, handler: (input: unknown) => unknown) => { handlers.set(method, handler); return () => { handlers.delete(method) } },
+    handleOperation: (method: string, handler: (input: unknown, context: PluginBackendOperationContext) => unknown) => { handlers.set(method, handler as never); return () => { handlers.delete(method) } }
+  } } as unknown as PluginBackendApi
+  const off = register(api)
+  mock.api.backend.call = async <T>(method: string, payload?: unknown) => await handlers.get(method)!(payload) as T
+  const context = { id: 'run-action', api: { ...api, services: { emit: scopedEmit } } } as unknown as PluginBackendOperationContext
+  const execute = (nodeTypeId: string, parameters: Record<string, unknown> = {}) => handlers.get('workflow.execute')!({ nodeTypeId, parameters, items: [{ json: {} }] }, context) as Promise<WorkflowExecutionResult>
+  return { mock, handlers, emit, scopedEmit, report, off, execute }
+}
+
+describe('To-Do workflow contribution', () => {
+  it('creates, gets, updates, completes, and lists tasks through the backend with causal events', async () => {
+    const h = setup()
+    const created = (await h.execute('task.create', { title: 'Check fern', dueDate: '2026-10-01' })).items[0].json
+    expect(created).toMatchObject({ title: 'Check fern', completed: false })
+    expect(h.scopedEmit).toHaveBeenCalledWith('workflow.provider', 'task.created', expect.objectContaining({ record: expect.objectContaining({ id: created.id }) }))
+    expect(h.emit).not.toHaveBeenCalled()
+    expect((await h.execute('task.get', { id: created.id })).items[0].json.id).toBe(created.id)
+    await h.execute('task.update', { id: created.id, note: 'Bring sample bag', startTime: '10:00' })
+    await h.execute('task.update', { id: created.id, endTime: '11:00' })
+    await h.execute('task.complete', { id: created.id })
+    await h.execute('task.complete', { id: created.id })
+    expect(h.scopedEmit.mock.calls.filter(call => call[1] === 'task.completed')).toHaveLength(1)
+    expect((await h.execute('task.list', { completed: true })).items).toHaveLength(1)
+    await h.execute('task.update', { id: created.id, completed: false })
+    expect((await h.execute('task.get', { id: created.id })).items[0].json.completed).toBe(false)
+    await h.off()
+    expect(h.handlers.size).toBe(0)
+  })
+
+  it('rejects invalid dates, disabled statuses and unavailable tasks before mutation', async () => {
+    const h = setup()
+    await h.mock.api.settings.set('statuses', { active: [] })
+    await expect(h.execute('task.create', { title: 'Invalid', dueDate: '2026-02-30' })).rejects.toThrow('valid task date')
+    await expect(h.execute('task.create', { title: 'Invalid', status: 'waiting' })).rejects.toThrow('disabled')
+    await expect(h.execute('task.complete', { id: 'missing' })).rejects.toThrow('no longer exists')
+    expect(h.emit).not.toHaveBeenCalled()
+    expect(h.scopedEmit).not.toHaveBeenCalled()
+    expect((await h.execute('task.list')).items).toEqual([])
+    await h.off()
+  })
+
+  it('identifies post-commit delivery failures as uncertain outcomes without duplicating the record', async () => {
+    const h = setup()
+    h.scopedEmit.mockRejectedValueOnce(new Error('Delivery unavailable'))
+    await expect(h.execute('task.create', { title: 'Committed once' })).rejects.toMatchObject({ outcomeUnknown: true, committed: true })
+    expect((await h.execute('task.list')).items).toHaveLength(1)
+    await h.off()
+  })
+
+  it('retains UI save and undo success after event delivery fails without swallowing failed commits', async () => {
+    const h = setup()
+    const dispose = initRuntime(h.mock.api)
+    h.emit.mockRejectedValue(new Error('Event transport unavailable'))
+    const record: TodoRecord = { id: 'ui-saved', title: 'Saved task', completed: false, priority: 'normal', dueDate: '', note: '', tags: [], createdAt: '2026-09-30T08:00:00Z', updatedAt: '2026-09-30T08:00:00Z' }
+    expect(await appendTodo(record)).toBe(true)
+    expect(h.report).toHaveBeenCalledWith('records.eventDeliveryFailed', expect.objectContaining({ event: 'task.created', recordId: record.id }))
+    expect(h.mock.undoActions).toHaveLength(1)
+    expect((await h.mock.undoActions[0].undo()).ok).toBe(true)
+    expect((await h.mock.undoActions[0].redo!()).ok).toBe(true)
+    expect(await updateTodo(record.id, { ...record, title: 'Edited task' })).toBe(true)
+    expect((await h.mock.undoActions[1].undo()).ok).toBe(true)
+    expect((await h.execute('task.get', { id: record.id })).items[0].json.title).toBe('Saved task')
+    h.emit.mockClear()
+    vi.spyOn(h.mock.api.data, 'transaction').mockRejectedValueOnce(new Error('Database unavailable'))
+    expect(await appendTodo({ ...record, id: 'not-saved' })).toBe(false)
+    expect(h.mock.undoActions).toHaveLength(2)
+    expect(h.emit).not.toHaveBeenCalled()
+    expect(h.mock.datasets.get('todo.tasks')).toHaveLength(1)
+    dispose()
+    await h.off()
+  })
+})
