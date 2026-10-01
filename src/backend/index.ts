@@ -47,7 +47,15 @@ export function register(api: PluginBackendApi): () => Promise<void> {
       const input = payload as { id: string; record: TodoRecord; expectedUpdatedAt?: string; documentRevision?: { expectedRevision: number; vaultGeneration: number } }
       return domain.update(text(input.id, 'a task id'), input.record, input.expectedUpdatedAt, input.documentRevision)
     }),
-    api.rpc.handle('records.delete', payload => domain.remove(text((payload as { id: string }).id, 'a task id')))
+    api.rpc.handle('records.delete', payload => domain.remove(text((payload as { id: string }).id, 'a task id'))),
+    api.rpc.handleOperation('command.task.delete', async (raw, context) => {
+      const input = raw as { id: unknown; expectedUpdatedAt: unknown }
+      const id = text(input.id, 'a task id'), expected = text(input.expectedUpdatedAt, 'a reviewed modification timestamp')
+      context.cancellation.throwIfAborted()
+      const deleted = await domain.remove(id, context.api, expected)
+      if (!deleted) throw Object.assign(new Error('The task changed or no longer exists'), { code: 'REVISION_CONFLICT', outcome: 'not-applied' })
+      return { id, deleted }
+    })
   ]
   const contract = config.runtime.services[0].metadata.workflow as unknown as WorkflowContributionContract
   const contribution = registerWorkflowContribution(api, contract, async ({ nodeTypeId, parameters }, context) => {

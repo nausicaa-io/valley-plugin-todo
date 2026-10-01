@@ -109,7 +109,7 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
       if (!result.ok || !result.record) throw new Error('The task changed before it could be saved.')
       return result.record
     }),
-    remove: (id: string, api = owner) => serialize(async () => (await api.data.dataset('todo.tasks').delete({ id })).affected > 0),
+    remove: (id: string, api = owner, expectedUpdatedAt?: string) => serialize(async () => (await api.data.dataset('todo.tasks').delete({ id, ...(expectedUpdatedAt === undefined ? {} : { updatedAt: expectedUpdatedAt }) })).affected > 0),
     dispose: async () => { active = false; await pending.catch(() => {}) }
   }
 }
