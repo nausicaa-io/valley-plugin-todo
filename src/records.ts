@@ -3,6 +3,7 @@ import type { DatasetRecord, DatasetTransactionOperation } from '@valley/plugin-
 import { asColor, asString, asTime, isRecord } from '@valley/plugin-sdk/normalize'
 import { isAllowedExternalUrl, normalizeRelPathOpt, parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { canonicalGroupName, normalizeGroups } from '@valley/plugin-sdk/groups'
+import { generateId } from './lib'
 import { parseTodoStatus } from './statuses'
 import type { TodoPriority, TodoRecord, TodoSession, TodoStatusChange } from './types'
 
@@ -113,7 +114,7 @@ function normalizeLocation(value: unknown): TodoRecord['location'] {
 
 export function normalizeTodoRecord(record: DataRecord): TodoRecord {
   const now = new Date().toISOString()
-  const id = asString(record.id, `todo_${Date.now().toString(36)}`)
+  const id = asString(record.id, generateId('todo'))
   const createdAt = asString(record.createdAt, now)
   const history = normalizeHistory(record.history)
   const statusHistory = normalizeStatusHistory(record.statusHistory)

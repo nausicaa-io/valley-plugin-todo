@@ -7,6 +7,7 @@ import type { TodoRecord } from './types'
 
 type OwnerApi = Pick<ValleyPluginApi, 'data' | 'pluginId'> & { settings?: Pick<ValleyPluginApi['settings'], 'get'> } & { documents: Pick<ValleyPluginApi['documents'], 'read' | 'update'> }
 type Revision = { expectedRevision: number; vaultGeneration: number }
+export type TodoUpdateOptions = { exactStatusHistory?: boolean }
 export type TodoEventSink = (event: string, payload: { record: TodoRecord; previous?: TodoRecord }) => Promise<void>
 
 function validateReminders(record: { reminderOffsets?: number[]; reminderTime?: string }): void {
@@ -53,7 +54,7 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     return hydrateTodos(records, related, normalizeGroups([]))
   }
   const content = (record: TodoRecord) => JSON.stringify({ ...record, updatedAt: undefined, reminderFiredAt: undefined })
-  const update = async (api: OwnerApi, id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: Revision, emit = publish) => {
+  const update = async (api: OwnerApi, id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: Revision, emit = publish, options: TodoUpdateOptions = {}) => {
     validateReminders(record)
     const ref = { pluginId: owner.pluginId, sourceId: 'tasks', itemId: id }
     const baseline = await api.documents.read(ref)
@@ -63,8 +64,8 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     const from = effectiveStatus(current)
     const next = normalizeTodoRecord({ ...record, id, history: record.history === undefined ? current.history : record.history } as unknown as DataRecord)
     const to = effectiveStatus(next)
-    const statusHistory = [...(current.statusHistory ?? [])]
-    if (from !== to) statusHistory.push({ from, to, changedAt: new Date().toISOString() })
+    const statusHistory = options.exactStatusHistory ? [...(next.statusHistory ?? [])] : [...(current.statusHistory ?? [])]
+    if (!options.exactStatusHistory && from !== to) statusHistory.push({ from, to, changedAt: new Date().toISOString() })
     next.statusHistory = statusHistory.length ? statusHistory : undefined
     const persisted = forWrite(next)
     const related = await relations(api, id, false)
@@ -99,8 +100,8 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
       await committedEvent(emit, 'task.created', { record: next })
       return true
     }),
-    update: (id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: Revision, api = owner, emit = publish) =>
-      serialize(() => update(api, id, record, expectedUpdatedAt, documentRevision, emit)),
+    update: (id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: Revision, api = owner, emit = publish, options: TodoUpdateOptions = {}) =>
+      serialize(() => update(api, id, record, expectedUpdatedAt, documentRevision, emit, options)),
     patch: (id: string, values: Partial<TodoRecord> | ((current: TodoRecord) => Partial<TodoRecord>), api = owner, emit = publish) => serialize(async () => {
       const current = (await read(api, id))[0]
       if (!current) throw new Error('The task no longer exists.')
@@ -109,7 +110,17 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
       if (!result.ok || !result.record) throw new Error('The task changed before it could be saved.')
       return result.record
     }),
-    remove: (id: string, api = owner, expectedUpdatedAt?: string) => serialize(async () => (await api.data.dataset('todo.tasks').delete({ id, ...(expectedUpdatedAt === undefined ? {} : { updatedAt: expectedUpdatedAt }) })).affected > 0),
+    remove: (id: string, api = owner, expectedUpdatedAt?: string) => serialize(async () => {
+      const dataset = api.data.dataset('todo.tasks')
+      const current = await dataset.read({ id })
+      if (!current.value || (expectedUpdatedAt !== undefined && current.value.updatedAt !== expectedUpdatedAt)) return false
+      try {
+        return (await dataset.delete({ id }, { expected: [{ dataset: 'todo.tasks', key: { id }, revision: current.revision }] })).affected > 0
+      } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'conflict' && !('outcomeUnknown' in error && error.outcomeUnknown === true)) return false
+        throw error
+      }
+    }),
     dispose: async () => { active = false; await pending.catch(() => {}) }
   }
 }

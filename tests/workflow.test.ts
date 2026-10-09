@@ -1,3 +1,4 @@
+import Ajv from 'ajv'
 import { assertCommandOutput } from './commandContracts'
 import { describe, expect, it, vi } from 'vitest'
 import { createMockValleyApi } from '@valley/plugin-testkit'
@@ -20,10 +21,16 @@ function setup() {
     handle: (method: string, handler: (input: unknown) => unknown) => { handlers.set(method, handler); return () => { handlers.delete(method) } },
     handleOperation: (method: string, handler: (input: unknown, context: PluginBackendOperationContext) => unknown) => { handlers.set(method, async (input, context) => assertCommandOutput(method, input, await handler(input, context!))); return () => { handlers.delete(method) } }
   } } as unknown as PluginBackendApi
+  const schemas = new Map<string, ReturnType<Ajv['compile']>>()
+  api.schema = {
+    compile: async ({ schema }) => { const handle = crypto.randomUUID(); schemas.set(handle, new Ajv({ strict: false, validateFormats: false, allowUnionTypes: true }).compile(schema)); return { handle, digest: handle } },
+    validate: async (request) => { const validate = schemas.get(request.handle)!; return { valid: Boolean(validate('value' in request ? request.value : undefined)), issues: [] } },
+    release: async (handle) => { schemas.delete(handle) }
+  }
   const off = register(api)
   mock.api.backend.call = async <T>(method: string, payload?: unknown) => await handlers.get(method)!(payload) as T
   const context = { id: 'run-action', cancellation: new AbortController().signal, api: { ...api, services: { emit: scopedEmit } } } as unknown as PluginBackendOperationContext
-  const execute = (nodeTypeId: string, parameters: Record<string, unknown> = {}) => handlers.get('workflow.execute')!({ nodeTypeId, parameters, items: [{ json: {} }] }, context) as Promise<WorkflowExecutionResult>
+  const execute = async (nodeTypeId: string, parameters: Record<string, unknown> = {}) => { await vi.waitFor(() => expect(handlers.has('workflow.execute')).toBe(true)); return handlers.get('workflow.execute')!({ nodeTypeId, parameters, items: [{ json: {} }] }, context) as Promise<WorkflowExecutionResult> }
   return { mock, handlers, emit, scopedEmit, report, off, execute, context }
 }
 

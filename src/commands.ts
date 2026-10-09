@@ -6,8 +6,9 @@
  * keeps its own undo registration, and the two never collide).
  */
 import type { DataRecord } from '@valley/plugin-sdk/types'
-import type { ValleyPluginApi } from '@valley/plugin-sdk'
-import { loadTodo, loadTodos, normalizeTodoRecord, rawAppend, rawDelete, rawUpdate } from './data'
+import type { PluginCommand, ValleyPluginApi } from '@valley/plugin-sdk'
+import type { CommandSideEffect } from '@valley/plugin-sdk/commands'
+import { loadTodo, loadTodos, normalizeTodoRecord, rawAppend, rawDelete, rawRestore, rawUpdateCommitted } from './data'
 import { matchesSearch } from './search'
 import { allGroups, groupForName, groupKey } from './groups'
 import { getGroups } from './groupStore'
@@ -15,6 +16,262 @@ import { bucketTodos, SECTION_ORDER, type TodoSectionId } from './sections'
 import { activeStatuses, isStatusActive, patchForStatus } from './statuses'
 import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { revealRequestStore } from './runtime'
+
+const todoResult = {
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "dueDate": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "startTime": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "endTime": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "filePath": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "group": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "color": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "parentId": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "remindAt": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "reminderFiredAt": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "reminderTime": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "createdAt": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "updatedAt": {
+      "type": "string",
+      "maxLength": 65536
+    },
+    "completed": {
+      "type": "boolean"
+    },
+    "flagged": {
+      "type": "boolean"
+    },
+    "priority": {
+      "enum": [
+        "normal",
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "status": {
+      "enum": [
+        "open",
+        "inprogress",
+        "waiting",
+        "onhold",
+        "delegated",
+        "deferred",
+        "completed",
+        "canceled"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 65536
+      },
+      "maxItems": 1000
+    },
+    "urls": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 65536
+      },
+      "maxItems": 1000
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 65536
+      },
+      "maxItems": 1000
+    },
+    "reminderOffsets": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 1000
+    },
+    "estimatedMinutes": {
+      "type": "number"
+    },
+    "actualMinutes": {
+      "type": "number"
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "startedAt": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "endedAt": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "activeMinutes": {
+            "type": "number"
+          },
+          "pauseMinutes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "startedAt",
+          "endedAt",
+          "activeMinutes",
+          "pauseMinutes"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 10000
+    },
+    "statusHistory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "enum": [
+              "open",
+              "inprogress",
+              "waiting",
+              "onhold",
+              "delegated",
+              "deferred",
+              "completed",
+              "canceled"
+            ]
+          },
+          "to": {
+            "enum": [
+              "open",
+              "inprogress",
+              "waiting",
+              "onhold",
+              "delegated",
+              "deferred",
+              "completed",
+              "canceled"
+            ]
+          },
+          "changedAt": {
+            "type": "string",
+            "maxLength": 65536
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "changedAt"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 10000
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "completed",
+    "priority",
+    "dueDate",
+    "note",
+    "tags",
+    "createdAt",
+    "updatedAt"
+  ],
+  "additionalProperties": false
+}
+
+export const todoResults: Record<string, Record<string, unknown>> = {
+  "open": todoResult,
+  "get": todoResult,
+  "edit-fields": todoResult,
+  "add": todoResult,
+  "complete": todoResult,
+  "done": todoResult,
+  "reopen": todoResult,
+  "cancel": todoResult,
+  "pause": todoResult,
+  "status": todoResult,
+  "edit": todoResult,
+  "open-page": {"type":"null"},
+  "search": { type: 'array', items: todoResult, maxItems: 20 },
+  "list": { type: 'array', items: todoResult, maxItems: 10000 },
+  "delete": { type: 'object', properties: { deleted: { type: 'boolean' }, todo: todoResult, deletedCount: { type: 'integer', minimum: 0, maximum: 1 } }, required: ['deleted', 'todo', 'deletedCount'], additionalProperties: false },
+  "group-list": {"type":"array","items":{"type":"object","properties":{"name":{"type":"string","maxLength":65536},"count":{"type":"integer","minimum":0}},"required":["name","count"],"additionalProperties":false},"maxItems":10000},
+}
 
 const asStr = (v: unknown): string => (typeof v === 'string' ? v : '')
 const asQuery = (raw: unknown): string => asStr((raw as Record<string, unknown> | undefined)?.query).trim()
@@ -93,16 +350,17 @@ async function replaceTodo(
 ) {
   const previous = resolveTodo(await loadTodos(), query)
   const next = update(previous)
-  if (!(await rawUpdate(previous.id, next, previous.updatedAt))) throw new Error('Failed to update todo.')
+  const committed = await rawUpdateCommitted(previous.id, next, previous.updatedAt)
+  if (!committed) throw new Error('Failed to update todo.')
   return {
     value: next,
     revert: {
       label: label(previous),
       run: async () => {
-        await rawUpdate(previous.id, previous)
+        if (!(await rawRestore(previous.id, previous))) throw new Error('Could not restore the task.')
       },
       reapply: async () => {
-        await rawUpdate(previous.id, next)
+        if (!(await rawRestore(previous.id, committed))) throw new Error('Could not reapply the task change.')
       }
     }
   }
@@ -159,8 +417,9 @@ export async function editTodoValues(id: string, values: Partial<TodoRecord>, ex
   const next = normalizeTodoRecord({ ...previous, ...values, ...(values.status ? patchForStatus(values.status) : values.completed !== undefined ? patchForStatus(values.completed ? 'completed' : 'open') : {}), ...(values.remindAt !== undefined ? { reminderFiredAt: undefined } : {}), updatedAt: nowISO() } as unknown as DataRecord)
   if (values.filePath && next.filePath !== values.filePath) throw new Error('Invalid task file path.')
   for (const key of ['urls', 'attachments'] as const) if (values[key]?.some((value) => !next[key]?.includes(value))) throw new Error(`Invalid task ${key}.`)
-  if (!(await rawUpdate(id, next, previous.updatedAt))) throw new Error('Could not save the task.')
-  return { value: next, revert: { label: `Edit “${previous.title}”`, run: async () => { if (!(await rawUpdate(id, previous))) throw new Error('Could not restore the task.') }, reapply: async () => { if (!(await rawUpdate(id, next))) throw new Error('Could not reapply the task edit.') } } }
+  const committed = await rawUpdateCommitted(id, next, previous.updatedAt)
+  if (!committed) throw new Error('Could not save the task.')
+  return { value: next, revert: { label: `Edit “${previous.title}”`, run: async () => { if (!(await rawRestore(id, previous))) throw new Error('Could not restore the task.') }, reapply: async () => { if (!(await rawRestore(id, committed))) throw new Error('Could not reapply the task edit.') } } }
 }
 
 /** Register every `todo:*` command; returns a combined disposer. */
@@ -175,8 +434,14 @@ async function todoCommandRevision(raw: unknown): Promise<unknown> {
 }
 
 export function registerTodoCommands(api: ValleyPluginApi): () => void {
+  const register = <I = void, O = void, E extends CommandSideEffect = 'read'>(definition: PluginCommand<I, O, E>): (() => void) => {
+    const outputSchema = todoResults[definition.id]
+    if (!outputSchema) throw new Error(`Missing result contract for ${definition.id}.`)
+    const command: PluginCommand<I, O, E> & { outputSchema: Record<string, unknown>; limits: Record<string, number> } = { ...definition, outputSchema, limits: { requestBytes: 1048576, responseBytes: 1048576 } }
+    return api.commands.register(command)
+  }
   const offs = [
-    api.commands.register({
+    register({
       id: 'open', label: 'To-Do: Open task', labelKey: 'todo.command.openTask', paletteSafe: false, sideEffect: 'read',
       input: { schema: { type: 'object', properties: { id: fieldText }, required: ['id'], additionalProperties: false }, parse: (raw) => {
         const id = asStr((raw as Record<string, unknown>)?.id).trim()
@@ -191,8 +456,8 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
         return todo
       }
     }),
-    api.commands.register({ id: 'get', label: 'To-Do: Get task', labelKey: 'todo.command.get', paletteSafe: false, sideEffect: 'read', input: { schema: { type: 'object', properties: { id: fieldText }, required: ['id'], additionalProperties: false }, parse: (raw) => { const id = asStr((raw as Record<string, unknown>)?.id).trim(); if (!id) throw new Error('Expected a task id.'); return { id } } }, run: async ({ id }) => { const todo = await loadTodo(id); if (!todo) throw new Error('The task no longer exists.'); return todo } }),
-    api.commands.register({
+    register({ id: 'get', label: 'To-Do: Get task', labelKey: 'todo.command.get', paletteSafe: false, sideEffect: 'read', input: { schema: { type: 'object', properties: { id: fieldText }, required: ['id'], additionalProperties: false }, parse: (raw) => { const id = asStr((raw as Record<string, unknown>)?.id).trim(); if (!id) throw new Error('Expected a task id.'); return { id } } }, run: async ({ id }) => { const todo = await loadTodo(id); if (!todo) throw new Error('The task no longer exists.'); return todo } }),
+    register({
       id: 'edit-fields',
       label: 'To-Do: Edit task fields',
       labelKey: 'todo.command.editFields',
@@ -203,18 +468,18 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       revision: (input) => todoCommandRevision(input),
       preview: (input) => ({ changes: input })
     }),
-    api.commands.register({
+    register({
       id: 'open-page',
       label: 'Open To-Do page', labelKey: 'auto.25097a85052b',
       sideEffect: 'read',
       run: () => {
         api.workspace.openMainTab()
-        return undefined
+        return null
       },
       formatCli: () => 'Opened To-Do page.'
     }),
 
-    api.commands.register({
+    register({
       id: 'add',
       label: 'To-Do: Add a task',
       labelKey: 'auto.34d1bc4daccf',
@@ -276,7 +541,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       preview: (input) => ({ changes: input })
     }),
 
-    api.commands.register({
+    register({
       id: 'complete',
       label: 'To-Do: Complete a task',
       labelKey: 'auto.2fb86192bd77',
@@ -289,7 +554,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       preview: (input) => ({ changes: input })
     }),
 
-    api.commands.register({
+    register({
       id: 'done',
       label: 'To-Do: Complete a task (done)',
       labelKey: 'auto.3fc72a0701ff',
@@ -302,7 +567,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       preview: (input) => ({ changes: input })
     }),
 
-    api.commands.register({
+    register({
       id: 'search',
       label: 'To-Do: Search tasks', labelKey: 'auto.496cd6a42238',
       paletteSafe: false,
@@ -321,7 +586,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       formatCli: (todos) => todos.length ? todos.map(describe).join('\n') : 'No matching todos.'
     }),
 
-    api.commands.register({
+    register({
       id: 'reopen',
       label: 'To-Do: Reopen a task',
       labelKey: 'auto.cf3d0c76d559',
@@ -342,7 +607,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
     // `pause` keeps its verb (a CLI verb is an id, not a label) but now writes
     // `onhold` — `paused` was the focus timer's word and no longer exists.
     ...(['cancel', 'pause'] as const).map((id) =>
-      api.commands.register({
+      register({
       id,
       label: `To-Do: ${id === 'cancel' ? 'Cancel' : 'Put a task on hold'}`,
       paletteSafe: false,
@@ -367,7 +632,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
     })
     ),
 
-    api.commands.register({
+    register({
       id: 'status',
       label: 'To-Do: Set task status',
       labelKey: 'auto.664764d2200b',
@@ -400,7 +665,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       preview: (input) => ({ changes: input })
     }),
 
-    api.commands.register({
+    register({
       id: 'edit',
       label: 'To-Do: Edit a task',
       labelKey: 'auto.0379f3c75faa',
@@ -457,7 +722,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       preview: (input) => ({ changes: input })
     }),
 
-    api.commands.register({
+    register({
       id: 'delete',
       label: 'To-Do: Delete a task',
       labelKey: 'auto.798b29fa6c05',
@@ -498,7 +763,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       preview: (input) => ({ changes: input })
     }),
 
-    api.commands.register({
+    register({
       id: 'list',
       label: 'To-Do: List tasks', labelKey: 'auto.112f17ac556e',
       paletteSafe: false,
@@ -522,7 +787,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       formatCli: (todos) => (todos.length === 0 ? 'No matching todos.' : todos.map(describe).join('\n'))
     }),
 
-    api.commands.register({
+    register({
       id: 'group-list',
       label: 'To-Do: List groups', labelKey: 'auto.34656b383dd3',
       paletteSafe: false,

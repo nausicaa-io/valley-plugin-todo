@@ -42,3 +42,5 @@ Tasks are independent. Add To-Do opens a compact inline editor in the left sideb
 The backend publishes `workflow.provider` version `1.0.0` through the injected SDK. Actions create, get, list, update, and complete tasks. Triggers report task creation, edits, and transitions to completed. Trigger data contains `record`; use Workflow conditions to filter it. Status and date validation matches To-Do's domain rules.
 
 The backend owns the serialized task writer for both the interface and Workflow. Revision-guarded document updates preserve relationship data, status history, and undo behavior. Events follow committed changes and carry the host's causal context. A Workflow action with a delivery failure after commit reports an uncertain outcome and must not be retried automatically. Interface saves retain their successful result and undo entry, with a separate event-delivery warning. Workflows require To-Do to be installed and enabled; no provider reads another plugin's files.
+
+Task list already emits one execution item per task. No collection selector is declared; tags, reminders, URLs and attachments remain attributes of each task.

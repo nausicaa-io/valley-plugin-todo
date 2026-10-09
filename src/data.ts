@@ -233,12 +233,26 @@ export async function rawAppend(record: TodoRecord): Promise<boolean> {
   try { return await api.backend.call<boolean>('records.append', { record }) } catch { return false }
 }
 
-export async function rawUpdate(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision): Promise<boolean> {
+async function callUpdate(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision, exactStatusHistory = false): Promise<TodoRecord | null> {
   try {
-    const result = await api.backend.call<{ ok: boolean; documentRevision?: DocumentRevision }>('records.update', { id, record, expectedUpdatedAt, documentRevision })
+    const result = await api.backend.call<{ ok: boolean; record?: TodoRecord; documentRevision?: DocumentRevision }>('records.update', { id, record, expectedUpdatedAt, documentRevision, ...(exactStatusHistory ? { exactStatusHistory } : {}) })
     if (result.ok && documentRevision && result.documentRevision) Object.assign(documentRevision, result.documentRevision)
-    return result.ok
-  } catch { return false }
+    return result.ok ? result.record ?? record : null
+  } catch { return null }
+}
+
+export async function rawUpdate(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision): Promise<boolean> {
+  return (await callUpdate(id, record, expectedUpdatedAt, documentRevision)) !== null
+}
+
+/** Update and return the record as committed, including the status transition the owner appended. */
+export function rawUpdateCommitted(id: string, record: TodoRecord, expectedUpdatedAt?: string): Promise<TodoRecord | null> {
+  return callUpdate(id, record, expectedUpdatedAt)
+}
+
+/** Write back an exact earlier snapshot (undo/redo of a command), keeping its status history instead of logging a new transition. */
+export async function rawRestore(id: string, record: TodoRecord): Promise<boolean> {
+  return (await callUpdate(id, record, undefined, undefined, true)) !== null
 }
 
 export async function rawDelete(id: string): Promise<boolean> {

@@ -1,5 +1,6 @@
 import { startReminderOwner } from '../reminderOwner'
-import { registerWorkflowContribution, type PluginBackendApi, type WorkflowContributionContract } from '@valley/plugin-sdk'
+import type { PluginBackendApi } from '@valley/plugin-sdk'
+import { registerWorkflowContribution, type WorkflowContributionContract } from '@valley/plugin-sdk/workflow'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { createTodoDomain } from '../domain'
 import { generateId } from '../lib'
@@ -44,8 +45,8 @@ export function register(api: PluginBackendApi): () => Promise<void> {
   const offs = [
     api.rpc.handle('records.append', payload => domain.append((payload as { record: TodoRecord }).record)),
     api.rpc.handle('records.update', payload => {
-      const input = payload as { id: string; record: TodoRecord; expectedUpdatedAt?: string; documentRevision?: { expectedRevision: number; vaultGeneration: number } }
-      return domain.update(text(input.id, 'a task id'), input.record, input.expectedUpdatedAt, input.documentRevision)
+      const input = payload as { id: string; record: TodoRecord; expectedUpdatedAt?: string; documentRevision?: { expectedRevision: number; vaultGeneration: number }; exactStatusHistory?: boolean }
+      return domain.update(text(input.id, 'a task id'), input.record, input.expectedUpdatedAt, input.documentRevision, undefined, undefined, { exactStatusHistory: input.exactStatusHistory === true })
     }),
     api.rpc.handle('records.delete', payload => domain.remove(text((payload as { id: string }).id, 'a task id'))),
     api.rpc.handleOperation('command.task.delete', async (raw, context) => {
@@ -57,8 +58,9 @@ export function register(api: PluginBackendApi): () => Promise<void> {
       return { id, deleted }
     })
   ]
-  const contract = config.runtime.services[0].metadata.workflow as unknown as WorkflowContributionContract
+  const contract = (config.runtime.services[0] as unknown as { metadata: { workflow: WorkflowContributionContract } }).metadata.workflow
   const contribution = registerWorkflowContribution(api, contract, async ({ nodeTypeId, parameters }, context) => {
+    context.cancellation.throwIfAborted()
     const scoped = context.api
     const emit = (event: string, payload: unknown) => scoped.services.emit('workflow.provider', event, JSON.parse(JSON.stringify(payload)))
     if (nodeTypeId === 'task.list') {
@@ -67,6 +69,12 @@ export function register(api: PluginBackendApi): () => Promise<void> {
       const query = typeof parameters.query === 'string' ? parameters.query.toLocaleLowerCase() : ''
       const records = (await domain.list(scoped)).filter(record => (!query || `${record.title}\n${record.note}`.toLocaleLowerCase().includes(query)) && (parameters.completed === undefined || record.completed === parameters.completed)).slice(0, limit)
       return { items: records.map(record => ({ json: JSON.parse(JSON.stringify(record)) as Record<string, unknown> })) }
+    }
+    if (nodeTypeId === 'task.delete') {
+      const id = text(parameters.id, 'an item id'), expected = text(parameters.expectedUpdatedAt, 'a reviewed modification timestamp')
+      const deleted = await domain.remove(id, scoped, expected)
+      if (!deleted) throw Object.assign(new Error('The item changed or no longer exists'), { code: 'REVISION_CONFLICT', outcome: 'not-applied', fatal: true, transient: false, retryable: false })
+      return { items: [{ json: { id, deleted } }] }
     }
     let record: TodoRecord
     if (nodeTypeId === 'task.create') {
@@ -87,5 +95,6 @@ export function register(api: PluginBackendApi): () => Promise<void> {
     }
     return { items: [{ json: JSON.parse(JSON.stringify(record)) as Record<string, unknown> }] }
   })
+  void contribution.ready.catch(error => api.rpc.emit('workflow.registrationFailed', { message: error instanceof Error ? error.message : String(error) }))
   return async () => { await offReminders(); contribution.dispose(); offs.forEach(off => off()); await domain.dispose() }
 }

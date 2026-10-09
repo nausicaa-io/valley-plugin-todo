@@ -766,8 +766,17 @@
                   "type": "object",
                   "properties": {},
                   "required": [],
-                  "additionalProperties": false
-                }
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "version": "1.0.0",
+                "executionMode": "item",
+                "effect": "read",
+                "idempotent": true,
+                "readiness": {
+                  "state": "Available"
+                },
+                "description": "Task created. Uses committed owner data and authenticated causation."
               },
               {
                 "id": "task.updated",
@@ -785,8 +794,17 @@
                   "type": "object",
                   "properties": {},
                   "required": [],
-                  "additionalProperties": false
-                }
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "version": "1.0.0",
+                "executionMode": "item",
+                "effect": "read",
+                "idempotent": true,
+                "readiness": {
+                  "state": "Available"
+                },
+                "description": "Task updated. Uses committed owner data and authenticated causation."
               },
               {
                 "id": "task.completed",
@@ -804,8 +822,17 @@
                   "type": "object",
                   "properties": {},
                   "required": [],
-                  "additionalProperties": false
-                }
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "version": "1.0.0",
+                "executionMode": "item",
+                "effect": "read",
+                "idempotent": true,
+                "readiness": {
+                  "state": "Available"
+                },
+                "description": "Task completed. Uses committed owner data and authenticated causation."
               },
               {
                 "id": "task.create",
@@ -822,7 +849,120 @@
                   {
                     "id": "output",
                     "label": "Output",
-                    "dataType": "json"
+                    "dataType": "json",
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string"
+                        },
+                        "dueDate": {
+                          "type": "string"
+                        },
+                        "startTime": {
+                          "type": "string"
+                        },
+                        "endTime": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "priority": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "filePath": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "color": {
+                          "type": "string"
+                        },
+                        "completed": {
+                          "type": "boolean"
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "reminderOffsets": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "reminderTime": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "lng": {
+                              "type": "number"
+                            },
+                            "lat": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "urls": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "attachments": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "completed",
+                        "tags",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": true
+                    }
                   }
                 ],
                 "parameterSchema": {
@@ -830,23 +970,38 @@
                   "properties": {
                     "title": {
                       "type": "string",
-                      "title": "Title"
+                      "title": "Title",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "dueDate": {
                       "type": "string",
-                      "title": "Due date"
+                      "title": "Due date",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "startTime": {
                       "type": "string",
-                      "title": "Start time"
+                      "title": "Start time",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "endTime": {
                       "type": "string",
-                      "title": "End time"
+                      "title": "End time",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "note": {
                       "type": "string",
-                      "title": "Notes"
+                      "title": "Notes",
+                      "ui": {
+                        "control": "textarea"
+                      }
                     },
                     "priority": {
                       "type": "string",
@@ -880,7 +1035,129 @@
                   "required": [
                     "title"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "version": "1.0.0",
+                "executionMode": "item",
+                "effect": "write",
+                "idempotent": false,
+                "readiness": {
+                  "state": "Available"
+                },
+                "description": "Create task. Uses committed owner data and authenticated causation.",
+                "outputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "type": "string"
+                    },
+                    "startTime": {
+                      "type": "string"
+                    },
+                    "endTime": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "priority": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "groupId": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "completed": {
+                      "type": "boolean"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reminderOffsets": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "reminderTime": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "lng": {
+                          "type": "number"
+                        },
+                        "lat": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "completed",
+                    "tags",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": true
                 }
               },
               {
@@ -898,7 +1175,120 @@
                   {
                     "id": "output",
                     "label": "Output",
-                    "dataType": "json"
+                    "dataType": "json",
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string"
+                        },
+                        "dueDate": {
+                          "type": "string"
+                        },
+                        "startTime": {
+                          "type": "string"
+                        },
+                        "endTime": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "priority": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "filePath": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "color": {
+                          "type": "string"
+                        },
+                        "completed": {
+                          "type": "boolean"
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "reminderOffsets": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "reminderTime": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "lng": {
+                              "type": "number"
+                            },
+                            "lat": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "urls": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "attachments": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "completed",
+                        "tags",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": true
+                    }
                   }
                 ],
                 "parameterSchema": {
@@ -906,13 +1296,138 @@
                   "properties": {
                     "id": {
                       "type": "string",
-                      "title": "Task ID"
+                      "title": "Task ID",
+                      "ui": {
+                        "control": "text"
+                      }
                     }
                   },
                   "required": [
                     "id"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "version": "1.0.0",
+                "executionMode": "item",
+                "effect": "read",
+                "idempotent": true,
+                "readiness": {
+                  "state": "Available"
+                },
+                "description": "Get task. Uses committed owner data and authenticated causation.",
+                "outputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "type": "string"
+                    },
+                    "startTime": {
+                      "type": "string"
+                    },
+                    "endTime": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "priority": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "groupId": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "completed": {
+                      "type": "boolean"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reminderOffsets": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "reminderTime": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "lng": {
+                          "type": "number"
+                        },
+                        "lat": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "completed",
+                    "tags",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": true
                 }
               },
               {
@@ -930,7 +1445,120 @@
                   {
                     "id": "output",
                     "label": "Output",
-                    "dataType": "json"
+                    "dataType": "json",
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string"
+                        },
+                        "dueDate": {
+                          "type": "string"
+                        },
+                        "startTime": {
+                          "type": "string"
+                        },
+                        "endTime": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "priority": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "filePath": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "color": {
+                          "type": "string"
+                        },
+                        "completed": {
+                          "type": "boolean"
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "reminderOffsets": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "reminderTime": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "lng": {
+                              "type": "number"
+                            },
+                            "lat": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "urls": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "attachments": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "completed",
+                        "tags",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": true
+                    }
                   }
                 ],
                 "parameterSchema": {
@@ -938,7 +1566,10 @@
                   "properties": {
                     "query": {
                       "type": "string",
-                      "title": "Search"
+                      "title": "Search",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "completed": {
                       "type": "boolean",
@@ -949,11 +1580,137 @@
                       "minimum": 1,
                       "maximum": 1000,
                       "default": 100,
-                      "title": "Limit"
+                      "title": "Limit",
+                      "ui": {
+                        "control": "number",
+                        "step": 1
+                      }
                     }
                   },
                   "required": [],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "version": "1.0.0",
+                "executionMode": "item",
+                "effect": "read",
+                "idempotent": true,
+                "readiness": {
+                  "state": "Available"
+                },
+                "description": "List tasks. Uses committed owner data and authenticated causation.",
+                "outputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "type": "string"
+                    },
+                    "startTime": {
+                      "type": "string"
+                    },
+                    "endTime": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "priority": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "groupId": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "completed": {
+                      "type": "boolean"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reminderOffsets": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "reminderTime": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "lng": {
+                          "type": "number"
+                        },
+                        "lat": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "completed",
+                    "tags",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": true
                 }
               },
               {
@@ -971,7 +1728,120 @@
                   {
                     "id": "output",
                     "label": "Output",
-                    "dataType": "json"
+                    "dataType": "json",
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string"
+                        },
+                        "dueDate": {
+                          "type": "string"
+                        },
+                        "startTime": {
+                          "type": "string"
+                        },
+                        "endTime": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "priority": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "filePath": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "color": {
+                          "type": "string"
+                        },
+                        "completed": {
+                          "type": "boolean"
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "reminderOffsets": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "reminderTime": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "lng": {
+                              "type": "number"
+                            },
+                            "lat": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "urls": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "attachments": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "completed",
+                        "tags",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": true
+                    }
                   }
                 ],
                 "parameterSchema": {
@@ -979,27 +1849,45 @@
                   "properties": {
                     "id": {
                       "type": "string",
-                      "title": "Task ID"
+                      "title": "Task ID",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "title": {
                       "type": "string",
-                      "title": "Title"
+                      "title": "Title",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "dueDate": {
                       "type": "string",
-                      "title": "Due date"
+                      "title": "Due date",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "startTime": {
                       "type": "string",
-                      "title": "Start time"
+                      "title": "Start time",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "endTime": {
                       "type": "string",
-                      "title": "End time"
+                      "title": "End time",
+                      "ui": {
+                        "control": "text"
+                      }
                     },
                     "note": {
                       "type": "string",
-                      "title": "Notes"
+                      "title": "Notes",
+                      "ui": {
+                        "control": "textarea"
+                      }
                     },
                     "priority": {
                       "type": "string",
@@ -1037,7 +1925,129 @@
                   "required": [
                     "id"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "version": "1.0.0",
+                "executionMode": "item",
+                "effect": "write",
+                "idempotent": false,
+                "readiness": {
+                  "state": "Available"
+                },
+                "description": "Update task. Uses committed owner data and authenticated causation.",
+                "outputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "type": "string"
+                    },
+                    "startTime": {
+                      "type": "string"
+                    },
+                    "endTime": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "priority": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "groupId": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "completed": {
+                      "type": "boolean"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reminderOffsets": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "reminderTime": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "lng": {
+                          "type": "number"
+                        },
+                        "lat": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "completed",
+                    "tags",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": true
                 }
               },
               {
@@ -1055,7 +2065,120 @@
                   {
                     "id": "output",
                     "label": "Output",
-                    "dataType": "json"
+                    "dataType": "json",
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string"
+                        },
+                        "dueDate": {
+                          "type": "string"
+                        },
+                        "startTime": {
+                          "type": "string"
+                        },
+                        "endTime": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "priority": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "filePath": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "groupId": {
+                          "type": "string"
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "color": {
+                          "type": "string"
+                        },
+                        "completed": {
+                          "type": "boolean"
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "reminderOffsets": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        },
+                        "reminderTime": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "lng": {
+                              "type": "number"
+                            },
+                            "lat": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "urls": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "attachments": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "completed",
+                        "tags",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": true
+                    }
                   }
                 ],
                 "parameterSchema": {
@@ -1063,13 +2186,234 @@
                   "properties": {
                     "id": {
                       "type": "string",
-                      "title": "Task ID"
+                      "title": "Task ID",
+                      "ui": {
+                        "control": "text"
+                      }
                     }
                   },
                   "required": [
                     "id"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "version": "1.0.0",
+                "executionMode": "item",
+                "effect": "write",
+                "idempotent": false,
+                "readiness": {
+                  "state": "Available"
+                },
+                "description": "Complete task. Uses committed owner data and authenticated causation.",
+                "outputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "type": "string"
+                    },
+                    "startTime": {
+                      "type": "string"
+                    },
+                    "endTime": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "priority": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "groupId": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "completed": {
+                      "type": "boolean"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reminderOffsets": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "reminderTime": {
+                      "type": "string"
+                    },
+                    "location": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "lng": {
+                          "type": "number"
+                        },
+                        "lat": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "completed",
+                    "tags",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": true
+                }
+              },
+              {
+                "id": "task.delete",
+                "type": "action",
+                "version": "1.0.0",
+                "displayName": "Delete a local task only if its reviewed modification timestamp still matches",
+                "description": "Delete a local task only if its reviewed modification timestamp still matches. Reuses the owning backend and its reviewed revision checks.",
+                "effect": "write",
+                "idempotent": false,
+                "executionMode": "item",
+                "inputs": [
+                  {
+                    "id": "input",
+                    "label": "Input",
+                    "dataType": "json",
+                    "schema": {
+                      "type": "object"
+                    }
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "output",
+                    "label": "Result",
+                    "dataType": "json",
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "deleted": {
+                          "const": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "deleted"
+                      ],
+                      "additionalProperties": false,
+                      "$schema": "http://json-schema.org/draft-07/schema#"
+                    }
+                  }
+                ],
+                "parameterSchema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256,
+                      "title": "id",
+                      "ui": {
+                        "control": "text"
+                      }
+                    },
+                    "expectedUpdatedAt": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "title": "expectedUpdatedAt",
+                      "ui": {
+                        "control": "text"
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "expectedUpdatedAt"
+                  ],
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "inputSchema": {
+                  "type": "object"
+                },
+                "outputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "deleted"
+                  ],
+                  "additionalProperties": false,
+                  "$schema": "http://json-schema.org/draft-07/schema#"
+                },
+                "readiness": {
+                  "state": "Available"
                 }
               }
             ]
@@ -2012,7 +3356,8 @@
                 "id",
                 "expectedUpdatedAt"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
             },
             "outputSchema": {
               "type": "object",
@@ -2028,10 +3373,23 @@
                 "id",
                 "deleted"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
             }
           }
         }
+      },
+      {
+        "id": "workflow.catalog",
+        "version": "1.0.0",
+        "method": "workflow.catalog",
+        "request": {
+          "type": "unknown"
+        },
+        "response": {
+          "type": "unknown"
+        },
+        "operation": true
       }
     ],
     "activation": {
@@ -2039,7 +3397,10 @@
         "background",
         "capability"
       ]
-    }
+    },
+    "largeDataOperations": [
+      "workflow.execute"
+    ]
   },
   "indexState": "scoped",
   "datasetMigrations": [
@@ -2430,5 +3791,8 @@
         "description": "Owner-managed runtime state; change it through the owning domain operation."
       }
     ]
+  },
+  "permissions": {
+    "largeData": true
   }
 }
