@@ -13,6 +13,8 @@ import {
   setView
 } from '../src/viewStore'
 import { PLUGIN_SURFACE_V1, type MainWorkspaceNavigationController } from '@valley/plugin-sdk'
+import { registerTodoCommands } from '../src/commands'
+import { revealRequestStore } from '../src/runtime'
 
 let store: TodoNotesMock
 
@@ -70,6 +72,28 @@ describe('the To-Do page', () => {
     await screen.findByText('Fungi Survey sheet')
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('All')
     expect(titles()).toHaveLength(3)
+  })
+
+  it('keeps a todo:open edit reveal on a freshly mounted page until the shared list has loaded', async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    registerTodoCommands(store.mock.api)
+    vi.mocked(store.mock.api.workspace.openMainTab).mockImplementation(() => { render(<Page navigation={{ setController: vi.fn() }} />) })
+    const result = await act(async () => store.mock.api.commands.execute('todo:open', { id: 'b' }))
+    expect(result.ok).toBe(true)
+    expect(store.mock.api.workspace.openMainTab).toHaveBeenCalledTimes(1)
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByLabelText('Todo title')).toHaveValue('Review species list')
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' }))
+    expect(revealRequestStore().get()).toBeNull()
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  it('still closes an edit reveal for a todo that is missing once the page has loaded', async () => {
+    revealRequestStore().request('ghost', 'edit')
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('orders the toolbar as search, sort field, direction, then statuses', async () => {

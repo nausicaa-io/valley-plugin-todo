@@ -199,10 +199,11 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
   }, 0, failed)
 
   // The record can vanish under us (deleted here or elsewhere) — close rather
-  // than render a panel describing nothing.
+  // than render a panel describing nothing. A freshly mounted surface opened by
+  // a reveal request has not loaded the shared list yet, so wait for that first.
   React.useEffect(() => {
-    if (!todo) close()
-  }, [todo, close])
+    if (!todo && !c.loading) close()
+  }, [todo, c.loading, close])
   if (!todo) return null
 
   const patch = (p: Partial<TodoRecord>): void => { void commitPatch(p).then((ok) => { if (!ok) failed() }) }
