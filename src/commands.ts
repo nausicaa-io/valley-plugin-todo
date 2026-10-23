@@ -443,15 +443,18 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
   const offs = [
     register({
       id: 'open', label: 'To-Do: Open task', labelKey: 'todo.command.openTask', paletteSafe: false, sideEffect: 'read',
-      input: { schema: { type: 'object', properties: { id: fieldText }, required: ['id'], additionalProperties: false }, parse: (raw) => {
-        const id = asStr((raw as Record<string, unknown>)?.id).trim()
+      input: { schema: { type: 'object', properties: { id: fieldText, newTab: { type: 'boolean' } }, required: ['id'], additionalProperties: false }, parse: (raw) => {
+        const input = raw as Record<string, unknown>
+        const id = asStr(input?.id).trim()
         if (!id) throw new Error('Expected a task id.')
-        return { id }
+        if (input.newTab !== undefined && typeof input.newTab !== 'boolean') throw new Error('Expected newTab to be a boolean.')
+        return input.newTab === true ? { id, newTab: true } : { id }
       } },
-      run: async ({ id }) => {
+      run: async ({ id, newTab }) => {
         const todo = await loadTodo(id)
         if (!todo) throw new Error('The task no longer exists. Open To-Do to choose another task.')
-        api.workspace.openMainTab()
+        if (newTab) api.workspace.openMainTab({ newTab: true })
+        else api.workspace.openMainTab()
         revealRequestStore().request(id, 'edit')
         return todo
       }
