@@ -223,7 +223,7 @@ export const TodoRow = ({
             // lands in the Completed list — but a tick would claim the work
             // happened, and it explicitly did not; it gets the ✕ glyph instead.
             checked={status === 'completed'}
-            disabled={pending}
+            aria-disabled={pending || undefined}
             onPointerDown={() => {
               if (pending) return
               longPressed.current = false

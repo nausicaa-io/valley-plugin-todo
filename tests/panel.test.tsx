@@ -1091,6 +1091,16 @@ describe('attachment-linked To-Do panel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('names month sections in the interface language', async () => {
+    store = installTodoNotes([
+      { id: 'linked', title: 'Press fern vouchers', completed: false, dueDate: '2026-10-02', filePath: 'Images/Fern.png' } as DataRecord
+    ], {}, {}, { activePath: 'Images/Fern.png' })
+    store.mock.api.ui.language = () => 'de'
+    const { container } = render(<NoteTasksPanel />)
+    expect(await screen.findByText('Press fern vouchers')).toBeInTheDocument()
+    expect([...container.querySelectorAll('.todo-panel-date-head')].map((node) => node.textContent)).toEqual(['Oktober 2026'])
+  })
+
   it('matches every file type through filePath or attachments using exact normalized paths', async () => {
     store = installTodoNotes([
       { id: 'new', title: 'Newest linked', completed: false, dueDate: '2026-10-02', filePath: 'Images/Fern.png' } as DataRecord,
@@ -1178,6 +1188,63 @@ describe('attachment-linked To-Do panel', () => {
     await waitFor(() => expect(store.records[0]).toMatchObject({ completed: true }))
     expect(screen.queryByText('Loading todos')).not.toBeInTheDocument()
     expect(container.querySelector('.note-tasks-panel')).toBe(shell)
+  })
+
+  it('keeps its status popover in step with repeated tick and untick', async () => {
+    store = installTodoNotes([
+      { id: 'open', title: 'Count lichen plots', completed: false, filePath: 'Images/Fern.png' } as DataRecord,
+      { id: 'waiting', title: 'Await moss samples', completed: false, status: 'waiting', filePath: 'Images/Fern.png' } as DataRecord,
+      { id: 'done', title: 'Label fern photo', completed: true, status: 'completed', filePath: 'Images/Fern.png' } as DataRecord
+    ], {}, {}, { activePath: 'Images/Fern.png' })
+    render(<NoteTasksPanel />)
+    expect(await screen.findByText('Await moss samples')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Status and completed' }))
+    await waitFor(() => expect(store.mock.popovers).toHaveLength(1))
+    const popover = within(render(<>{store.mock.popovers[0].node}</>).container)
+    const waiting = popover.getByRole('button', { name: /Waiting/ })
+
+    fireEvent.click(waiting)
+    await waitFor(() => expect(screen.queryByText('Await moss samples')).not.toBeInTheDocument())
+    expect(waiting).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(waiting)
+    expect(await screen.findByText('Await moss samples')).toBeInTheDocument()
+    expect(waiting).toHaveAttribute('aria-pressed', 'true')
+    expect(store.mock.api.settings.get().attachmentPanelPresentation).toMatchObject({ statusFilter: 'all' })
+
+    const showAll = popover.getByRole('button', { name: 'Show all' })
+    fireEvent.click(showAll)
+    expect(await screen.findByText('Label fern photo')).toBeInTheDocument()
+    expect(showAll).toHaveClass('active')
+    fireEvent.click(popover.getByRole('button', { name: 'Hide completed' }))
+    await waitFor(() => expect(screen.queryByText('Label fern photo')).not.toBeInTheDocument())
+    expect(showAll).not.toHaveClass('active')
+  })
+
+  it('keeps a pending checkbox focusable and ignores a second toggle until its write settles', async () => {
+    store = installTodoNotes([
+      { id: 'linked', title: 'Sort moss vouchers', completed: false, filePath: 'Images/Fern.png' } as DataRecord
+    ], { attachmentPanelPresentation: { showCompleted: true } }, {}, { activePath: 'Images/Fern.png' })
+    const original = store.mock.api.data.transaction
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const transaction = vi.fn(async (...args: Parameters<typeof original>) => { await gate; return original(...args) })
+    overrideTransaction(transaction as typeof original)
+    render(<NoteTasksPanel />)
+    const checkbox = await screen.findByLabelText('Complete Sort moss vouchers')
+    checkbox.focus()
+
+    fireEvent.click(checkbox)
+    await waitFor(() => expect(checkbox).toHaveAttribute('aria-disabled', 'true'))
+    expect(checkbox).not.toBeDisabled()
+    expect(checkbox).toHaveFocus()
+    fireEvent.click(checkbox)
+    expect(checkbox).toBeChecked()
+
+    release()
+    await waitFor(() => expect(checkbox).not.toHaveAttribute('aria-disabled'))
+    expect(checkbox).toHaveFocus()
+    expect(transaction).toHaveBeenCalledTimes(1)
+    expect(store.records[0]).toMatchObject({ completed: true })
   })
 
   it('restores an attachment-linked row after a rejected completion write', async () => {

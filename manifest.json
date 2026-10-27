@@ -2,7 +2,7 @@
   "apiVersion": 5,
   "id": "todo",
   "name": "To-Do",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "Structured task manager with smart lists, multi-group filters, statuses, swipe actions, attachment-linked panels, and timestamped activity.",
   "author": [
     "valley"

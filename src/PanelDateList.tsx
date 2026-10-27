@@ -20,7 +20,7 @@ import { useHostState } from './hooks'
 function sectionLabel(kind: 'none' | DateBreakdown, key: string, today: string, shortDateFormat: string, locale: string): string {
   if (kind === 'none') return uiText('todo.breakdown.noDate')
   if (kind === 'monthly') {
-    return parseLocalDate(`${key}-01`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    return parseLocalDate(`${key}-01`).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
   }
   if (kind === 'weekly') {
     const start = parseLocalDate(key)

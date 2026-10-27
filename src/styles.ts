@@ -621,7 +621,7 @@ const CSS = `
               background var(--duration-fast) var(--ease-out);
 }
 
-.todo-check:hover:not(:disabled) {
+.todo-check:hover:not([aria-disabled='true']) {
   border-color: var(--accent-color);
 }
 

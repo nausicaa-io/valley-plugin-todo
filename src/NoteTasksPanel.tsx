@@ -28,21 +28,30 @@ function LocalStatusPopover({
   setFilter: (filter: TodoStatusFilter) => void
 }): ReactElement {
   const defs = useStatusVocabulary()
+  const [localShowCompleted, setLocalShowCompleted] = React.useState(showCompleted)
+  const [localFilter, setLocalFilter] = React.useState(filter)
   const active = defs.map((status) => status.id)
-  const selected = filter === 'all' ? active : filter
+  const selected = localFilter === 'all' ? active : localFilter
+  const chooseCompleted = (show: boolean): void => {
+    setLocalShowCompleted(show)
+    setShowCompleted(show)
+  }
   const toggle = (status: TodoStatus): void => {
     const next = selected.includes(status)
       ? selected.filter((candidate) => candidate !== status)
       : active.filter((candidate) => selected.includes(candidate) || candidate === status)
-    if (next.length) setFilter(next.length === active.length ? 'all' : next as [TodoStatus, ...TodoStatus[]])
+    if (!next.length) return
+    const value = next.length === active.length ? 'all' : next as [TodoStatus, ...TodoStatus[]]
+    setLocalFilter(value)
+    setFilter(value)
   }
   return (
     <div className="todo-filter-popover-body">
       <div className="todo-completed-row">
         <span>{uiText('todo.filters.completed')}</span>
         <div className="todo-completed-choices">
-          <button type="button" className={`todo-completed-choice${!showCompleted ? ' active' : ''}`} onClick={() => setShowCompleted(false)}>{uiText('todo.completed.hide')}</button>
-          <button type="button" className={`todo-completed-choice${showCompleted ? ' active' : ''}`} onClick={() => setShowCompleted(true)}>{uiText('todo.completed.showAll')}</button>
+          <button type="button" className={`todo-completed-choice${!localShowCompleted ? ' active' : ''}`} onClick={() => chooseCompleted(false)}>{uiText('todo.completed.hide')}</button>
+          <button type="button" className={`todo-completed-choice${localShowCompleted ? ' active' : ''}`} onClick={() => chooseCompleted(true)}>{uiText('todo.completed.showAll')}</button>
         </div>
       </div>
       <div className="todo-status-filter-menu local">
