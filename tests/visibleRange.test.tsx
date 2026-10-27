@@ -190,3 +190,26 @@ it('renders small date groups completely even when the vault has many tasks', as
   expect(view.container.querySelectorAll('.todo-panel-date-section')).toHaveLength(10)
   expect(view.container.querySelector('.todo-list-rows > [aria-hidden="true"]')).toBeNull()
 })
+
+it('follows scrolling in a surface document whose module window never paints', async () => {
+  vi.stubGlobal('requestAnimationFrame', () => 1)
+  vi.stubGlobal('cancelAnimationFrame', () => {})
+  const frame = document.createElement('iframe')
+  document.body.append(frame)
+  const surface = frame.contentWindow! as Window & typeof globalThis
+  Object.assign(surface, { requestAnimationFrame: (callback: FrameRequestCallback) => surface.setTimeout(() => callback(0), 0), cancelAnimationFrame: (id: number) => surface.clearTimeout(id) })
+  const container = frame.contentDocument!.body.appendChild(frame.contentDocument!.createElement('div'))
+  vi.spyOn(surface.HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) { return rectangle(this.hasAttribute('data-visible-key') ? 40 : 200) })
+  const ids = Array.from({ length: 1000 }, (_, index) => String(index))
+  function List() {
+    const visible = useVisibleRange(React, { ids, estimate: 40 })
+    return <div style={{ overflowY: 'auto', height: 200 }} ref={visible.ref}>{visible.render(index => <div data-visible-key={ids[index]}>{ids[index]}</div>)}</div>
+  }
+  const view = render(<List />, { container })
+  const list = container.firstElementChild as HTMLElement
+  expect(list.querySelector('[data-visible-key="500"]')).toBeNull()
+  await act(async () => { list.scrollTop = 20000; list.dispatchEvent(new surface.Event('scroll')) })
+  await waitFor(() => expect(list.querySelector('[data-visible-key="500"]')).not.toBeNull())
+  view.unmount()
+  frame.remove()
+})

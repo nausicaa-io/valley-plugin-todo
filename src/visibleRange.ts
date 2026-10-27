@@ -52,6 +52,7 @@ export function useVisibleRange(React: ReactApi, options: {
   const [requested, setRequested] = React.useState<{ id: string; selector?: string } | null>(null)
   const root = React.useRef<HTMLElement | null>(null)
   const frame = React.useRef<number | null>(null)
+  const view = React.useRef<Window | null>(null)
   const rows = React.useMemo(() => {
     let start = 0
     return ids.map((id, index) => {
@@ -76,13 +77,15 @@ export function useVisibleRange(React: ReactApi, options: {
   }, [])
   const schedule = React.useCallback(() => {
     if (frame.current !== null) return
-    frame.current = requestAnimationFrame(() => { frame.current = null; readViewport() })
+    frame.current = (view.current ?? window).requestAnimationFrame(() => { frame.current = null; readViewport() })
   }, [readViewport])
   React.useLayoutEffect(() => {
     const list = ref.current
     if (!list || !enabled) return
     const parent = scrollParent(list)
     root.current = parent
+    const surface = list.ownerDocument.defaultView ?? window
+    view.current = surface
     const previousAnchor = list.style.overflowAnchor
     list.style.overflowAnchor = 'none'
     let listening = true
@@ -95,7 +98,7 @@ export function useVisibleRange(React: ReactApi, options: {
     }
     const blur = () => { queueMicrotask(focus) }
     parent.addEventListener('scroll', schedule, { passive: true })
-    window.addEventListener('resize', schedule)
+    surface.addEventListener('resize', schedule)
     list.addEventListener('focusin', focus)
     list.addEventListener('focusout', blur)
     let width = list.clientWidth
@@ -110,13 +113,14 @@ export function useVisibleRange(React: ReactApi, options: {
       listening = false
       if (list.style.overflowAnchor === 'none') list.style.overflowAnchor = previousAnchor
       parent.removeEventListener('scroll', schedule)
-      window.removeEventListener('resize', schedule)
+      surface.removeEventListener('resize', schedule)
       list.removeEventListener('focusin', focus)
       list.removeEventListener('focusout', blur)
       resize?.disconnect()
-      if (frame.current !== null) cancelAnimationFrame(frame.current)
+      if (frame.current !== null) surface.cancelAnimationFrame(frame.current)
       frame.current = null
       root.current = null
+      view.current = null
     }
   }, [enabled, readViewport, schedule])
   React.useLayoutEffect(() => {
