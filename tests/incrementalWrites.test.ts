@@ -29,6 +29,16 @@ function countReads(mock: ReturnType<typeof installTodoNotes>['mock']) {
   return { rows, total: () => [...rows.values()].reduce((sum, value) => sum + value, 0), reset: () => rows.clear() }
 }
 
+/** The testkit's change events name their keys like the host's; drop them to measure the keyless full reload. */
+function dropDatasetChangeKeys(mock: ReturnType<typeof installTodoNotes>['mock']): void {
+  const data = mock.api.data
+  const dataset = data.dataset.bind(data)
+  data.dataset = ((id: string) => {
+    const handle = dataset(id)
+    return { ...handle, subscribe: (listener) => handle.subscribe((event) => listener(event ? { ...event, keys: undefined } : event)) }
+  }) as typeof data.dataset
+}
+
 const summary = (records: TodoRecord[]) => records.map((record) => `${record.id}|${record.title}|${[...record.tags].sort().join(',')}|${record.completed}`).sort()
 
 describe('incremental task list (8.10)', () => {
@@ -61,6 +71,7 @@ describe('incremental task list (8.10)', () => {
     const measure = async (keyed: boolean) => {
       const { mock } = installTodoNotes(seed(2000))
       if (keyed) keyDatasetChanges(mock)
+      else dropDatasetChangeKeys(mock)
       const reads = countReads(mock)
       await loadTodoList()
       reads.reset()

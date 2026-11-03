@@ -10,7 +10,7 @@ const relations = [...primaryKeys.keys()].filter((dataset) => dataset !== 'todo.
 
 /**
  * Give the mock's dataset change events the keys the host attaches to them
- * (the testkit emits keyless events). A task change also names that task in
+ * (older testkits emitted keyless events). A task change also names that task in
  * every relation dataset, as the host's cascade does.
  */
 export function keyDatasetChanges(mock: MockValleyApi): void {
