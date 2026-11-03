@@ -49,8 +49,8 @@ async function allRows(dataset: string, where?: DatasetWhere, scope = captureTod
   return rows
 }
 
-async function todoRelations(taskId?: string, includeHistory = true, includeTags = true, scope = captureTodoScope()): Promise<TodoRelations> {
-  const where = taskId ? { taskId } : undefined
+async function todoRelations(taskId?: string | string[], includeHistory = true, includeTags = true, scope = captureTodoScope()): Promise<TodoRelations> {
+  const where = !taskId ? undefined : { taskId: typeof taskId === 'string' ? taskId : { in: taskId } }
   const results = await Promise.allSettled([
     includeTags ? allRows(TAGS_DATASET, where, scope) : [],
     allRows(LINKS_DATASET, where, scope),
@@ -65,8 +65,9 @@ async function todoRelations(taskId?: string, includeHistory = true, includeTags
   return { tags, links, attachments, sessions, statusHistory }
 }
 
-async function readTodos(scope: TodoRuntimeScope, includeHistory: boolean, taskId?: string): Promise<TodoRecord[]> {
-  const [tasksResult, relationsResult] = await Promise.allSettled([allRows(TASKS_DATASET, taskId ? { id: taskId } : undefined, scope), todoRelations(taskId, includeHistory, true, scope)])
+async function readTodos(scope: TodoRuntimeScope, includeHistory: boolean, taskId?: string | string[]): Promise<TodoRecord[]> {
+  const where = !taskId ? undefined : { id: typeof taskId === 'string' ? taskId : { in: taskId } }
+  const [tasksResult, relationsResult] = await Promise.allSettled([allRows(TASKS_DATASET, where, scope), todoRelations(taskId, includeHistory, true, scope)])
   if (tasksResult.status === 'rejected') throw tasksResult.reason
   if (relationsResult.status === 'rejected') throw relationsResult.reason
   scope.assertActive()
@@ -114,11 +115,104 @@ function loadTodoProjection(includeHistory: boolean, taskId?: string): Promise<T
   return coalescedRead(scope, includeHistory ? 'full' : 'calendar', includeHistory ? ALL_DATASETS : CALENDAR_DATASETS, taskId ?? '', () => readTodos(scope, includeHistory, taskId))
 }
 
+const LIST_PARTIAL_LIMIT = 200
+
+/** Task ids a To-Do dataset change names, or null when it names none (the list must be read again in full). */
+export function changedTodoIds(event: { dataset?: string; keys?: unknown }, dataset: string): string[] | null {
+  const keys = event.keys
+  if (!Array.isArray(keys) || !keys.length || keys.length > LIST_PARTIAL_LIMIT) return null
+  const field = dataset === TASKS_DATASET ? 'id' : 'taskId'
+  const ids: string[] = []
+  for (const key of keys) {
+    const id = (key as Record<string, unknown> | null)?.[field]
+    if (typeof id !== 'string' || !id) return null
+    ids.push(id)
+  }
+  return ids
+}
+
+interface TodoListCache {
+  value?: TodoListRecord[]
+  groups?: string
+  dirty: Set<string>
+  full: boolean
+}
+
+const listCaches = new WeakMap<TodoRuntimeScope, TodoListCache>()
+
+function todoListCache(scope: TodoRuntimeScope): TodoListCache {
+  let cache = listCaches.get(scope)
+  if (cache) return cache
+  const created: TodoListCache = { dirty: new Set(), full: true }
+  const offs = LIST_DATASETS.map((dataset) => scope.api.data.dataset(dataset).subscribe((event) => {
+    if (created.full) return
+    const ids = event ? changedTodoIds(event, dataset) : null
+    if (!ids) { created.full = true; created.dirty.clear(); return }
+    for (const id of ids) created.dirty.add(id)
+    if (created.dirty.size > LIST_PARTIAL_LIMIT) { created.full = true; created.dirty.clear() }
+  }))
+  scope.onDispose(() => { offs.forEach((off) => off()); listCaches.delete(scope) })
+  listCaches.set(scope, created)
+  cache = created
+  return cache
+}
+
+async function readListRecords(scope: TodoRuntimeScope, ids?: string[]): Promise<TodoListRecord[]> {
+  let todos: TodoRecord[]
+  if (!ids) todos = await readTodos(scope, false)
+  else {
+    todos = []
+    for (let offset = 0; offset < ids.length; offset += 100) todos.push(...await readTodos(scope, false, ids.slice(offset, offset + 100)))
+  }
+  const summaries = await readCompletionSummaries(scope.api, todos.map((todo) => todo.id), scope.assertActive)
+  return todos.map((todo) => ({ ...todo, historyLoaded: false, completionSummary: summaries.get(todo.id) ?? null }))
+}
+
+/**
+ * The task list. The first read loads every task; afterwards a change that names
+ * its tasks re-reads only those and merges them, so a write costs the same at
+ * 20 tasks as at 2,000. Unkeyed changes, large batches and group renames read
+ * the whole list again.
+ */
 export function loadTodoList(scope = captureTodoScope()): Promise<TodoListRecord[]> {
+  const cache = todoListCache(scope)
   return coalescedRead(scope, 'list', LIST_DATASETS, '', async () => {
-    const todos = await readTodos(scope, false)
-    const summaries = await readCompletionSummaries(scope.api, todos.map((todo) => todo.id), scope.assertActive)
-    return todos.map((todo) => ({ ...todo, historyLoaded: false, completionSummary: summaries.get(todo.id) ?? null }))
+    const groups = JSON.stringify(normalizeGroups(scope.api.getState().groups))
+    if (cache.full || !cache.value || cache.groups !== groups) {
+      cache.full = false
+      cache.dirty.clear()
+      try {
+        cache.value = await readListRecords(scope)
+        cache.groups = groups
+      } catch (error) {
+        cache.full = true
+        throw error
+      }
+      return cache.value
+    }
+    if (!cache.dirty.size) return cache.value
+    const ids = [...cache.dirty]
+    cache.dirty.clear()
+    let changed: TodoListRecord[]
+    try {
+      changed = await readListRecords(scope, ids)
+    } catch (error) {
+      for (const id of ids) cache.dirty.add(id)
+      throw error
+    }
+    const byId = new Map(changed.map((todo) => [todo.id, todo]))
+    const touched = new Set(ids)
+    const next: TodoListRecord[] = []
+    for (const todo of cache.value) {
+      if (!touched.has(todo.id)) next.push(todo)
+      else {
+        const updated = byId.get(todo.id)
+        if (updated) { next.push(updated); byId.delete(todo.id) }
+      }
+    }
+    next.push(...byId.values())
+    cache.value = next
+    return next
   })
 }
 

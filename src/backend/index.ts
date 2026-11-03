@@ -41,7 +41,7 @@ export function register(api: PluginBackendApi): () => Promise<void> {
     try { await api.services.emit('workflow.provider', event, JSON.parse(JSON.stringify(payload))) }
     catch (error) { api.rpc.emit('records.eventDeliveryFailed', { event, recordId: payload.record.id, message: error instanceof Error ? error.message : String(error) }) }
   })
-  const offReminders = startReminderOwner(api, () => domain.list(), id => domain.patch(id, patchForStatus('completed')))
+  const offReminders = startReminderOwner(api, () => domain.list(), id => domain.patch(id, patchForStatus('completed')), ids => domain.getMany(ids))
   const offs = [
     api.rpc.handle('records.append', payload => domain.append((payload as { record: TodoRecord }).record)),
     api.rpc.handle('records.update', payload => {
@@ -96,5 +96,11 @@ export function register(api: PluginBackendApi): () => Promise<void> {
     return { items: [{ json: JSON.parse(JSON.stringify(record)) as Record<string, unknown> }] }
   })
   void contribution.ready.catch(error => api.rpc.emit('workflow.registrationFailed', { message: error instanceof Error ? error.message : String(error) }))
-  return async () => { await offReminders(); contribution.dispose(); offs.forEach(off => off()); await domain.dispose() }
+  return async () => {
+    const writes = domain.dispose()
+    const reminders = offReminders()
+    offs.forEach(off => off())
+    contribution.dispose()
+    await Promise.all([writes, reminders])
+  }
 }
