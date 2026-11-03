@@ -37,8 +37,8 @@ export function changedTaskIds(event: unknown): string[] | null {
 
 /**
  * Keep scheduled reminders in step with the tasks. A change that names its tasks
- * reconciles only those tasks; settings, resume, the minute tick and unkeyed
- * changes reconcile everything. Disposal stops admitting work at once, never
+ * reconciles only those tasks; settings, resume, the local day boundary and
+ * unkeyed changes reconcile everything. Disposal stops admitting work at once, never
  * issues another request, and waits for the work already running, so a quit
  * cannot fail on a reconcile the closing runtime refuses.
  */
@@ -145,11 +145,18 @@ export function startReminderOwner(api: PluginBackendApi, list: () => Promise<To
     request([event.targetItemId])
     return result
   })
-  const interval = setInterval(reconcile, 60_000)
+  // Reminder times are local wall-clock times: a new day (and with it a possible offset change) gets one full pass.
+  let dayTimer: ReturnType<typeof setTimeout> | undefined
+  const nextDay = (): void => {
+    const now = new Date()
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
+    dayTimer = setTimeout(() => { if (!active) return; reconcile(); nextDay() }, Math.max(1000, midnight - now.getTime() + 1000))
+  }
+  nextDay()
   reconcile()
   return async () => {
     active = false
-    clearInterval(interval); offData(); offSettings(); offResume(); offOccurrence(); offAction()
+    clearTimeout(dayTimer); offData(); offSettings(); offResume(); offOccurrence(); offAction()
     await pending.catch(() => {})
   }
 }

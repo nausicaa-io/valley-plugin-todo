@@ -123,3 +123,47 @@ describe('incremental reminder reconcile (8.10)', () => {
     await stop()
   })
 })
+
+describe('reminder reconcile triggers', () => {
+  it('reconciles on start, settings, resume and the local day boundary instead of every minute', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'], now: new Date(2026, 10, 3, 23, 50) })
+    try {
+      const listeners: Record<string, () => void> = {}
+      const list = vi.fn(async (): Promise<TodoRecord[]> => [])
+      const api = {
+        settings: { get: () => ({}), subscribe: (listener: () => void) => { listeners.settings = listener; return () => {} } },
+        lifecycle: { onResume: (listener: () => void) => { listeners.resume = listener; return () => {} } },
+        data: {
+          dataset: () => ({ subscribe: () => () => {} }),
+          files: { readText: async () => null, readTextBaseline: async () => null, writeTextGuarded: async () => ({ ok: true }) }
+        },
+        notifications: { schedule: vi.fn(), cancel: vi.fn(), onOccurrence: () => () => {} },
+        i18n: { t: (key: string) => key },
+        rpc: { handle: () => () => {}, emit: vi.fn() }
+      } as unknown as PluginBackendApi
+      const settle = async (): Promise<void> => { for (let index = 0; index < 10; index++) await vi.advanceTimersByTimeAsync(0) }
+      const stop = startReminderOwner(api, list, undefined, async () => [])
+      await settle()
+      expect(list).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      await settle()
+      expect(list).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(6 * 60_000)
+      await settle()
+      expect(list).toHaveBeenCalledTimes(2)
+      listeners.settings()
+      await settle()
+      listeners.resume()
+      await settle()
+      expect(list).toHaveBeenCalledTimes(4)
+      await vi.advanceTimersByTimeAsync(23 * 3_600_000)
+      await settle()
+      expect(list).toHaveBeenCalledTimes(4)
+      await vi.advanceTimersByTimeAsync(3_600_000)
+      await settle()
+      expect(list).toHaveBeenCalledTimes(5)
+      await stop()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally { vi.useRealTimers() }
+  })
+})
