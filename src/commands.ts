@@ -9,7 +9,7 @@ import type { DataRecord } from '@valley/plugin-sdk/types'
 import type { PluginCommand, ValleyPluginApi } from '@valley/plugin-sdk'
 import type { CommandSideEffect } from '@valley/plugin-sdk/commands'
 import { loadTodo, loadTodos, normalizeTodoRecord, rawAppend, rawDelete, rawRestore, rawUpdateCommitted } from './data'
-import { matchesSearch } from './search'
+import { searchMatcher } from './search'
 import { allGroups, groupForName, groupKey } from './groups'
 import { getGroups } from './groupStore'
 import { bucketTodos, SECTION_ORDER, type TodoSectionId } from './sections'
@@ -584,8 +584,10 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
         },
         fromCli: (args) => ({ query: args.join(' ').trim() })
       },
-      run: async ({ query }) =>
-        (await loadTodos()).filter((todo) => matchesSearch(query, todo.tags, todo.title, todo.note)).slice(0, 20),
+      run: async ({ query }) => {
+        const matches = searchMatcher(query)
+        return (await loadTodos()).filter((todo) => matches(todo.tags, todo.title, todo.note)).slice(0, 20)
+      },
       formatCli: (todos) => todos.length ? todos.map(describe).join('\n') : 'No matching todos.'
     }),
 
@@ -781,7 +783,10 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       },
       run: async ({ section, q }): Promise<TodoRecord[]> => {
         let todos = await loadTodos()
-        if (q) todos = todos.filter((t) => matchesSearch(q, t.tags, t.title, t.note))
+        if (q) {
+          const matches = searchMatcher(q)
+          todos = todos.filter((t) => matches(t.tags, t.title, t.note))
+        }
         if (section && (SECTION_ORDER as string[]).includes(section)) {
           return bucketTodos(todos)[section as TodoSectionId]
         }

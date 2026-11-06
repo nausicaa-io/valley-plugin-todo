@@ -59,9 +59,10 @@ export function PanelDateList({
   const sections = React.useMemo(
     () => {
       if (!timeline) return panelDateSections(todos, mode, weekStartIndex(weekStart))
-      const ordered = [...todos].sort((a, b) => completionTimestamp(b).localeCompare(completionTimestamp(a)))
+      const stamps = new Map(todos.map((todo) => [todo, completionTimestamp(todo)]))
+      const ordered = [...todos].sort((a, b) => stamps.get(b)!.localeCompare(stamps.get(a)!))
       return panelDateSections(ordered, mode, weekStartIndex(weekStart), {
-        dateOf: (todo) => localDayOfTimestamp(completionTimestamp(todo))
+        dateOf: (todo) => localDayOfTimestamp(stamps.get(todo)!)
       })
     },
     [mode, timeline, todos, weekStart]

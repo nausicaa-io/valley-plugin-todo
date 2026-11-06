@@ -23,15 +23,17 @@ export function parseSearch(query: string): ParsedSearch {
  * remaining free text must be a substring of one of `textFields`.
  */
 export function matchesSearch(query: string, tags: string[], ...textFields: string[]): boolean {
+  return searchMatcher(query)(tags, ...textFields)
+}
+
+/** {@link matchesSearch} with the query parsed once, for filtering a whole list. */
+export function searchMatcher(query: string): (tags: string[], ...textFields: string[]) => boolean {
   const parsed = parseSearch(query)
-  if (!parsed.tags.length && !parsed.text) return true
-  const recordTags = tags.map((t) => t.toLowerCase())
-  for (const tag of parsed.tags) {
-    if (!recordTags.some((t) => t.startsWith(tag))) return false
+  if (!parsed.tags.length && !parsed.text) return () => true
+  return (tags, ...textFields) => {
+    for (const tag of parsed.tags) {
+      if (!tags.some((t) => t.toLowerCase().startsWith(tag))) return false
+    }
+    return !parsed.text || textFields.some((f) => f.toLowerCase().includes(parsed.text))
   }
-  if (parsed.text) {
-    const haystack = textFields.map((f) => f.toLowerCase())
-    if (!haystack.some((f) => f.includes(parsed.text))) return false
-  }
-  return true
 }

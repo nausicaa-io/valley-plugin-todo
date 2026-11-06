@@ -3,7 +3,7 @@ import type { CSSProperties, ReactElement } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from '@valley/plugin-sdk/types'
 import { paletteCssContrast, paletteCssValue } from '@valley/plugin-sdk/palette'
 import { useActiveCalendarSelection, useHostState } from './hooks'
-import { matchesSearch } from './search'
+import { searchMatcher } from './search'
 import {
   CalendarClock,
   Paperclip,
@@ -371,9 +371,8 @@ export const TodoPanel = (): ReactElement => {
     let list = c.ordered.filter((todo) => matchesVisibleView(todo, view, showCompleted, today))
     if (statusFilter !== 'all') list = list.filter((todo) => matchesStatusFilter(todo, statusFilter))
     if (search.trim()) {
-      list = list.filter((todo) =>
-        matchesSearch(search, todo.tags ?? [], todo.title, todo.note, todo.group ?? '')
-      )
+      const matches = searchMatcher(search)
+      list = list.filter((todo) => matches(todo.tags ?? [], todo.title, todo.note, todo.group ?? ''))
     }
     // Calendar range filter: keep todos whose due date falls within the selection.
     if (selectedDateRange) {

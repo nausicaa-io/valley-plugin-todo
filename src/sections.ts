@@ -128,12 +128,15 @@ export function localDayOfTimestamp(value: string): string {
 }
 
 export function completionTimelineSections(todos: TodoRecord[]): PanelDateSection[] {
+  // Each timestamp walks the status history, so compute it once per task
+  // rather than twice per comparison.
+  const stamps = new Map(todos.map((todo) => [todo, completionTimestamp(todo)]))
   const ordered = [...todos].sort((a, b) =>
-    completionTimestamp(b).localeCompare(completionTimestamp(a)) || compareByName(a, b)
+    stamps.get(b)!.localeCompare(stamps.get(a)!) || compareByName(a, b)
   )
   const buckets = new Map<string, TodoRecord[]>()
   for (const todo of ordered) {
-    const day = localDayOfTimestamp(completionTimestamp(todo))
+    const day = localDayOfTimestamp(stamps.get(todo)!)
     const bucket = buckets.get(day)
     if (bucket) bucket.push(todo)
     else buckets.set(day, [todo])

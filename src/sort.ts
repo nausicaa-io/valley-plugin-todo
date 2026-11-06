@@ -34,8 +34,12 @@ export const SORT_LABEL_KEYS: Record<SortField, string> = {
 
 export const PRIORITY_RANK: Record<TodoPriority, number> = { high: 3, medium: 2, low: 1, normal: 0 }
 
+// One collator for every comparison: `localeCompare` with options builds a new
+// collator per call, which made sorting a few thousand titles take seconds.
+const titleCollator = new Intl.Collator(undefined, { sensitivity: 'base' })
+
 export function compareByName(a: TodoRecord, b: TodoRecord): number {
-  return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+  return titleCollator.compare(a.title, b.title)
 }
 
 export function compareTodos(a: TodoRecord, b: TodoRecord, field: SortField): number {
