@@ -363,3 +363,47 @@ export const Weekend = (p: IconProps): ReactElement => (
     <path d="M4 21v-3M20 21v-3" />
   </Svg>
 )
+
+export const ChevronsUpDown = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="m7 15 5 5 5-5M7 9l5-5 5 5" /></Svg>
+)
+
+export const ArrowUp = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M12 19V5M5 12l7-7 7 7" /></Svg>
+)
+
+export const ArrowDown = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M12 5v14M19 12l-7 7-7-7" /></Svg>
+)
+
+export const ArrowRight = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M5 12h14M12 5l7 7-7 7" /></Svg>
+)
+
+export const ChevronLeft = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="m15 18-6-6 6-6" /></Svg>
+)
+
+export const ChevronRight = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="m9 18 6-6-6-6" /></Svg>
+)
+
+export const ChevronsLeft = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="m11 17-5-5 5-5M18 17l-5-5 5-5" /></Svg>
+)
+
+export const ChevronsRight = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="m6 17 5-5-5-5M13 17l5-5-5-5" /></Svg>
+)
+
+export const CirclePlus = (p: IconProps): ReactElement => (
+  <Svg {...p}><circle cx="12" cy="12" r="9" /><path d="M8 12h8M12 8v8" /></Svg>
+)
+
+export const SlidersHorizontal = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" /></Svg>
+)
+
+export const Minus = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M5 12h14" /></Svg>
+)

@@ -14,12 +14,12 @@ function selectedStatuses(filter: TodoStatusFilter, active: TodoStatus[]): TodoS
   return filter === 'all' ? active : filter.filter((status) => active.includes(status))
 }
 
-function visibleSelectedStatuses(filter: TodoStatusFilter, active: TodoStatus[], showCompleted: boolean): TodoStatus[] {
+export function visibleSelectedStatuses(filter: TodoStatusFilter, active: TodoStatus[], showCompleted: boolean): TodoStatus[] {
   const selected = selectedStatuses(filter, active)
   return showCompleted ? selected : selected.filter((status) => !DONE_STATUSES.includes(status))
 }
 
-function StatusChoices(): ReactElement {
+export function StatusChoices(): ReactElement {
   const [filter, onChange] = useStatusFilter()
   const [showCompleted] = useShowCompleted()
   const defs = useStatusVocabulary()

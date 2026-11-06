@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import * as React from 'react'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes, TodoPropertiesHost, type TodoNotesMock } from './mockTodoNotes'
@@ -30,7 +30,7 @@ const RECORDS: DataRecord[] = [
 ]
 
 function titles(): string[] {
-  return screen.getAllByRole('heading', { level: 4 }).map((h) => (h.textContent ?? '').trim())
+  return [...document.querySelectorAll('.todo-table-row .todo-table-title-text')].map((cell) => (cell.textContent ?? '').trim())
 }
 
 function holdReconciliation(): (records: DataRecord[]) => void {
@@ -96,22 +96,19 @@ describe('the To-Do page', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('orders the toolbar as search, sort field, direction, then statuses', async () => {
-    store = installTodoNotes(RECORDS, {
-      groups: CONFIGURED,
-      pageSort: { field: 'due', dir: 'asc' }
-    })
+  it('orders the 38px header as title, filter, Status, Priority, then columns and add', async () => {
     const { container } = render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
 
-    const toolbar = container.querySelector('.todo-page-toolbar')!
-    expect([...toolbar.children].map((element) => {
+    const bar = container.querySelector('.todo-page-appbar')!
+    expect([...bar.children].map((element) => {
+      if (element.matches('h1')) return 'title'
       if (element.matches('.todo-search-wrap')) return 'search'
-      if (element.matches('select')) return 'due'
-      if (element.matches('.flagged-notes-sort-dir')) return 'direction'
-      if (element.matches('.todo-status-filter-select')) return 'statuses'
+      if (element.matches('.todo-facet-btn')) return element.getAttribute('aria-label')
+      if (element.matches('.todo-page-appbar-actions')) return [...element.children].map((child) => child.textContent || child.getAttribute('aria-label')).join('+')
       return 'other'
-    })).toEqual(['search', 'due', 'direction', 'statuses'])
+    })).toEqual(['title', 'search', 'Status', 'Priority', 'View+New todo'])
+    expect(screen.getByLabelText('Search todos')).toHaveAttribute('placeholder', 'Filter tasks…')
   })
 
   it('round-trips linked navigation, filters, search, and sort into persistent settings', () => {
@@ -276,7 +273,7 @@ describe('the To-Do page', () => {
     store.mock.emitState({ activePluginTab: { pluginId: 'todo' } })
     render(<><TodoPanel /><Page navigation={{ setController: vi.fn() }} /></>)
     await screen.findByText('Fungi Survey sheet')
-    const button = document.querySelector<HTMLButtonElement>('.todo-page > .todo-fab')!
+    const button = document.querySelector<HTMLButtonElement>('.todo-page-add')!
     fireEvent.click(button)
     expect(await screen.findByLabelText('New todo title')).toBeInTheDocument()
     expect(store.mock.api.workspace.revealOwnPanel).toHaveBeenCalledWith('left_sidebar')
@@ -287,26 +284,22 @@ describe('the To-Do page', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('reports the completed tally and shows or hides its rows on demand', async () => {
+  it('hides done tasks until the Status filter includes them', async () => {
     store = installTodoNotes([
       { id: 'a', title: 'Open one', completed: false } as DataRecord,
       { id: 'b', title: 'Done one', completed: true } as DataRecord
     ])
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Open one')
-
-    expect(screen.getByText('1 Completed')).toBeInTheDocument()
     expect(titles()).toEqual(['Open one'])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
-    await waitFor(() => expect(titles()).toContain('Done one'))
-    expect(screen.getByRole('button', { name: 'Hide completed' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Hide completed' }))
-    await waitFor(() => expect(titles()).toEqual(['Open one']))
+    fireEvent.click(screen.getByRole('button', { name: 'Status' }))
+    render(<>{store.mock.popovers.at(-1)?.node}</>)
+    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    await waitFor(() => expect(titles()).toEqual(['Open one', 'Done one']))
   })
 
-  it('keeps the workspace page mounted while completing a task with attachment cards', async () => {
+  it('keeps the workspace page mounted while bulk-completing selected tasks', async () => {
     store = installTodoNotes([{
       id: 'linked',
       title: 'Archive field recording',
@@ -316,19 +309,22 @@ describe('the To-Do page', () => {
     } as DataRecord])
     const finishRefresh = holdReconciliation()
     const { container } = render(<Page navigation={{ setController: vi.fn() }} />)
-    await screen.findByTitle('Audio/Field.m4a')
+    await screen.findByText('Archive field recording')
     const shell = container.querySelector('.todo-page')
 
-    fireEvent.click(screen.getByLabelText('Complete Archive field recording'))
+    fireEvent.click(screen.getByLabelText('Select Archive field recording'))
+    expect(screen.getByText('1 of 1 row(s) selected.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Complete' }))
 
     await waitFor(() => expect(screen.queryByText('Archive field recording')).not.toBeInTheDocument())
+    expect(screen.getByText('0 of 0 row(s) selected.')).toBeInTheDocument()
     expect(screen.queryByText('Loading todos')).not.toBeInTheDocument()
     expect(container.querySelector('.todo-page')).toBe(shell)
     act(() => finishRefresh(store.records.map((record) => ({ ...record }))))
     await waitFor(() => expect(container.querySelector('.todo-page')).toBe(shell))
   })
 
-  it('renders Completed as a newest-first completion timeline', async () => {
+  it('orders Completed newest completion first', async () => {
     store = installTodoNotes([
       {
         id: 'older', title: 'Older completion', completed: true, status: 'completed',
@@ -354,25 +350,10 @@ describe('the To-Do page', () => {
 
     await screen.findByText('Newer cancellation')
     expect(titles()).toEqual(['Newer cancellation', 'Legacy completion', 'Older completion'])
-    expect(document.querySelectorAll('.todo-completed-timeline .todo-schedule-head')).toHaveLength(3)
     expect(screen.queryByText('Reopened task')).not.toBeInTheDocument()
   })
 
-  it('uses the global short date format for completed timeline headings', async () => {
-    store = installTodoNotes([
-      {
-        id: 'completed-short-date', title: 'Completed fern survey', completed: true, status: 'completed',
-        statusHistory: [{ from: 'open', to: 'completed', changedAt: '2026-06-13T12:00:00.000Z' }]
-      } as DataRecord
-    ], { panelChip: 'completed' })
-    store.mock.emitState({ shortDateFormat: 'dddd dd mmmm yyyy' })
-    render(<Page navigation={{ setController: vi.fn() }} />)
-
-    await screen.findByText('Completed fern survey')
-    expect(screen.getByText('Saturday 13 June 2026')).toBeInTheDocument()
-  })
-
-  it('groups a dated view under date headers instead of repeating the date per row', async () => {
+  it('orders a dated view overdue first and opens due dates in Calendar', async () => {
     const today = isoDay(new Date())
     store = installTodoNotes(
       [
@@ -385,24 +366,13 @@ describe('the To-Do page', () => {
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Long overdue')
 
-    expect(screen.getByRole('heading', { level: 2, name: /^Overdue/ })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 2, name: /^Today/ })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3 })).toHaveClass('is-overdue')
-    expect(document.querySelectorAll('.todo-day-head.is-overdue')).toHaveLength(1)
-    // The row's own inline date is suppressed — the header already said it.
-    expect(document.querySelector('.todo-date')).toBeNull()
-
-    // 2099 is well past the day-header horizon, so it rolls into a collapsed
-    // month rather than adding a header of its own to a list nobody has
-    // scrolled to yet.
-    expect(document.querySelectorAll('h2.todo-day-head')).toHaveLength(0)
-    expect(screen.queryByText('Future survey')).toBeNull()
-    const month = screen.getByRole('button', { expanded: false, name: /January/ })
-    fireEvent.click(month)
-    expect(await screen.findByText('Future survey')).toBeInTheDocument()
+    expect(titles()).toEqual(['Long overdue', 'Due today', 'Future survey'])
+    const overdue = screen.getByText('Long overdue').closest('tr')!.querySelector('.todo-table-due .todo-table-cell-btn')!
+    expect(overdue).toHaveClass('is-overdue')
+    expect(screen.getByText('Due today').closest('tr')!.querySelector('.todo-table-due')).toHaveTextContent('Today')
   })
 
-  it('splits Today by time of day, and leads with the untimed work', async () => {
+  it('orders Today by start time', async () => {
     const today = isoDay(new Date())
     store = installTodoNotes(
       [
@@ -416,58 +386,84 @@ describe('the To-Do page', () => {
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Standup')
 
-    const heads = [...document.querySelectorAll('.todo-timeofday-head')].map((h) => h.textContent)
-    // Untimed leads with no header of its own — it is most of a day, and a
-    // heading over it would shout louder than the timed items it sits above.
-    expect(heads).toEqual(['Morning', 'Afternoon', 'Tonight'])
-    expect(titles()).toEqual(['Whenever', 'Standup', 'Review', 'Reading'])
+    expect(titles()).toEqual(['Standup', 'Review', 'Reading', 'Whenever'])
+    expect(screen.getByText('Standup').closest('tr')).toHaveTextContent('09:30')
   })
 
-  it('keeps the inline date in an undated view', async () => {
+  it('sorts from the column headers and returns to the view order on the third click', async () => {
     store = installTodoNotes([
-      { id: 'a', title: 'Someday', completed: false, dueDate: '2026-12-01' } as DataRecord
+      { id: 'a', title: 'Beta', completed: false, priority: 'low' } as DataRecord,
+      { id: 'b', title: 'Alpha', completed: false, priority: 'high' } as DataRecord,
+      { id: 'c', title: 'Gamma', completed: false, priority: 'medium' } as DataRecord
     ])
     render(<Page navigation={{ setController: vi.fn() }} />)
-    await screen.findByText('Someday')
+    await screen.findByText('Alpha')
+    const before = titles()
 
-    expect(screen.queryAllByRole('heading', { level: 2 })).toHaveLength(0)
-    expect(document.querySelector('.todo-date')).not.toBeNull()
+    const header = screen.getByRole('button', { name: 'Title' })
+    fireEvent.click(header)
+    await waitFor(() => expect(titles()).toEqual(['Alpha', 'Beta', 'Gamma']))
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending')
+    fireEvent.click(header)
+    await waitFor(() => expect(titles()).toEqual(['Gamma', 'Beta', 'Alpha']))
+    fireEvent.click(header)
+    await waitFor(() => expect(titles()).toEqual(before))
+    expect(store.mock.api.settings.get()).toMatchObject({ pageSort: { field: 'auto' } })
+
+    fireEvent.click(within(document.querySelector('thead')!).getByRole('button', { name: 'Priority' }))
+    await waitFor(() => expect(titles()).toEqual(['Alpha', 'Gamma', 'Beta']))
   })
 
-  it('assigns the active group to a quick-added todo, tokens and all', async () => {
-    store = installTodoNotes(RECORDS, { groups: CONFIGURED, panelChip: 'group:Fungi' })
+  it('filters by priority and resets every filter at once', async () => {
+    store = installTodoNotes([
+      { id: 'a', title: 'Urgent', completed: false, priority: 'high' } as DataRecord,
+      { id: 'b', title: 'Later', completed: false, priority: 'low' } as DataRecord
+    ])
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Urgent')
+
+    fireEvent.click(within(document.querySelector<HTMLElement>('.todo-page-appbar')!).getByRole('button', { name: 'Priority' }))
+    const popover = render(<>{store.mock.popovers.at(-1)?.node}</>)
+    fireEvent.click(within(popover.container).getByRole('button', { name: 'High' }))
+    await waitFor(() => expect(titles()).toEqual(['Urgent']))
+    expect(store.mock.api.settings.get()).toMatchObject({ pagePriorityFilter: ['high'] })
+    expect(document.querySelector('.todo-facet-btn[aria-label="Priority"] .todo-facet-badge')).toHaveTextContent('High')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    await waitFor(() => expect(titles()).toEqual(['Urgent', 'Later']))
+  })
+
+  it('hides and restores columns from View', async () => {
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    expect(document.querySelector('.todo-table-badge')).toHaveTextContent('Fungi')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle columns' }))
+    render(<>{store.mock.popovers.at(-1)?.node}</>)
+    fireEvent.click(screen.getByRole('button', { name: 'Priority' , pressed: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Group', pressed: true }))
+    await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Priority' })).not.toBeInTheDocument())
+    expect(document.querySelector('.todo-table-badge')).toBeNull()
+    expect(store.mock.api.settings.get()).toMatchObject({ pageColumns: ['status', 'due'] })
+  })
+
+  it('changes status from its cell and deletes the selection after confirmation', async () => {
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
 
-    fireEvent.change(await screen.findByLabelText('Quick add a task'), {
-      target: { value: 'Habitat survey 10 !! @today' }
-    })
-    fireEvent.submit(screen.getByLabelText('Quick add a task').closest('form')!)
+    const statusCell = screen.getByText('Review species list').closest('tr')!.querySelector<HTMLButtonElement>('.todo-table-status button')!
+    fireEvent.click(statusCell)
+    const inProgress = store.mock.menus.at(-1)!.find((item) => item.label === 'In Progress')!
+    await act(async () => { await inProgress.onSelect?.() })
+    await waitFor(() => expect(store.records.find((r) => r.id === 'b')).toMatchObject({ status: 'inprogress' }))
 
-    await waitFor(() => {
-      const created = store.records.find((r) => r.title === 'Habitat survey 10')
-      expect(created).toMatchObject({ group: 'Fungi', priority: 'medium' })
-      expect(String(created?.dueDate ?? '')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    })
+    fireEvent.click(screen.getByLabelText('Select all'))
+    expect(screen.getByText('3 of 3 row(s) selected.')).toBeInTheDocument()
+    vi.mocked(store.mock.api.ui.confirm).mockResolvedValueOnce('delete')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(store.records).toHaveLength(0))
   })
 
-  it('dates a todo created inside Today, so it does not vanish on creation', async () => {
-    store = installTodoNotes([], { panelChip: 'today' })
-    render(<Page navigation={{ setController: vi.fn() }} />)
-
-    fireEvent.change(await screen.findByLabelText('Quick add a task'), {
-      target: { value: 'Observe otter den' }
-    })
-    fireEvent.submit(screen.getByLabelText('Quick add a task').closest('form')!)
-
-    await waitFor(() =>
-      expect(store.records.find((r) => r.title === 'Observe otter den')).toMatchObject({
-        dueDate: isoDay(new Date())
-      })
-    )
-  })
-
-  /** The page renders its own editor, so it must obey the same one-at-a-time rule. */
   it('edits the selected row in a modal while Properties stays read-only', async () => {
     render(<><Page navigation={{ setController: vi.fn() }} /><TodoPropertiesHost mock={store.mock} /></>)
     await screen.findByText('Fungi Survey sheet')
@@ -484,27 +480,31 @@ describe('the To-Do page', () => {
 })
 
 
-it.each(['scheduled', 'completed'] as const)('bounds the %s date section containers for a large timeline', async (id) => {
-  const records = Array.from({ length: 500 }, (_, index) => ({
-    id: `date-${index}`, title: `Date task ${index}`, completed: id === 'completed',
-    dueDate: new Date(Date.UTC(2020, 0, index + 1)).toISOString().slice(0, 10),
-    ...(id === 'completed' ? { completedAt: new Date(Date.UTC(2020, 0, index + 1)).toISOString() } : {})
-  }))
-  store = installTodoNotes(records, { panelChip: serializeView({ kind: 'smart', id }), pageShowCompleted: true })
+it('pages a large list and turns to the page of a revealed task', async () => {
+  store = installTodoNotes(Array.from({ length: 95 }, (_, index) => ({ id: `task-${index}`, title: `Task ${String(index).padStart(3, '0')}`, completed: false })), { pageSort: { field: 'name', dir: 'asc' } })
   const view = render(<Page navigation={{ setController: vi.fn() }} />)
-  await waitFor(() => expect(view.container.querySelector('.todo-row')).not.toBeNull())
-  expect(view.container.querySelectorAll(id === 'completed' ? '.todo-schedule-block' : '.todo-page-days').length).toBeLessThan(40)
-  expect(view.container.querySelectorAll('.todo-row').length).toBeLessThan(40)
-})
+  await screen.findByText('Task 000')
+  expect(view.container.querySelectorAll('.todo-table-row')).toHaveLength(10)
+  expect(screen.getByText('Page 1 of 10')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled()
 
-it('bounds future month containers while retaining month expansion', async () => {
-  store = installTodoNotes(Array.from({ length: 500 }, (_, index) => ({ id: `month-${index}`, title: `Future task ${index}`, completed: false, dueDate: new Date(Date.UTC(2090, index, 1)).toISOString().slice(0, 10) })), { panelChip: serializeView({ kind: 'smart', id: 'scheduled' }) })
-  const view = render(<Page navigation={{ setController: vi.fn() }} />)
-  await waitFor(() => expect(view.container.querySelector('.todo-month')).not.toBeNull())
-  expect(view.container.querySelectorAll('.todo-month').length).toBeLessThan(40)
-  const header = view.container.querySelector('.todo-month-head')!
-  fireEvent.click(header)
-  expect(header).toHaveAttribute('aria-expanded', 'true')
-  expect(await screen.findByText('Future task 0')).toBeTruthy()
-  expect(view.container.querySelectorAll('.todo-month').length).toBeLessThan(40)
+  fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
+  expect(await screen.findByText('Task 010')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Go to last page' }))
+  expect(await screen.findByText('Task 094')).toBeInTheDocument()
+  expect(view.container.querySelectorAll('.todo-table-row')).toHaveLength(5)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Rows per page' }))
+  const fifty = store.mock.menus.at(-1)!.find((item) => item.label === '50')!
+  act(() => { void fifty.onSelect?.() })
+  expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument()
+  expect(store.mock.api.settings.get()).toMatchObject({ pageRowsPerPage: 50 })
+
+  const scrollIntoView = vi.fn()
+  Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+  act(() => revealRequestStore().request('task-77', 'focus'))
+  expect(await screen.findByText('Task 077')).toBeInTheDocument()
+  expect(screen.getByText('Page 2 of 2')).toBeInTheDocument()
+  await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' }))
+  delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
 })
