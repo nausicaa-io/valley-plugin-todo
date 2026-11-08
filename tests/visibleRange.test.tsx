@@ -175,7 +175,7 @@ it('compensates an offscreen nested section resize only once', async () => {
   expect(scroller.scrollTop).toBe(8040)
 })
 
-it('renders small date groups completely even when the vault has many tasks', async () => {
+it('renders small date groups completely even when the realm has many tasks', async () => {
   installTodoNotes(Array.from({ length: 90 }, (_, index) => ({ id: `fern-${index}`, title: `Fern ${index}`, completed: false, dueDate: `2026-09-${String(Math.floor(index / 9) + 1).padStart(2, '0')}` })))
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     const top = this.classList.contains('todo-list-rows') ? 2000 : 0

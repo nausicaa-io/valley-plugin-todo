@@ -6,7 +6,7 @@ import { forWrite, hydrateTodos, normalizeTodoRecord, relationDeletes, relationW
 import type { TodoRecord } from './types'
 
 type OwnerApi = Pick<ValleyPluginApi, 'data' | 'pluginId'> & { settings?: Pick<ValleyPluginApi['settings'], 'get'> } & { documents: Pick<ValleyPluginApi['documents'], 'read' | 'update'> }
-type Revision = { expectedRevision: number; vaultGeneration: number }
+type Revision = { expectedRevision: number; realmGeneration: number }
 export type TodoUpdateOptions = { exactStatusHistory?: boolean }
 export type TodoEventSink = (event: string, payload: { record: TodoRecord; previous?: TodoRecord }) => Promise<void>
 
@@ -82,7 +82,7 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     assertActive()
     const committed = await api.documents.update(ref, {
       expectedRevision: documentRevision?.expectedRevision ?? baseline.revision,
-      vaultGeneration: documentRevision?.vaultGeneration ?? baseline.vaultGeneration,
+      realmGeneration: documentRevision?.realmGeneration ?? baseline.realmGeneration,
       body: persisted.note, explicitTags: persisted.tags ?? [],
       operations: [
         { dataset: 'todo.tasks', operation: 'update', key: { id }, values: row },
@@ -93,7 +93,7 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
       await committedEvent(emit, 'task.updated', { record: persisted, previous: current })
       if (from !== 'completed' && to === 'completed') await committedEvent(emit, 'task.completed', { record: persisted, previous: current })
     }
-    return { ok: true, record: persisted, documentRevision: { expectedRevision: committed.revision, vaultGeneration: committed.vaultGeneration } }
+    return { ok: true, record: persisted, documentRevision: { expectedRevision: committed.revision, realmGeneration: committed.realmGeneration } }
   }
   return {
     list: (api = owner) => read(api),

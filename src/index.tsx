@@ -56,7 +56,7 @@ export function register(api: ValleyPluginApi): () => void {
   const offCalendarSource = registerCalendarSource()
   const offCalendarSources = api.interop.services.subscribe(CALENDAR_ITEM_SOURCE_V2, () => {})
   const offCalendarProviders = api.interop.services.subscribe(CALENDAR_ITEM_SOURCE_V2, () => {})
-  // We own how our hits look and behave in vault-wide search.
+  // We own how our hits look and behave in realm-wide search.
   const offSearchCard = registerSearchCard(api)
   // Module-managed timeouts, so a reminder still fires with every panel closed.
   const offReminders = startReminders()

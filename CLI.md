@@ -1,8 +1,8 @@
 # To-Do — Terminal CLI
 
 `valley todo <command>` manages tasks in the running Valley app. Requires Valley
-to be open (see the repo README for `npm link` setup and multi-vault targeting
-with `--vault`). Run `valley todo --help` for the live list.
+to be open (see the repo README for `npm link` setup and multi-realm targeting
+with `--realm`). Run `valley todo --help` for the live list.
 
 Every mutation goes through the same isolated SQLite datasets as the UI, fires
 the change event so open panels reload, and is **undoable with ⌘Z in the app**.

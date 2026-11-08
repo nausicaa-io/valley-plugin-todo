@@ -337,7 +337,7 @@ describe('TodoPanel', () => {
   })
 
   it('keeps the sidebar to lists and groups, with no tag strip', async () => {
-    // A row of every tag in the vault, each with its own count, was navigation
+    // A row of every tag in the realm, each with its own count, was navigation
     // nobody asked for: it grew without bound, pushed the actual todos down the
     // panel, and repeated what the search field already does with `#tag`.
     setup([
@@ -707,7 +707,7 @@ describe('TodoPanel', () => {
 
 
 
-  it('keeps vault image previews and document links inside the scrolling description', async () => {
+  it('keeps realm image previews and document links inside the scrolling description', async () => {
     setup([{ id: 't1', title: 'Inspect habitat', note: '![[canopy.png]] ![[Field guide.pdf]]', completed: false } as DataRecord])
     store.mock.api.markdown.render = async (source, options) => options?.inline ? source : '<p><img class="md-embed" data-embed="canopy.png" alt="Canopy"><img class="md-embed" data-embed="Field guide.pdf" alt="Field guide"></p>'
     vi.spyOn(store.mock.api.workspace, 'resolveWikilink').mockImplementation(reference => `Archive/${reference}`)

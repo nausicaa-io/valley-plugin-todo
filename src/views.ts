@@ -21,7 +21,7 @@ export type TodoView =
   | { kind: 'nogroup' }
 
 /**
- * All, not Today. Today is a *dated* list, so on a fresh vault — and for anyone
+ * All, not Today. Today is a *dated* list, so on a fresh realm — and for anyone
  * who keeps undated todos — it opens empty while the sidebar counts say there
  * is work. It is also what the chip bar defaulted to, so an upgrade lands on
  * the same list the user was already looking at.
@@ -191,7 +191,7 @@ export function groupCount(todos: TodoRecord[], name: string | null): number {
 
 /**
  * Serialize for plugin settings — a selected list must survive a restart.
- * The group spellings are unchanged from the chip bar they replace, so a vault
+ * The group spellings are unchanged from the chip bar they replace, so a realm
  * that persisted `group:Fungi` keeps its selection with no settings migration.
  */
 export function serializeView(view: TodoView): string {

@@ -214,8 +214,8 @@ export function onView(fn: Listener): () => void {
 }
 
 /**
- * Drop the cache on `register()`. Without this a vault switch shows the previous
- * vault's selection.
+ * Drop the cache on `register()`. Without this a realm switch shows the previous
+ * realm's selection.
  */
 export function resetViewCache(): void {
   const viewStore = store()

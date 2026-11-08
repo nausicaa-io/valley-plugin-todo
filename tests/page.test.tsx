@@ -67,7 +67,7 @@ describe('the To-Do page', () => {
     store = installTodoNotes(RECORDS, { groups: CONFIGURED })
   })
 
-  it('opens on All, so an undated todo is never invisible on a fresh vault', async () => {
+  it('opens on All, so an undated todo is never invisible on a fresh realm', async () => {
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('All')

@@ -171,7 +171,7 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
     if (draft.revision || draft.loadingRevision) return
     draft.loadingRevision = api.documents.read({ pluginId: 'todo', sourceId: 'tasks', itemId: todoId })
       .then((document) => {
-        if (document && !draft.revision) draft.revision = { expectedRevision: document.revision, vaultGeneration: document.vaultGeneration }
+        if (document && !draft.revision) draft.revision = { expectedRevision: document.revision, realmGeneration: document.realmGeneration }
       })
       .catch(() => { patchDraft({ error: uiText('todo.error.saveDraft') }) })
       .finally(() => { draft.loadingRevision = undefined })

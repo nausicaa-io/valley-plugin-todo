@@ -114,7 +114,7 @@ describe('todo data layer', () => {
     const update = vi.spyOn(mock.api.documents, 'update')
     expect(await updateTodo('todo_test', todo({ title: 'Changed', note: '# Ferns', tags: ['botanik/äste'] }), NOW)).toBe(true)
     expect(update).toHaveBeenCalledWith({ pluginId: 'todo', sourceId: 'tasks', itemId: 'todo_test' }, expect.objectContaining({
-      body: '# Ferns', explicitTags: ['botanik/äste'], expectedRevision: expect.any(Number), vaultGeneration: expect.any(Number)
+      body: '# Ferns', explicitTags: ['botanik/äste'], expectedRevision: expect.any(Number), realmGeneration: expect.any(Number)
     }))
     const operations = update.mock.calls[0][1].operations ?? []
     expect(operations.some((operation) => operation.dataset === 'todo.task_tags')).toBe(false)
@@ -137,7 +137,7 @@ describe('todo data layer', () => {
     const { mock } = installTodoNotes([todo() as unknown as DataRecord])
     const ref = { pluginId: 'todo', sourceId: 'tasks', itemId: 'todo_test' }
     const baseline = (await mock.api.documents.read(ref))!
-    const revision = { expectedRevision: baseline.revision, vaultGeneration: baseline.vaultGeneration }
+    const revision = { expectedRevision: baseline.revision, realmGeneration: baseline.realmGeneration }
     expect(await updateTodo('todo_test', todo({ note: 'First edit' }), NOW, revision)).toBe(true)
     expect(revision.expectedRevision).toBeGreaterThan(baseline.revision)
     const persisted = (await loadTodos())[0]
@@ -243,7 +243,7 @@ describe('todo data layer', () => {
       'ftp://field.example.test/specimen',
       'slack://channel',
       'mailto:keeper@example.test',
-      'fieldnotes://open?vault=Field&file=Specimen',
+      'fieldnotes://open?realm=Field&file=Specimen',
       'valley://open?file=Habitats%2FSpecimen.md'
     ]
     expect(supported.map(normalizeTodoUrl)).toEqual(supported)

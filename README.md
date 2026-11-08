@@ -4,7 +4,7 @@ Structured task manager with smart lists, multi-group filters, statuses, swipe a
 
 This repository owns the plugin’s interface, behavior, dependencies, schemas, tests, translations, and compiled releases. It uses Valley manifest API 5 and the injected SDK 6.
 
-This is an external plugin and is not bundled with Valley. An installed copy lives in the vault's `.valley/plugins/packages/github/todo/` (installed from GitHub) or `.valley/plugins/packages/local/todo/` (installed from a local package). Core and external installations run with the same sandbox, permissions, and SDK/IPC contract. Ordinary vault documents and saved plugin data (`.valley/plugins/data/todo/`) keep their existing locations.
+This is an external plugin and is not bundled with Valley. An installed copy lives in the realm's `.valley/plugins/packages/github/todo/` (installed from GitHub) or `.valley/plugins/packages/local/todo/` (installed from a local package). Core and external installations run with the same sandbox, permissions, and SDK/IPC contract. Ordinary realm documents and saved plugin data (`.valley/plugins/data/todo/`) keep their existing locations.
 
 ## Package
 
@@ -33,7 +33,7 @@ Valley release maintainers explicitly import the compiled artifact into the appl
 
 Selected-task reads in version 3.1 query only that task and its relationships, retain complete paginated history, and coalesce concurrent reads. List ordering uses Set membership while preserving the existing stable display order. Ordinary completion timelines retain their existing status-history semantics.
 
-Groups settings edits the shared vault registry used by Calendar and other plugins. Single-click anywhere on a dated task opens Calendar; double-click opens the task editor. Undated tasks open the editor. Status controls and links retain their own actions.
+Groups settings edits the shared realm registry used by Calendar and other plugins. Single-click anywhere on a dated task opens Calendar; double-click opens the task editor. Undated tasks open the editor. Status controls and links retain their own actions.
 
 Tasks are independent. Add To-Do opens a compact inline editor in the left sidebar, including when the main page is active. Enter saves the task and keeps the editor ready for another; notes, tags, date, time, location, and flag are optional. Creation never opens the detail modal.
 

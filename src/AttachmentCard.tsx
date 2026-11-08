@@ -76,7 +76,7 @@ export const AttachmentCard = ({
 
   React.useEffect(() => {
     let cancelled = false
-    void api.vault.fileInfo(relPath).then((info) => {
+    void api.realm.fileInfo(relPath).then((info) => {
       if (!cancelled) setSize(info?.size ?? null)
     })
     return () => {
@@ -88,7 +88,7 @@ export const AttachmentCard = ({
   // src string is never re-fetched, so without a version token it serves stale
   // pixels. (`useAssetUrl` is renderer-only — plugins bust their own.)
   const [epoch, setEpoch] = React.useState(0)
-  React.useEffect(() => api.vault.onChanged(() => setEpoch((n) => n + 1)), [])
+  React.useEffect(() => api.realm.onChanged(() => setEpoch((n) => n + 1)), [])
   const thumbSrc = kind === 'image' ? `${assetUrlForRelPath(relPath)}?v=${epoch}` : null
 
   return (

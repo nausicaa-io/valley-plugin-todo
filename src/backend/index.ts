@@ -45,7 +45,7 @@ export function register(api: PluginBackendApi): () => Promise<void> {
   const offs = [
     api.rpc.handle('records.append', payload => domain.append((payload as { record: TodoRecord }).record)),
     api.rpc.handle('records.update', payload => {
-      const input = payload as { id: string; record: TodoRecord; expectedUpdatedAt?: string; documentRevision?: { expectedRevision: number; vaultGeneration: number }; exactStatusHistory?: boolean }
+      const input = payload as { id: string; record: TodoRecord; expectedUpdatedAt?: string; documentRevision?: { expectedRevision: number; realmGeneration: number }; exactStatusHistory?: boolean }
       return domain.update(text(input.id, 'a task id'), input.record, input.expectedUpdatedAt, input.documentRevision, undefined, undefined, { exactStatusHistory: input.exactStatusHistory === true })
     }),
     api.rpc.handle('records.delete', payload => domain.remove(text((payload as { id: string }).id, 'a task id'))),

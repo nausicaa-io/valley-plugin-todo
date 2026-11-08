@@ -19,7 +19,7 @@ import { uiText } from './localization'
  * - **A slept machine.** Main's timer is late rather than skipped, exactly as a
  *   renderer's was — which is why the `visibilitychange`/`focus` catch-up that
  *   used to live here is gone.
- * - **The app shut across the moment.** Main announces it once at the next vault
+ * - **The app shut across the moment.** Main announces it once at the next realm
  *   open as a missed notification, rather than dropping it.
  *
  * A *fully quit* app still cannot fire — Electron bridges no OS-level
@@ -71,7 +71,7 @@ export interface DueReminders {
  *
  * Pure, so the split is testable without a clock or a host. There is no horizon:
  * a reminder three weeks out is armed now, because main persists the schedule
- * and re-arms it at vault open — the reason a horizon existed at all was that a
+ * and re-arms it at realm open — the reason a horizon existed at all was that a
  * renderer timer could not be trusted that far.
  */
 export function dueReminders(todos: readonly TodoRecord[], now: number): DueReminders {

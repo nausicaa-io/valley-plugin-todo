@@ -50,7 +50,7 @@ describe('dueReminders', () => {
   const now = at(2026, 8, 10, 12, 0)
 
   it('arms a reminder at its absolute moment, however far out', () => {
-    // No horizon any more: main persists the schedule and re-arms it at vault
+    // No horizon any more: main persists the schedule and re-arms it at realm
     // open, so there is nothing left for a horizon to protect against.
     const soon = todo({ id: 'soon', remindAt: '2026-08-10T18:00' })
     const farOff = todo({ id: 'far', remindAt: '2026-09-01T09:00' })
@@ -63,7 +63,7 @@ describe('dueReminders', () => {
 
   it('settles a moment that has passed instead of re-raising it', () => {
     // The host owned that moment — it fired on time, late off a sleep, or once
-    // as a missed notification at vault open. Raising it here as well is the
+    // as a missed notification at realm open. Raising it here as well is the
     // same reminder twice.
     const missed = todo({ id: 'missed', remindAt: '2026-08-10T08:00' })
     const { settled, upcoming } = dueReminders([missed], now)

@@ -65,7 +65,7 @@ function asRemindAt(value: unknown): string | undefined {
   return /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(s) ? s : undefined
 }
 
-/** Only explicitly supported web/app links; vault files use the separate path field. */
+/** Only explicitly supported web/app links; realm files use the separate path field. */
 export function normalizeTodoUrl(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const s = value.trim()
@@ -85,7 +85,7 @@ function normalizeUrls(value: unknown): string[] | undefined {
   return urls.length ? urls : undefined
 }
 
-/** Vault-relative attachment paths, de-duplicated; escapes and empties dropped. */
+/** Realm-relative attachment paths, de-duplicated; escapes and empties dropped. */
 function normalizeAttachments(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined
   const paths = [
