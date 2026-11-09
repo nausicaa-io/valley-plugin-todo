@@ -473,6 +473,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
     }),
     register({
       id: 'open-page',
+      menu: false,
       label: 'Open To-Do page', labelKey: 'auto.25097a85052b',
       sideEffect: 'read',
       run: () => {
