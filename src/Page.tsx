@@ -203,15 +203,20 @@ export const Page = ({ navigation }: MainWorkspaceViewProps): ReactElement => {
         <StatusFacet />
         <PriorityFacet />
         {filteredBy && (
-          <button type="button" className="todo-facet-reset" onClick={resetFilters}>
-            {uiText('todo.table.reset')}
+          <button
+            type="button"
+            className="todo-page-appbar-btn"
+            aria-label={uiText('todo.table.reset')}
+            title={uiText('todo.table.reset')}
+            onClick={resetFilters}
+          >
             <X />
           </button>
         )}
         {(selectedDateRange || selectedDate) && (
           <button
             type="button"
-            className="todo-facet-btn active"
+            className="todo-page-date-filter"
             title={uiText('auto.f93fb4b1ab19')}
             onClick={clearCalendarFilter}
           >

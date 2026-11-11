@@ -14,13 +14,17 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
-  CirclePlus,
+  CircleCheck,
   Flag,
+  MapPin,
   Minus,
+  PriorityGlyph,
   SlidersHorizontal,
   TodoStatusGlyph
 } from './icons'
 import { TodoMenu } from './TodoMenu'
+import { useStatusCheck } from './TodoRow'
+import { openLocation } from './LocationField'
 import { openStatusMenu } from './SwipeRow'
 import { confirmDeleteTodo } from './data'
 import { effectiveStatus, patchForStatus, statusDef, useStatusVocabulary } from './statuses'
@@ -31,22 +35,27 @@ import type { TodoListController } from './controller'
 import { todoPriorityLabel, todoStatusLabel, uiText } from './localization'
 
 /**
- * The main page's task table: sortable column headers, row selection with bulk
- * actions, a column picker and pagination. Columns, rows per page and the
+ * The main page's task table: the list row's status control and fields in the
+ * list row's order, sortable column headers, Cmd/Shift-click selection with
+ * bulk actions, a column picker and pagination. Columns, rows per page and the
  * priority filter persist in the plugin settings; the selection and the
  * current page are session state.
  */
 
-export type TodoColumn = 'group' | 'status' | 'priority' | 'due' | 'tags'
+export type TodoColumn = 'note' | 'group' | 'status' | 'priority' | 'due' | 'location' | 'tags'
 
+// The order a list row reads in: title, text, then its details.
 const COLUMNS: { id: TodoColumn; labelKey: string }[] = [
+  { id: 'note', labelKey: 'todo.table.note' },
   { id: 'group', labelKey: 'todo.table.group' },
   { id: 'status', labelKey: 'todo.table.status' },
   { id: 'priority', labelKey: 'todo.table.priority' },
   { id: 'due', labelKey: 'todo.table.due' },
+  { id: 'location', labelKey: 'todo.table.location' },
   { id: 'tags', labelKey: 'todo.table.tags' }
 ]
-const DEFAULT_COLUMNS: TodoColumn[] = ['group', 'status', 'priority', 'due']
+// Status starts off: the check at the front of the row already shows it.
+const DEFAULT_COLUMNS: TodoColumn[] = ['note', 'group', 'priority', 'due']
 const PAGE_SIZES = [10, 20, 30, 40, 50]
 // Highest first, matching the order the priority menus read in.
 const PRIORITY_ORDER: TodoPriority[] = PRIORITIES.map((p) => p.id).reverse()
@@ -82,19 +91,16 @@ export const PriorityIcon = ({ priority }: { priority: TodoPriority }): ReactEle
   return <Glyph className={`todo-table-priority-icon todo-priority-${priority}`} />
 }
 
-function FacetButton({ label, badges, onOpen }: { label: string; badges: string[]; onOpen: (anchor: HTMLElement) => void }): ReactElement {
+function FacetButton({ label, active, icon, onOpen }: { label: string; active: boolean; icon: ReactElement; onOpen: (anchor: HTMLElement) => void }): ReactElement {
   return (
     <button
       type="button"
-      className={`todo-facet-btn${badges.length ? ' active' : ''}`}
+      className={`todo-page-appbar-btn${active ? ' active' : ''}`}
       aria-label={label}
       title={label}
       onClick={(event) => onOpen(event.currentTarget)}
     >
-      <CirclePlus />
-      <span>{label}</span>
-      {badges.length > 0 && <span className="todo-facet-sep" aria-hidden="true" />}
-      {badges.map((badge) => <span key={badge} className="todo-facet-badge">{badge}</span>)}
+      {icon}
     </button>
   )
 }
@@ -106,15 +112,12 @@ export function StatusFacet(): ReactElement {
   const active = defs.map((status) => status.id)
   const selected = visibleSelectedStatuses(filter, active, showCompleted)
   // Hiding done work is the default, not a filter the user set.
-  const badges = filter === 'all' || selected.length === active.length
-    ? []
-    : selected.length > 2
-      ? [uiText('todo.filters.statusCount', { count: selected.length })]
-      : selected.map((status) => todoStatusLabel(status))
+  const filtering = filter !== 'all' && selected.length !== active.length
   return (
     <FacetButton
       label={uiText('todo.table.status')}
-      badges={badges}
+      active={filtering}
+      icon={<CircleCheck />}
       onOpen={(anchor) => void api.ui.openPopover(
         () => <StatusChoices />,
         { anchor, align: 'start', gap: 4 },
@@ -158,13 +161,11 @@ function PriorityChoices(): ReactElement {
 
 export function PriorityFacet(): ReactElement {
   const [selected] = usePriorityFilter()
-  const badges = selected.length > 2
-    ? [uiText('todo.table.selectedCount', { count: selected.length })]
-    : selected.map((id) => todoPriorityLabel(id))
   return (
     <FacetButton
       label={uiText('todo.table.priority')}
-      badges={badges}
+      active={selected.length > 0}
+      icon={<PriorityGlyph />}
       onOpen={(anchor) => void api.ui.openPopover(
         () => <PriorityChoices />,
         { anchor, align: 'start', gap: 4 },
@@ -205,7 +206,7 @@ export function ColumnsButton(): ReactElement {
   return (
     <button
       type="button"
-      className="todo-view-btn"
+      className="todo-page-appbar-btn"
       aria-label={uiText('todo.table.toggleColumns')}
       title={uiText('todo.table.toggleColumns')}
       onClick={(event) => void api.ui.openPopover(
@@ -215,7 +216,6 @@ export function ColumnsButton(): ReactElement {
       )}
     >
       <SlidersHorizontal />
-      <span>{uiText('todo.table.view')}</span>
     </button>
   )
 }
@@ -248,13 +248,33 @@ function SortHeader({ field, label, className, sort, onSort }: {
 
 const ROW_CONTROLS = 'input, button, a, textarea, [contenteditable="true"]'
 
-function TableRow({ todo, groups, columns, c, selected, onSelect }: {
+/** The note's first line of words as plain text: a 37px row has no room for blocks. */
+function notePreview(note: string): string {
+  for (const raw of note.split('\n')) {
+    if (raw.trim().startsWith('```')) continue
+    const line = raw.trim()
+      .replace(/^(?:>\s*)+/, '')
+      .replace(/^#{1,6}\s+/, '')
+      .replace(/^(?:[-*+]|\d+[.)])\s+(?:\[.\]\s+)?/, '')
+      .replace(/!?\[\[([^\]|#]+)[^\]|]*(?:\|([^\]]+))?\]\]/g, (_, target: string, alias?: string) => alias ?? target.split('/').pop() ?? target)
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/(?<!\w)(\*\*|__|\*|_|~~|`)(?=\S)(.+?)(?<=\S)\1(?!\w)/g, '$2')
+      .replace(/^\||\|$/g, '')
+      .replace(/\s*\|\s*/g, ' · ')
+      .trim()
+    if (/[\p{L}\p{N}]/u.test(line)) return line
+  }
+  return ''
+}
+
+function TableRow({ todo, groups, columns, c, selected, onPick }: {
   todo: TodoRecord
   groups: TodoGroup[]
   columns: TodoColumn[]
   c: TodoListController
   selected: boolean
-  onSelect: (selected: boolean) => void
+  /** Toggles this row, or with `range` selects from the last picked row to it. */
+  onPick: (range: boolean) => void
 }): ReactElement {
   const rowRef = React.useRef<HTMLTableRowElement>(null)
   React.useEffect(() => rowRef.current ? registerTodoRow(todo.id, rowRef.current) : undefined, [todo.id])
@@ -267,6 +287,8 @@ function TableRow({ todo, groups, columns, c, selected, onSelect }: {
     void renderInlineMarkdown(todo.title).then((html) => { if (active) setTitleHtml(html) }).catch(() => { if (active) setTitleHtml('') })
     return () => { active = false }
   }, [todo.title])
+  const noteLine = notePreview(todo.note)
+  const { check } = useStatusCheck(todo, c)
 
   const status = effectiveStatus(todo)
   const def = statusDef(status)
@@ -306,7 +328,7 @@ function TableRow({ todo, groups, columns, c, selected, onSelect }: {
           c.openDetail(todo.id)
         } else if (event.key === ' ') {
           event.preventDefault()
-          onSelect(!selected)
+          onPick(false)
         } else if (event.key === 'Escape') {
           event.currentTarget.blur()
         }
@@ -315,42 +337,41 @@ function TableRow({ todo, groups, columns, c, selected, onSelect }: {
         // Same gesture as the list rows: one click opens a dated task in
         // Calendar, a double-click opens the editor.
         if ((event.target as Element).closest(ROW_CONTROLS)) return
+        if (api.ui.hasModKey(event) || event.shiftKey) {
+          onPick(event.shiftKey)
+          return
+        }
         if (event.detail > 1) return
         if (clickTimer.current) clearTimeout(clickTimer.current)
         clickTimer.current = setTimeout(() => { clickTimer.current = null; openCalendar() }, 220)
       }}
       onDoubleClick={(event) => {
         if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null }
-        if ((event.target as Element).closest(ROW_CONTROLS)) return
+        if ((event.target as Element).closest(ROW_CONTROLS) || api.ui.hasModKey(event) || event.shiftKey) return
         c.openDetail(todo.id)
       }}
     >
-      <td className="todo-table-select">
-        <input
-          type="checkbox"
-          className="todo-table-checkbox"
-          checked={selected}
-          onChange={(event) => onSelect(event.target.checked)}
-          aria-label={uiText('todo.table.selectRow', { title: todo.title })}
-        />
-      </td>
+      <td className="todo-table-select">{check}</td>
       <td className="todo-table-title">
-        <div className="todo-table-title-inner">
-          {columns.includes('group') && todo.group && (
-            <span
-              className="todo-table-badge"
-              style={{ '--todo-badge-color': paletteCssValue(groupColorFor(todo.group, groups)) } as CSSProperties}
-            >
-              {todo.group}
+        {titleHtml
+          ? <span className="todo-table-title-text" dangerouslySetInnerHTML={{ __html: titleHtml }} />
+          : <span className="todo-table-title-text">{todo.title}</span>}
+      </td>
+      {columns.includes('note') && (
+        <td className="todo-table-note" title={noteLine || undefined}>
+          <span className="todo-table-note-text">{noteLine}</span>
+        </td>
+      )}
+      {columns.includes('group') && (
+        <td className="todo-table-group">
+          {todo.group && (
+            <span className="todo-group-text" title={todo.group} style={{ color: paletteCssValue(groupColorFor(todo.group, groups)) }}>
+              <span className="todo-group-dot" aria-hidden="true" />
+              <span className="todo-table-group-name">{todo.group}</span>
             </span>
           )}
-          {titleHtml
-            ? <span className="todo-table-title-text" dangerouslySetInnerHTML={{ __html: titleHtml }} />
-            : <span className="todo-table-title-text">{todo.title}</span>}
-          {columns.includes('tags') && todo.tags?.map((tag) => <span key={tag} className="todo-table-tag">#{tag}</span>)}
-          {todo.flagged && <span className="todo-table-flag" title={uiText('todo.flagged')}><Flag /></span>}
-        </div>
-      </td>
+        </td>
+      )}
       {columns.includes('status') && (
         <td className="todo-table-status">
           <button
@@ -387,7 +408,7 @@ function TableRow({ todo, groups, columns, c, selected, onSelect }: {
       )}
       {columns.includes('due') && (
         <td className="todo-table-due">
-          {dueLabel ? (
+          {dueLabel && (
             <button
               type="button"
               className={`todo-table-cell-btn${overdue ? ' is-overdue' : ''}`}
@@ -397,12 +418,31 @@ function TableRow({ todo, groups, columns, c, selected, onSelect }: {
               <span>{dueLabel}</span>
               {todo.startTime && <span className="todo-table-time">{todo.startTime}</span>}
             </button>
-          ) : (
-            <span className="todo-table-none" aria-hidden="true">—</span>
           )}
         </td>
       )}
+      {columns.includes('location') && (
+        <td className="todo-table-location">
+          {todo.location && (
+            <button
+              type="button"
+              className="todo-table-cell-btn"
+              title={uiText('todo.openLocationOf', { p0: todo.location.name })}
+              onClick={() => openLocation(todo.location!)}
+            >
+              <MapPin />
+              <span>{todo.location.name}</span>
+            </button>
+          )}
+        </td>
+      )}
+      {columns.includes('tags') && (
+        <td className="todo-table-tags" title={todo.tags?.map((tag) => `#${tag}`).join(' ') || undefined}>
+          {todo.tags?.map((tag) => <span key={tag} className="todo-table-tag">#{tag}</span>)}
+        </td>
+      )}
       <td className="todo-table-actions">
+        {todo.flagged && <span className="todo-table-flag" title={uiText('todo.flagged')}><Flag /></span>}
         <TodoMenu
           todo={todo}
           groupNames={allGroups(groups)}
@@ -437,17 +477,12 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty }: {
     setPage(0)
   }
   const [selection, setSelection] = React.useState<Set<string>>(() => new Set())
-  const allRef = React.useRef<HTMLInputElement>(null)
+  const pickAnchor = React.useRef<string | null>(null)
 
   const pageCount = Math.max(1, Math.ceil(todos.length / pageSize))
   const current = Math.min(page, pageCount - 1)
   const rows = todos.slice(current * pageSize, (current + 1) * pageSize)
   const selected = React.useMemo(() => todos.filter((todo) => selection.has(todo.id)), [todos, selection])
-  const pageSelected = rows.filter((todo) => selection.has(todo.id)).length
-  const allChecked = rows.length > 0 && pageSelected === rows.length
-  React.useEffect(() => {
-    if (allRef.current) allRef.current.indeterminate = pageSelected > 0 && !allChecked
-  }, [pageSelected, allChecked])
 
   // A revealed or edited task has to be on screen, so turn to its page.
   const reveals = revealRequestStore()
@@ -470,6 +505,14 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty }: {
     })
   }
 
+  const pick = (id: string, range: boolean): void => {
+    const to = rows.findIndex((todo) => todo.id === id)
+    const from = range ? rows.findIndex((todo) => todo.id === pickAnchor.current) : -1
+    if (from >= 0) select(rows.slice(Math.min(from, to), Math.max(from, to) + 1).map((todo) => todo.id), true)
+    else select([id], !selection.has(id))
+    pickAnchor.current = id
+  }
+
   const completeSelected = (): void => {
     for (const todo of selected) void c.patchTodo(todo.id, patchForStatus('completed'))
     setSelection(new Set())
@@ -490,7 +533,7 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty }: {
     setSelection(new Set())
   }
 
-  const span = 3 + columns.filter((id) => id === 'status' || id === 'priority' || id === 'due').length
+  const span = 3 + columns.length
 
   return (
     <div className="todo-table-shell">
@@ -498,21 +541,15 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty }: {
         <table className="todo-table">
           <thead>
             <tr>
-              <th className="todo-table-select">
-                <input
-                  ref={allRef}
-                  type="checkbox"
-                  className="todo-table-checkbox"
-                  checked={allChecked}
-                  disabled={!rows.length}
-                  onChange={(event) => select(rows.map((todo) => todo.id), event.target.checked)}
-                  aria-label={uiText('todo.table.selectAll')}
-                />
-              </th>
+              <th className="todo-table-select" />
               <SortHeader field="name" label={uiText('todo.table.title')} className="todo-table-title" sort={sort} onSort={onSort} />
+              {columns.includes('note') && <th className="todo-table-note"><span className="todo-table-th">{uiText('todo.table.note')}</span></th>}
+              {columns.includes('group') && <th className="todo-table-group"><span className="todo-table-th">{uiText('todo.table.group')}</span></th>}
               {columns.includes('status') && <th className="todo-table-status"><span className="todo-table-th">{uiText('todo.table.status')}</span></th>}
               {columns.includes('priority') && <SortHeader field="priority" label={uiText('todo.table.priority')} className="todo-table-priority" sort={sort} onSort={onSort} />}
               {columns.includes('due') && <SortHeader field="due" label={uiText('todo.table.due')} className="todo-table-due" sort={sort} onSort={onSort} />}
+              {columns.includes('location') && <th className="todo-table-location"><span className="todo-table-th">{uiText('todo.table.location')}</span></th>}
+              {columns.includes('tags') && <th className="todo-table-tags"><span className="todo-table-th">{uiText('todo.table.tags')}</span></th>}
               <th className="todo-table-actions" />
             </tr>
           </thead>
@@ -525,7 +562,7 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty }: {
                 columns={columns}
                 c={c}
                 selected={selection.has(todo.id)}
-                onSelect={(on) => select([todo.id], on)}
+                onPick={(range) => pick(todo.id, range)}
               />
             )) : (
               <tr className="todo-table-empty-row"><td colSpan={span} className="todo-table-empty">{empty}</td></tr>
@@ -536,7 +573,9 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty }: {
 
       <div className="todo-table-footer">
         <div className="todo-table-selection">
-          <span>{uiText('todo.table.selected', { count: selected.length, total: todos.length })}</span>
+          <span>{selected.length
+            ? uiText('todo.table.selectedCount', { count: selected.length })
+            : uiText(todos.length === 1 ? 'todo.table.oneTask' : 'todo.table.taskCount', { count: todos.length })}</span>
           {selected.length > 0 && (
             <>
               <button type="button" className="todo-table-bulk" onClick={completeSelected}>{uiText('todo.table.complete')}</button>
@@ -563,13 +602,13 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty }: {
             <span>{pageSize}</span>
             <ChevronsUpDown />
           </button>
-          <span className="todo-table-page">{uiText('todo.table.page', { page: current + 1, pages: pageCount })}</span>
-          <div className="todo-table-pager">
+          {pageCount > 1 && <span className="todo-table-page">{uiText('todo.table.page', { page: current + 1, pages: pageCount })}</span>}
+          {pageCount > 1 && <div className="todo-table-pager">
             <button type="button" className="todo-table-page-btn" disabled={current === 0} aria-label={uiText('todo.table.firstPage')} title={uiText('todo.table.firstPage')} onClick={() => setPage(0)}><ChevronsLeft /></button>
             <button type="button" className="todo-table-page-btn" disabled={current === 0} aria-label={uiText('todo.table.previousPage')} title={uiText('todo.table.previousPage')} onClick={() => setPage(current - 1)}><ChevronLeft /></button>
             <button type="button" className="todo-table-page-btn" disabled={current >= pageCount - 1} aria-label={uiText('todo.table.nextPage')} title={uiText('todo.table.nextPage')} onClick={() => setPage(current + 1)}><ChevronRight /></button>
             <button type="button" className="todo-table-page-btn" disabled={current >= pageCount - 1} aria-label={uiText('todo.table.lastPage')} title={uiText('todo.table.lastPage')} onClick={() => setPage(pageCount - 1)}><ChevronsRight /></button>
-          </div>
+          </div>}
         </div>
       </div>
     </div>

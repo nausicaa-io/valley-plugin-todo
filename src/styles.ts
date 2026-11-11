@@ -1518,61 +1518,41 @@ button.todo-date:hover .todo-date-day {
   background: var(--hover-bg);
   color: var(--text-color);
 }
-.todo-page-appbar-btn svg { width: 15px; height: 15px; }
-
-/* Faceted filters: dashed until they filter, then the selection rides along
-   as badges. */
-.todo-facet-btn,
-.todo-facet-reset,
-.todo-view-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  min-width: 0;
-  height: var(--search-field-height, 26px);
-  box-sizing: border-box;
-  padding: 0 var(--space-2);
-  border: 1px dashed var(--border-medium);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-color);
-  font-family: var(--interface-font);
-  font-size: var(--small-font-size);
-  font-weight: var(--font-medium);
-  white-space: nowrap;
-  cursor: pointer;
+.todo-page-appbar-btn.active {
+  background: var(--accent-tint-bg);
+  color: var(--title-color);
 }
-.todo-view-btn { border-style: solid; }
-.todo-facet-reset { border-color: transparent; color: var(--text-secondary); }
-.todo-facet-btn svg,
-.todo-facet-reset svg,
-.todo-view-btn svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--text-secondary); }
-.todo-facet-btn:hover,
-.todo-facet-reset:hover,
-.todo-view-btn:hover { background: var(--hover-bg); color: var(--text-color); }
-.todo-facet-btn:focus-visible,
-.todo-facet-reset:focus-visible,
-.todo-view-btn:focus-visible,
+.todo-page-appbar-btn:focus-visible,
+.todo-page-date-filter:focus-visible,
 .todo-table-sort:focus-visible,
 .todo-table-cell-btn:focus-visible,
 .todo-table-page-btn:focus-visible,
+.todo-table-page-size:focus-visible,
 .todo-table-bulk:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: -1px;
 }
-.todo-facet-sep {
-  width: 1px;
-  height: 14px;
-  background: var(--border-medium);
-}
-.todo-facet-badge {
-  padding: 1px 5px;
-  border-radius: 2px;
-  background: var(--hover-bg);
+.todo-page-appbar-btn svg,
+.todo-page-appbar-btn .todo-status-menu-svg { width: 16px; height: 16px; }
+
+.todo-page-date-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  height: var(--search-field-height, 26px);
+  box-sizing: border-box;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent-tint-bg);
+  color: var(--title-color);
+  font-family: var(--interface-font);
   font-size: var(--smaller-font-size);
-  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
 }
+.todo-page-date-filter svg { width: 13px; height: 13px; }
 .todo-table-menu-label {
   padding: 4px var(--space-2);
   color: var(--text-secondary);
@@ -1609,51 +1589,58 @@ button.todo-date:hover .todo-date-day {
   position: sticky;
   top: 0;
   z-index: 1;
-  height: 40px;
-  padding: 0 var(--space-2);
+  height: var(--app-bar-height);
+  box-sizing: border-box;
+  padding: 0 6px;
   border-bottom: 1px solid var(--border-light);
   background: var(--surface-color-alt);
   color: var(--text-secondary);
+  font-size: var(--smaller-font-size);
   font-weight: var(--font-medium);
   text-align: left;
+  white-space: nowrap;
 }
+/* A row is exactly 37px, its 1px line included. */
 .todo-table td {
-  height: 44px;
-  padding: 0 var(--space-2);
+  height: 37px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  overflow: hidden;
   border-bottom: 1px solid var(--border-light);
   vertical-align: middle;
+  white-space: nowrap;
 }
 .todo-table th:first-child,
-.todo-table td:first-child { padding-left: 12px; }
+.todo-table td:first-child { padding-left: 10px; }
 .todo-table th:last-child,
-.todo-table td:last-child { padding-right: 10px; }
-.todo-table-row { cursor: default; outline: none; }
+.todo-table td:last-child { padding-right: 6px; }
+.todo-table-row { cursor: default; outline: none; user-select: none; }
 .todo-table-row:hover td { background: var(--hover-bg); }
-.todo-table-row.selected td { background: color-mix(in srgb, var(--accent-color) 10%, transparent); }
+.todo-table-row.selected td { background: var(--accent-tint-bg); }
 .todo-table-row:focus-visible td { box-shadow: inset 0 1px 0 var(--accent-color), inset 0 -1px 0 var(--accent-color); }
 .todo-table-row.todo-reveal-target td { animation: todo-reveal-pulse 1.8s var(--ease-out); }
 
-.todo-table-select { width: 40px; padding-right: 0 !important; }
-.todo-table-status { width: 140px; }
-.todo-table-priority { width: 112px; }
-.todo-table-due { width: 150px; }
-.todo-table-actions { width: 44px; text-align: right; }
-.todo-table-checkbox {
-  display: block;
-  width: 15px;
-  height: 15px;
-  margin: 0;
-  accent-color: var(--accent-color);
-  cursor: pointer;
-}
+.todo-table-select { width: 34px; padding-right: 0 !important; }
+.todo-table-note { width: 30%; }
+.todo-table-group { width: 124px; }
+.todo-table-status { width: 124px; }
+.todo-table-priority { width: 100px; }
+.todo-table-due { width: 140px; }
+.todo-table-location { width: 140px; }
+.todo-table-tags { width: 120px; }
+.todo-table-actions { width: 52px; text-align: right; }
+.todo-table-select .todo-check-wrap { display: grid; height: 18px; }
+.todo-table-select .todo-check,
+.todo-table-select .todo-check-glyph { margin: 0; }
 
 .todo-table-sort {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
-  margin-left: calc(-1 * var(--space-2));
-  padding: 0 var(--space-2);
+  gap: var(--space-1);
+  max-width: calc(100% + 12px);
+  height: 24px;
+  margin-left: -6px;
+  padding: 0 6px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -1661,89 +1648,90 @@ button.todo-date:hover .todo-date-day {
   font: inherit;
   cursor: pointer;
 }
+.todo-table-sort > span { overflow: hidden; text-overflow: ellipsis; }
 .todo-table-sort:hover { background: var(--hover-bg); color: var(--text-color); }
-.todo-table-sort.active { color: var(--text-color); }
-.todo-table-sort svg { width: 13px; height: 13px; }
+.todo-table-sort.active { color: var(--title-color); }
+.todo-table-sort svg { flex-shrink: 0; width: 12px; height: 12px; }
+.todo-table-sort:not(.active):not(:hover):not(:focus-visible) svg { display: none; }
 
-.todo-table-title-inner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.todo-table-badge {
-  flex: 0 0 auto;
-  max-width: 160px;
+.todo-table-title-text,
+.todo-table-note-text,
+.todo-table-group-name {
+  display: block;
   overflow: hidden;
-  padding: 1px 7px;
-  border: 1px solid color-mix(in srgb, var(--todo-badge-color, var(--border-medium)) 45%, transparent);
-  border-radius: var(--radius-sm);
-  color: var(--todo-badge-color, var(--text-color));
-  font-size: var(--smaller-font-size);
-  font-weight: var(--font-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .todo-table-title-text {
-  flex: 1 1 auto;
-  min-width: 64px;
-  overflow: hidden;
   color: var(--title-color, var(--text-color));
   font-weight: var(--font-medium);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.todo-table-note-text {
+  color: var(--text-secondary);
+  font-size: var(--smaller-font-size);
 }
 .todo-table-title-text p { display: inline; margin: 0; }
-.todo-table-row.completed .todo-table-title-text { color: var(--text-tertiary); }
+.todo-table-row.completed .todo-table-title-text { color: var(--text-secondary); }
+.todo-table-group .todo-group-text { max-width: 100%; }
+.todo-table-tags { text-overflow: ellipsis; }
 .todo-table-tag {
-  flex-shrink: 0;
+  margin-right: var(--space-1);
   color: var(--accent-color);
   font-size: var(--smaller-font-size);
-  white-space: nowrap;
 }
 .todo-table-flag {
   display: inline-grid;
-  flex-shrink: 0;
+  margin-right: 2px;
   color: var(--color-orange);
+  vertical-align: middle;
 }
 .todo-table-flag svg { width: 13px; height: 13px; }
 
 .todo-table-cell-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  max-width: 100%;
-  height: 28px;
-  margin-left: calc(-1 * var(--space-2));
-  padding: 0 var(--space-2);
+  gap: 6px;
+  max-width: calc(100% + 12px);
+  height: 24px;
+  margin-left: -6px;
+  padding: 0 6px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-color);
-  font: inherit;
+  font-family: inherit;
+  font-size: var(--smaller-font-size);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: pointer;
 }
 .todo-table-cell-btn > span { overflow: hidden; text-overflow: ellipsis; }
 .todo-table-cell-btn:hover:not(:disabled) { background: var(--hover-bg); }
 .todo-table-cell-btn:disabled { cursor: default; opacity: 0.6; }
-.todo-table-cell-btn.muted,
-.todo-table-none { color: var(--text-tertiary); }
 .todo-table-cell-btn.is-overdue { color: var(--negative-color); }
 .todo-table-cell-btn svg,
 .todo-table-cell-btn .todo-status-menu-dot { flex-shrink: 0; }
+.todo-table-cell-btn svg { width: 13px; height: 13px; }
 .todo-table-cell-btn .todo-status-menu-svg,
-.todo-table-priority-icon { width: 15px; height: 15px; }
-.todo-table-priority-icon.todo-priority-normal { color: var(--text-tertiary); }
-.todo-table-time { color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
-.todo-table-actions .todo-menu-wrap { display: inline-flex; }
+.todo-table-priority-icon { width: 14px; height: 14px; }
+/* Normal priority is the absence of one: nothing at rest, a target on hover. */
+.todo-table-cell-btn.muted { color: var(--text-tertiary); opacity: 0; }
+.todo-table-row:hover .todo-table-cell-btn.muted,
+.todo-table-cell-btn.muted:focus-visible { opacity: 1; }
+.todo-table-time { color: var(--text-secondary); }
+.todo-table-actions .todo-menu-wrap { display: inline-flex; vertical-align: middle; }
+.todo-table-actions .todo-menu-btn { width: 24px; height: 24px; opacity: 0; }
+.todo-table-row:hover .todo-menu-btn,
+.todo-table-row:focus-within .todo-menu-btn,
+.todo-table-actions .todo-menu-btn.active { opacity: 1; }
 .todo-table-empty {
   height: 96px !important;
   color: var(--text-tertiary);
   text-align: center;
 }
 
-/* The bottom bar mirrors the header grid: 37px content + a 1px line. */
+/* The bottom bar mirrors the header grid: 37px content + a 1px line. Plain
+   text and ghost icons, like the rest of Valley's bars. */
 .todo-table-footer {
   display: flex;
   align-items: center;
@@ -1752,27 +1740,27 @@ button.todo-date:hover .todo-date-day {
   flex: 0 0 auto;
   height: var(--app-bar-height);
   box-sizing: border-box;
-  padding: 0 10px 0 12px;
+  padding: 0 6px 0 10px;
   border-top: 1px solid var(--border-light);
   background: var(--surface-color-alt);
   overflow: hidden;
   white-space: nowrap;
+  color: var(--text-secondary);
   font-family: var(--interface-font);
-  font-size: var(--small-font-size);
+  font-size: var(--smaller-font-size);
 }
 .todo-table-selection {
   display: flex;
   overflow: hidden;
   text-overflow: ellipsis;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
-  color: var(--text-secondary);
 }
 .todo-table-bulk {
-  height: 26px;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--border-medium);
+  height: 24px;
+  padding: 0 6px;
+  border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-color);
@@ -1784,21 +1772,17 @@ button.todo-date:hover .todo-date-day {
 .todo-table-pagination {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin-left: auto;
-  color: var(--text-color);
-  font-weight: var(--font-medium);
 }
 .todo-table-page-size {
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-width: 64px;
-  height: var(--search-field-height, 26px);
+  gap: 2px;
+  height: 24px;
   box-sizing: border-box;
-  padding: 0 6px 0 var(--space-2);
-  border: 1px solid var(--border-medium);
+  padding: 0 var(--space-1) 0 6px;
+  border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-color);
@@ -1807,43 +1791,48 @@ button.todo-date:hover .todo-date-day {
   cursor: pointer;
 }
 .todo-table-page-size:hover { background: var(--hover-bg); }
-.todo-table-page-size:focus-visible { outline: 2px solid var(--accent-color); outline-offset: -1px; }
-.todo-table-page-size svg { width: 13px; height: 13px; color: var(--text-secondary); }
-.todo-table-page { min-width: 92px; text-align: center; font-variant-numeric: tabular-nums; }
-.todo-table-pager { display: flex; gap: var(--space-1); }
+.todo-table-page-size svg { width: 12px; height: 12px; color: var(--text-tertiary); }
+.todo-table-page { font-variant-numeric: tabular-nums; }
+.todo-table-pager { display: flex; }
 .todo-table-page-btn {
   display: grid;
   place-items: center;
-  width: var(--search-field-height, 26px);
-  height: var(--search-field-height, 26px);
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: 1px solid var(--border-medium);
+  border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-color);
+  color: var(--text-secondary);
   cursor: pointer;
 }
 .todo-table-page-btn svg { width: 14px; height: 14px; }
-.todo-table-page-btn:hover:not(:disabled) { background: var(--hover-bg); }
+.todo-table-page-btn:hover:not(:disabled) { background: var(--hover-bg); color: var(--title-color); }
 .todo-table-page-btn:disabled { opacity: 0.4; cursor: default; }
 
-/* A narrow pane keeps every column but drops the words its icons already
-   carry, so the title keeps the room. */
+/* A narrow pane drops the words its icons already carry, so the title and
+   text keep the room. */
 @container (max-width: 760px) {
-  .todo-table-status { width: 44px; }
-  .todo-table-priority { width: 44px; }
-  .todo-table-due { width: 112px; }
+  .todo-table-note { width: 19%; }
+  .todo-table-group { width: 112px; }
+  .todo-table-status { width: 40px; }
+  .todo-table-priority { width: 66px; }
+  .todo-table-due { width: 92px; }
+  .todo-table-location { width: 96px; }
+  .todo-table-tags { width: 88px; }
+  .todo-table-actions { width: 48px; }
   .todo-table-status .todo-table-cell-btn > span,
   .todo-table-priority .todo-table-cell-btn > span,
   .todo-table-time { display: none; }
-  .todo-table-status .todo-table-th,
-  .todo-table-priority .todo-table-sort > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .todo-table-status .todo-table-th { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .todo-table-rows-label { display: none; }
 }
+@container (max-width: 520px) {
+  .todo-table-note,
+  .todo-table-location,
+  .todo-table-tags { display: none; }
+}
 @media (max-width: 640px) {
-  .todo-view-btn > span,
-  .todo-facet-reset { font-size: 0; gap: 0; }
-  .todo-view-btn > span { display: none; }
   .todo-page-appbar .todo-search-wrap { flex-basis: 140px; min-width: 96px; }
 }
 

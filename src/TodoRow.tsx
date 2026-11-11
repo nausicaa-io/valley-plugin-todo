@@ -37,6 +37,83 @@ import { todoPriorityMetaLabel, todoStatusLabel, uiText } from './localization'
 const MAX_ROW_FILES = 2
 
 /**
+ * The round status control shared by the list rows and the task table: a click
+ * toggles completed, press-and-hold opens the list of statuses.
+ */
+export function useStatusCheck(todo: TodoRecord, c: TodoListController): { check: ReactElement; cancelHold: () => void } {
+  const status = effectiveStatus(todo)
+  const pending = c.pendingIds.has(todo.id)
+  const checkboxRef = React.useRef<HTMLInputElement>(null)
+  const longPressTimer = React.useRef<number | null>(null)
+  const longPressed = React.useRef(false)
+
+  const cancelHold = React.useCallback((): void => {
+    if (longPressTimer.current != null) {
+      window.clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+  React.useEffect(() => cancelHold, [cancelHold])
+
+  const check = (
+    <span className="todo-check-wrap">
+      <input
+        ref={checkboxRef}
+        className="todo-check"
+        data-status={status}
+        type="checkbox"
+        // Only `completed` ticks. Canceled is *done* for filtering — it
+        // lands in the Completed list — but a tick would claim the work
+        // happened, and it explicitly did not; it gets the ✕ glyph instead.
+        checked={status === 'completed'}
+        aria-disabled={pending || undefined}
+        onPointerDown={() => {
+          if (pending) return
+          longPressed.current = false
+          cancelHold()
+          longPressTimer.current = window.setTimeout(() => {
+            longPressed.current = true
+            const anchor = checkboxRef.current
+            if (anchor) void api.ui.openMenu(statusMenuOptions().map((option) => ({
+              label: uiText(option.labelKey),
+              icon: <TodoStatusGlyph status={option.status} dotCls={option.cls} />,
+              type: 'radio' as const,
+              checked: option.status === null ? status === 'open' : option.status === status,
+              enabled: !pending,
+              onSelect: () => c.patchTodo(todo.id, patchForStatus(option.status))
+            })), { anchor })
+          }, 450)
+        }}
+        onPointerUp={cancelHold}
+        onPointerLeave={cancelHold}
+        onClick={(e) => {
+          // A long-press already opened the status menu — swallow the toggle.
+          if (longPressed.current) e.preventDefault()
+        }}
+        onKeyDown={() => { longPressed.current = false }}
+        onChange={(e) => {
+          // React raises this from the same click, whatever onClick prevented.
+          if (longPressed.current) {
+            longPressed.current = false
+            return
+          }
+          void c.patchTodo(todo.id, patchForStatus(e.target.checked ? 'completed' : null))
+        }}
+        aria-label={uiText('auto.13816aca9c25', { p0: todo.title })}
+      />
+      {/* The glyph overlays the box for every state that is neither plain
+          open nor a plain tick — one lookup, so a new status needs no edit here. */}
+      {status !== 'open' && status !== 'completed' && (
+        <span className="todo-check-glyph">
+          <TodoStatusGlyph status={status} dotCls={statusDef(status).cls} />
+        </span>
+      )}
+    </span>
+  )
+  return { check, cancelHold }
+}
+
+/**
  * One todo row — a round status control, markdown title/note preview, then
  * lightweight metadata and file tiles. Editing lives in the detail modal, which
  * the surrounding list renders; a row only asks for it (⋯ → Edit, double-click).
@@ -115,20 +192,9 @@ export const TodoRow = ({
   const dueDateFull = todo.dueDate ? formatDate(todo.dueDate, api.getState().dateFormat) : ''
   const overdue = !!todo.dueDate && !todo.completed && todo.dueDate.slice(0, 10) < today
 
-  // Checkbox: click toggles completed; press-and-hold opens a status menu.
-  const checkboxRef = React.useRef<HTMLInputElement>(null)
   const rowRef = React.useRef<HTMLElement>(null)
   React.useEffect(() => rowRef.current ? registerTodoRow(todo.id, rowRef.current) : undefined, [todo.id])
-  const longPressTimer = React.useRef<number | null>(null)
-  const longPressed = React.useRef(false)
-
-  const clearLongPress = React.useCallback((): void => {
-    if (longPressTimer.current != null) {
-      window.clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }, [])
-  React.useEffect(() => clearLongPress, [clearLongPress])
+  const { check, cancelHold } = useStatusCheck(todo, c)
 
   const openCalendar = (): void => {
     if (!openTodoCalendar(todo)) c.openDetail(todo.id)
@@ -169,7 +235,7 @@ export const TodoRow = ({
   )
 
   return (
-    <SwipeRow todo={todo} disabled={pending} actions={swipeActions} onEngage={clearLongPress}>
+    <SwipeRow todo={todo} disabled={pending} actions={swipeActions} onEngage={cancelHold}>
       <article
         ref={rowRef}
         className={`todo-row todo-row-navigable${todo.completed ? ' completed' : ''}${
@@ -213,54 +279,7 @@ export const TodoRow = ({
           c.openDetail(todo.id)
         }}
       >
-        <span className="todo-check-wrap">
-          <input
-            ref={checkboxRef}
-            className="todo-check"
-            data-status={status}
-            type="checkbox"
-            // Only `completed` ticks. Canceled is *done* for filtering — it
-            // lands in the Completed list — but a tick would claim the work
-            // happened, and it explicitly did not; it gets the ✕ glyph instead.
-            checked={status === 'completed'}
-            aria-disabled={pending || undefined}
-            onPointerDown={() => {
-              if (pending) return
-              longPressed.current = false
-              clearLongPress()
-              longPressTimer.current = window.setTimeout(() => {
-                longPressed.current = true
-                const anchor = checkboxRef.current
-                if (anchor) void api.ui.openMenu(statusMenuOptions().map((option) => ({
-                  label: uiText(option.labelKey),
-                  icon: <TodoStatusGlyph status={option.status} dotCls={option.cls} />,
-                  type: 'radio' as const,
-                  checked: option.status === null ? status === 'open' : option.status === status,
-                  enabled: !pending,
-                  onSelect: () => c.patchTodo(todo.id, patchForStatus(option.status))
-                })), { anchor })
-              }, 450)
-            }}
-            onPointerUp={clearLongPress}
-            onPointerLeave={clearLongPress}
-            onClick={(e) => {
-              // A long-press already opened the status menu — swallow the toggle.
-              if (longPressed.current) {
-                e.preventDefault()
-                longPressed.current = false
-              }
-            }}
-            onChange={(e) => void c.patchTodo(todo.id, patchForStatus(e.target.checked ? 'completed' : null))}
-            aria-label={uiText('auto.13816aca9c25', { p0: todo.title })}
-          />
-          {/* The glyph overlays the box for every state that is neither plain
-              open nor a plain tick — one lookup, so a new status needs no edit here. */}
-          {status !== 'open' && status !== 'completed' && (
-            <span className="todo-check-glyph">
-              <TodoStatusGlyph status={status} dotCls={statusDef(status).cls} />
-            </span>
-          )}
-        </span>
+        {check}
 
         <div className="todo-row-main">
           <h4>

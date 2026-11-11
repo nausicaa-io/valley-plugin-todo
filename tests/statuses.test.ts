@@ -142,6 +142,7 @@ describe('status chip styling', () => {
     expect(css).toMatch(/\.todo-page-appbar \{[\s\S]*height: var\(--app-bar-height\)/)
     expect(css).toMatch(/\.todo-page-appbar \{[\s\S]*box-sizing: border-box;[\s\S]*border-bottom: 1px solid var\(--border-light\)/)
     expect(css).toMatch(/\.todo-page-appbar-btn \{[\s\S]*width: var\(--search-field-height, 26px\);[\s\S]*height: var\(--search-field-height, 26px\);/)
+    expect(css).toMatch(/\.todo-table td \{\n  height: 37px;\n  box-sizing: border-box;/)
     expect(css).toMatch(/\.todo-table-footer \{[\s\S]*height: var\(--app-bar-height\);[\s\S]*box-sizing: border-box;[\s\S]*border-top: 1px solid var\(--border-light\)/)
     expect(css).toMatch(/\[data-theme='dark'\] \.note-tasks-panel \.todo-swipe-surface \{[\s\S]*background: #000;/)
     expect(css).not.toContain("[data-theme='dark'] .todo-panel .todo-swipe-surface")
