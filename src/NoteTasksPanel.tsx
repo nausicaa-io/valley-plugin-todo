@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import type { TodoStatus } from '@valley/plugin-sdk/types'
+import type { TodoStatus } from './types'
 import { normalizeRelPathOpt } from '@valley/plugin-sdk/paths'
 import { React, api, useTodoRevealRequest } from './runtime'
 import { useHostState } from './hooks'
@@ -10,7 +10,7 @@ import { PanelDateList } from './PanelDateList'
 import { GroupFilterPopover, PanelSortPopover, sortFieldGlyph } from './TodoPanel'
 import { CircleCheck, ComfortableView, CompactView, GroupGlyph, SortAscending, SortDescending, TodoStatusGlyph } from './icons'
 import { useGroups } from './groupStore'
-import { allGroups, groupKey } from './groups'
+import { allGroups, groupKey, selectedGroupKeys } from './groups'
 import { matchesStatusFilter, useStatusVocabulary, type TodoStatusFilter } from './statuses'
 import { useDateBreakdown, usePanelPresentation } from './viewStore'
 import { SORT_LABEL_KEYS, type SortDir, type SortField } from './sort'
@@ -65,7 +65,7 @@ function LocalStatusPopover({
           >
             <span className="todo-status-filter-check">{selected.includes(status.id) ? '✓' : ''}</span>
             <span className="todo-status-filter-glyph"><TodoStatusGlyph status={status.id === 'open' ? null : status.id} dotCls={status.cls} /></span>
-            <span>{uiText(status.labelKey)}</span>
+            <span>{status.label}</span>
           </button>
         ))}
       </div>
@@ -95,7 +95,7 @@ export const NoteTasksPanel = (): ReactElement => {
     if (!matches || (!showCompleted && todo.completed)) return false
     if (selectedGroups.length || includeUngrouped) {
       if (!todo.group && !includeUngrouped) return false
-      if (todo.group && !new Set(selectedGroups.map(groupKey)).has(groupKey(todo.group))) return false
+      if (todo.group && !selectedGroupKeys(selectedGroups).has(groupKey(todo.group))) return false
     }
     return matchesStatusFilter(todo, statusFilter)
   }), [c.ordered, path, showCompleted, statusFilter, selectedGroups, includeUngrouped])

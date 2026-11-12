@@ -1,6 +1,6 @@
 import { React, api } from './runtime'
 import type { ReactElement } from 'react'
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import {
   CalendarDays,
   ArrowRightCircle,
@@ -59,8 +59,8 @@ export const TodoMenu = ({
               icon: <CircleCheck className="todo-menu-action-icon" />,
               enabled: !disabled,
               submenu: statusMenuOptions().map((option) => ({
-                label: uiText(option.labelKey),
-                icon: <TodoStatusGlyph status={option.status} dotCls={option.cls} />,
+                label: option.label,
+                icon: <TodoStatusGlyph status={option.status} dotCls={option.cls} color={option.color} />,
                 type: 'radio' as const,
                 checked: option.status === null
                   ? currentStatus === 'open'

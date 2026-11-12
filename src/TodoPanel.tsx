@@ -1,20 +1,23 @@
 import { React, api, useTodoRevealRequest, revealRequestStore } from './runtime'
 import type { CSSProperties, ReactElement } from 'react'
-import type { TodoPriority, TodoRecord, TodoStatus } from '@valley/plugin-sdk/types'
+import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { paletteCssContrast, paletteCssValue } from '@valley/plugin-sdk/palette'
 import { useActiveCalendarSelection, useHostState } from './hooks'
 import { searchMatcher } from './search'
 import {
   CalendarClock,
+  CalendarDays,
+  MapPin,
   Paperclip,
   CalendarToday,
+  CalendarWeek,
   CircleCheck,
   ComfortableView,
   CompactView,
   CreatedSortGlyph,
   Flag,
-  GroupGlyph,
   Inbox,
+  ListFilter,
   NameSortGlyph,
   Plus,
   PriorityGlyph,
@@ -30,13 +33,14 @@ import { LocationField } from './LocationField'
 import { parseQuickAdd } from './sections'
 import { PanelDateList } from './PanelDateList'
 import { useGroups } from './groupStore'
-import { allGroups, groupColorFor, groupKey } from './groups'
+import { allGroups, groupColorFor, groupKey, selectedGroupKeys } from './groups'
 import {
   configuredSmartLists,
   groupCount,
   matchesVisibleView,
   sameView,
   serializeView,
+  smartListForeground,
   viewCounts,
   type SmartListId,
   type TodoView
@@ -50,13 +54,13 @@ import {
   useShowCompleted,
   useSmartListSettings,
   useStatusFilter,
-  useTodoSearch,
-  useView
+  useTodoSearch
 } from './viewStore'
-import { PRIORITIES, SORT_LABEL_KEYS, formatDate, isoDay, type SortDir, type SortField } from './sort'
+import { opensInNewTab, showView, useShownView } from './tabs'
+import { PRIORITIES, SORT_LABEL_KEYS, formatDate, formatDueLabel, isoDay, type SortDir, type SortField } from './sort'
 import { uiText } from './localization'
 import { DONE_STATUSES, matchesStatusFilter, useStatusVocabulary } from './statuses'
-import { StatusFilterDropdown } from './StatusFilter'
+import { StatusQuickPicks } from './StatusFilter'
 import { openManageGroups } from './GroupEditor'
 
 export function sortFieldGlyph(field: SortField): ReactElement {
@@ -69,48 +73,10 @@ export function sortFieldGlyph(field: SortField): ReactElement {
 }
 
 function PanelStatusPopover(): ReactElement {
-  const [showCompleted] = useShowCompleted()
-  const [statusFilter, setStatusFilter] = useStatusFilter()
-  const statusDefs = useStatusVocabulary()
-  const active = statusDefs.map((status) => status.id)
-  const chooseCompletedVisibility = (show: boolean): void => {
-    if (statusFilter !== 'all') {
-      const selected = statusFilter.filter((status) => active.includes(status))
-      const next = show
-        ? active.filter((status) => selected.includes(status) || status === 'completed')
-        : selected.filter((status) => !DONE_STATUSES.includes(status))
-      const nonEmpty = next.length ? next : active.filter((status) => !DONE_STATUSES.includes(status))
-      setStatusFilter(nonEmpty.length === active.length ? 'all' : nonEmpty as [TodoStatus, ...TodoStatus[]])
-    }
-    setShowCompleted(show)
-  }
   return (
     <div className="todo-filter-popover-body">
-      <div className="todo-completed-row">
-        <span>{uiText('todo.filters.completed')}</span>
-        <div className="todo-completed-choices">
-          <button
-            type="button"
-            className={`todo-completed-choice${!showCompleted ? ' active' : ''}`}
-            aria-pressed={!showCompleted}
-            onClick={() => chooseCompletedVisibility(false)}
-          >
-            {uiText('todo.completed.hide')}
-          </button>
-          <button
-            type="button"
-            className={`todo-completed-choice${showCompleted ? ' active' : ''}`}
-            aria-pressed={showCompleted}
-            onClick={() => chooseCompletedVisibility(true)}
-          >
-            {uiText('todo.completed.showAll')}
-          </button>
-        </div>
-      </div>
-      <div className="todo-filter-control-row status">
-        <span>{uiText('todo.filters.statuses')}</span>
-        <StatusFilterDropdown filter={statusFilter} />
-      </div>
+      <div className="todo-filter-section-label">{uiText('todo.filters.show')}</div>
+      <StatusQuickPicks />
     </div>
   )
 }
@@ -224,7 +190,7 @@ export function GroupFilterPopover({
   const embeddedRows = (name: string | null): ReactElement => {
     const matching = todos.filter((todo) => name === null
       ? !todo.group
-      : groupKey(todo.group ?? '') === groupKey(name))
+      : selectedGroupKeys([name]).has(groupKey(todo.group ?? '')))
     const label = name ?? uiText('todo.chip.noGroup')
     const active = name === null
       ? ungrouped
@@ -304,6 +270,7 @@ export function GroupFilterPopover({
 const SMART_ICONS: Record<SmartListId, () => ReactElement> = {
   scheduled: () => <CalendarClock />,
   today: () => <CalendarToday />,
+  week: () => <CalendarWeek />,
   flagged: () => <Flag />,
   all: () => <Inbox />,
   completed: () => <CircleCheck />
@@ -326,12 +293,16 @@ export const TodoPanel = (): ReactElement => {
   const { activePluginTab, dateFormat } = useHostState('activePluginTab', 'dateFormat')
   const { selectedDate, selectedDateRange } = useActiveCalendarSelection()
   const groups = useGroups()
-  const view = useView()
+  // While a tab pinned to one list is focused, the navigation highlights and creates into that tab's list.
+  const view = useShownView()
   const [draft, setDraft] = React.useState('')
   const [draftNote, setDraftNote] = React.useState('')
   const [draftTags, setDraftTags] = React.useState('')
   const [draftFields, setDraftFields] = React.useState<Partial<TodoRecord>>({})
   const [addingAttachment, setAddingAttachment] = React.useState(false)
+  // Date, place and attachments stay folded behind their chip until wanted.
+  const [showSchedule, setShowSchedule] = React.useState(false)
+  const [showPlace, setShowPlace] = React.useState(false)
   const [createError, setCreateError] = React.useState(false)
   const { DateField, TimeField } = api.ui.settings
   // The create field is summoned by ＋ rather than parked above the list: the
@@ -420,7 +391,7 @@ export const TodoPanel = (): ReactElement => {
     // A todo created inside a smart list has to *be* in it, or it disappears
     // the moment it is made.
     const patch: Partial<TodoRecord> = { note: draftNote.trim(), tags: [...new Set([...(draftFields.tags ?? []), ...draftTags.split(/[\s,]+/).map(tag => tag.replace(/^#+/, '')).filter(Boolean)])], priority: parsed.priority, ...(selectedGroup ? { group: selectedGroup } : {}) }
-    if (view.kind === 'smart' && view.id === 'today') patch.dueDate = today
+    if (view.kind === 'smart' && (view.id === 'today' || view.id === 'week')) patch.dueDate = today
     if (view.kind === 'smart' && view.id === 'flagged') patch.flagged = true
     Object.assign(patch, { ...draftFields, tags: patch.tags })
     if (parsed.dueDate) patch.dueDate = parsed.dueDate
@@ -433,6 +404,8 @@ export const TodoPanel = (): ReactElement => {
       setDraftTags('')
       setDraftFields({})
       setAddingAttachment(false)
+      setShowSchedule(false)
+      setShowPlace(false)
       inputRef.current?.focus()
     }
   }
@@ -449,6 +422,8 @@ export const TodoPanel = (): ReactElement => {
     setDraftTags('')
     setDraftFields({})
     setAddingAttachment(false)
+    setShowSchedule(false)
+    setShowPlace(false)
     setCreateError(false)
   }
 
@@ -469,6 +444,7 @@ export const TodoPanel = (): ReactElement => {
     noteRef.current.style.height = `${noteRef.current.scrollHeight}px`
   }, [draftNote, composing])
 
+  const composeDate = draftFields.dueDate ?? (view.kind === 'smart' && (view.id === 'today' || view.id === 'week') ? today : '')
   const compose = composing && (
     <form className="todo-compose" onSubmit={event => { event.preventDefault(); void create() }}
       onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented && !c.creating) { event.preventDefault(); closeComposer() } }}>
@@ -503,39 +479,48 @@ export const TodoPanel = (): ReactElement => {
           if (event.key === 'Backspace' && !draftTags) setDraftFields(fields => ({ ...fields, tags: fields.tags?.slice(0, -1) }))
         }} placeholder={uiText('todo.compose.addTags')} aria-label={uiText('todo.edit.tags')} disabled={c.creating} />
       </div>
-      <div className="todo-compose-schedule">
-        <DateField className="todo-compose-date-field" value={draftFields.dueDate ?? (view.kind === 'smart' && view.id === 'today' ? today : '')}
+      {showSchedule && <div className="todo-compose-schedule">
+        <DateField className="todo-compose-date-field" value={composeDate}
           onChange={dueDate => setDraftFields(fields => ({ ...fields, dueDate }))}
           placeholder={uiText('todo.compose.addDate')} ariaLabel={uiText('todo.field.dueDate')} disabled={c.creating} />
         <TimeField className="todo-compose-time-field" value={draftFields.startTime ?? ''}
           onChange={startTime => setDraftFields(fields => ({ ...fields, startTime: startTime || undefined }))}
           placeholder={uiText('todo.compose.time')} ariaLabel={uiText('todo.field.startTime')} disabled={c.creating} />
-      </div>
-      <div className="todo-compose-location"><LocationField value={draftFields.location} disabled={c.creating}
-        onChange={location => setDraftFields(fields => ({ ...fields, location }))} /></div>
-      <div className="todo-compose-attachments">
+      </div>}
+      {showPlace && <div className="todo-compose-location"><LocationField value={draftFields.location} disabled={c.creating}
+        onChange={location => setDraftFields(fields => ({ ...fields, location }))} /></div>}
+      {(addingAttachment || !!draftFields.attachments?.length) && <div className="todo-compose-attachments">
         {(draftFields.attachments ?? []).map(path => <span className="todo-compose-token todo-compose-attachment" key={path} title={path}>
           <Paperclip /><span>{path.split('/').pop()}</span><button type="button" disabled={c.creating}
             aria-label={`${uiText('todo.removeAttachment')}: ${path}`} onClick={() => setDraftFields(fields => ({ ...fields, attachments: fields.attachments?.filter(value => value !== path) }))}><X /></button>
         </span>)}
-        {addingAttachment ? <api.ui.ResourcePicker className="todo-compose-attachment-picker" value="" kinds={['attachment']} ariaLabel={uiText('todo.addAttachment')}
+        {addingAttachment && <api.ui.ResourcePicker className="todo-compose-attachment-picker" value="" kinds={['attachment']} ariaLabel={uiText('todo.addAttachment')}
           placeholder={uiText('todo.addAttachment')} disabled={c.creating} onChange={path => {
             if (!path) return
             setDraftFields(fields => ({ ...fields, attachments: [...new Set([...(fields.attachments ?? []), path])] }))
             setAddingAttachment(false)
-          }} /> : <button type="button" className="todo-compose-attach" aria-label={uiText('todo.addAttachment')}
-            title={uiText('todo.addAttachment')} disabled={c.creating} onClick={() => setAddingAttachment(true)}>
-            {draftFields.attachments?.length ? <Plus /> : <><Paperclip /><span>{uiText('todo.addAttachment')}</span></>}
-          </button>}
-      </div>
+          }} />}
+      </div>}
       <div className="todo-compose-controls">
-        <button type="button" className="todo-compose-chip todo-compose-priority" disabled={c.creating}
+        <button type="button" className={`todo-compose-chip${composeDate ? ' has-value' : ''}`} aria-pressed={showSchedule} disabled={c.creating}
+          aria-label={uiText('todo.compose.addDate')} title={uiText('todo.compose.addDate')} onClick={() => setShowSchedule(open => !open)}>
+          <CalendarDays />{composeDate && <span>{formatDueLabel(composeDate, today, { today: uiText('todo.due.today'), tomorrow: uiText('todo.due.tomorrow'), yesterday: uiText('todo.due.yesterday') }, api.ui.language(), dateFormat)}{draftFields.startTime ? ` ${draftFields.startTime}` : ''}</span>}
+        </button>
+        <button type="button" className={`todo-compose-chip${draftFields.location ? ' has-value' : ''}`} aria-pressed={showPlace} disabled={c.creating}
+          aria-label={uiText('todo.compose.addPlace')} title={draftFields.location?.name ?? uiText('todo.compose.addPlace')} onClick={() => setShowPlace(open => !open)}>
+          <MapPin />
+        </button>
+        <button type="button" className={`todo-compose-chip${draftFields.attachments?.length ? ' has-value' : ''}`} aria-pressed={addingAttachment} disabled={c.creating}
+          aria-label={uiText('todo.addAttachment')} title={uiText('todo.addAttachment')} onClick={() => setAddingAttachment(open => !open)}>
+          <Paperclip />{!!draftFields.attachments?.length && <span>{draftFields.attachments.length}</span>}
+        </button>
+        <button type="button" className={`todo-compose-chip todo-compose-priority${draftFields.priority && draftFields.priority !== 'normal' ? ' has-value' : ''}`} disabled={c.creating}
           aria-label={uiText('todo.field.priority')} title={uiText('todo.field.priority')}
           onClick={async event => {
             const priority = await api.ui.openMenu(PRIORITIES.map(item => ({ id: item.id, label: uiText(item.labelKey), checked: item.id === (draftFields.priority ?? 'normal') })), { anchor: event.currentTarget, align: 'start' })
             if (priority) setDraftFields(fields => ({ ...fields, priority: priority as TodoPriority }))
-          }}><PriorityGlyph /><span>{draftFields.priority && draftFields.priority !== 'normal' ? uiText(`todo.priority.${draftFields.priority}`) : uiText('todo.field.priority')}</span></button>
-        <button type="button" className="todo-compose-chip" onClick={() => setDraftFields(fields => ({ ...fields, flagged: !(fields.flagged ?? (view.kind === 'smart' && view.id === 'flagged')) }))}
+          }}><PriorityGlyph />{draftFields.priority && draftFields.priority !== 'normal' && <span>{uiText(`todo.priority.${draftFields.priority}`)}</span>}</button>
+        <button type="button" className="todo-compose-chip todo-compose-flag" onClick={() => setDraftFields(fields => ({ ...fields, flagged: !(fields.flagged ?? (view.kind === 'smart' && view.id === 'flagged')) }))}
           aria-label={uiText('todo.flag')} title={uiText('todo.flag')} aria-pressed={draftFields.flagged ?? (view.kind === 'smart' && view.id === 'flagged')}
           disabled={c.creating}><Flag /></button>
         <button type="submit" className="todo-compose-submit" disabled={!draft.trim() || c.creating}>{uiText('todo.group.add')}</button>
@@ -555,9 +540,35 @@ export const TodoPanel = (): ReactElement => {
    */
   const openStatusMenu = (anchor: HTMLElement): void => {
     void api.ui.openPopover(
-      () => <PanelStatusPopover />,
+      ({ close }) => (
+        <div className="todo-filter-popover-stack">
+          <PanelStatusPopover />
+          {(groupNames.length > 0 || hasUngrouped) && (
+            <>
+              <div className="todo-filter-divider" />
+              <GroupFilterPopover
+                todos={c.todos}
+                groups={groups}
+                names={groupNames}
+                hasUngrouped={hasUngrouped}
+                selected={selectedGroupNames}
+                includeUngrouped={includeSelectedUngrouped}
+                onChange={(nextNames, nextUngrouped) => setView(
+                  nextNames.length === groupNames.length && (!hasUngrouped || nextUngrouped)
+                    ? DEFAULT_VIEW
+                    : { kind: 'groups', names: nextNames, includeUngrouped: nextUngrouped }
+                )}
+                onOpenSettings={() => {
+                  close()
+                  void openManageGroups()
+                }}
+              />
+            </>
+          )}
+        </div>
+      ),
       { anchor, align: 'end' },
-      { className: 'todo-filter-popover', ariaLabel: uiText('todo.filters.statusAndCompleted') }
+      { className: 'todo-filter-popover', ariaLabel: uiText('todo.filters.title'), width: 248 }
     )
   }
 
@@ -576,32 +587,6 @@ export const TodoPanel = (): ReactElement => {
     )
   }
 
-  const openGroups = (anchor: HTMLElement): void => {
-    void api.ui.openPopover(
-      ({ close }) => (
-        <GroupFilterPopover
-          todos={c.todos}
-          groups={groups}
-          names={groupNames}
-          hasUngrouped={hasUngrouped}
-          selected={selectedGroupNames}
-          includeUngrouped={includeSelectedUngrouped}
-          onChange={(nextNames, nextUngrouped) => setView(
-            nextNames.length === groupNames.length && (!hasUngrouped || nextUngrouped)
-              ? DEFAULT_VIEW
-              : { kind: 'groups', names: nextNames, includeUngrouped: nextUngrouped }
-          )}
-          onOpenSettings={() => {
-            close()
-            void openManageGroups()
-          }}
-        />
-      ),
-      { anchor, align: 'end' },
-      { className: 'todo-groups-popover', ariaLabel: uiText('todo.view.groups') }
-    )
-  }
-
   const clearCalendarFilter = (): void => {
     api.workspace.patchTimeControl({ selectedDate: null, rangeStart: null, rangeEnd: null })
   }
@@ -614,7 +599,9 @@ export const TodoPanel = (): ReactElement => {
     dot?: string,
     variant?: 'smart',
     /** Stored colour (`palette:<id>` or a hex) that tints the chip. */
-    chip?: string
+    chip?: string,
+    /** The glyph and label colour on the tinted chip; defaults to the palette's contrast. */
+    chipOn?: string
   ): ReactElement => {
     const current = sameView(view, target)
     const active = target.kind === 'groups' && target.names.length === 1 && !target.includeUngrouped && view.kind === 'groups'
@@ -626,6 +613,8 @@ export const TodoPanel = (): ReactElement => {
         type="button"
         className={`todo-tree-row${dot ? ' nested' : ''}${variant ? ` todo-${variant}-chip` : ''}${active ? ' active' : ''}`}
         aria-current={current ? 'true' : undefined}
+        aria-label={variant ? `${label} ${count}` : undefined}
+        title={variant ? label : undefined}
         aria-pressed={target.kind === 'groups' ? active : undefined}
         // A `var(--color-…)`, never a resolved hex: an inline style outranks
         // every stylesheet, so resolving here would put the colour out of reach
@@ -634,11 +623,16 @@ export const TodoPanel = (): ReactElement => {
           chip
             ? ({
                 '--todo-chip-color': paletteCssValue(chip),
-                '--todo-chip-on': paletteCssContrast(chip)
+                '--todo-chip-on': chipOn ?? paletteCssContrast(chip)
               } as CSSProperties)
             : undefined
         }
-        onClick={() => setView(target)}
+        onClick={(event) => showView(target, opensInNewTab(event))}
+        onAuxClick={(event) => {
+          if (event.button !== 1) return
+          event.preventDefault()
+          showView(target, true)
+        }}
       >
         {icon && <span className="todo-tree-icon">{icon}</span>}
         {dot && <span className="todo-tree-dot" style={{ background: paletteCssValue(dot) }} aria-hidden="true" />}
@@ -658,7 +652,7 @@ export const TodoPanel = (): ReactElement => {
   const statusSelectionLabel = statusFilter === 'all'
     ? null
     : `${uiText('auto.bae7d5be7082')}: ${statusFilter.length === 1
-      ? uiText(statusDefs.find((status) => status.id === statusFilter[0])?.labelKey ?? 'todo.chip.all')
+      ? (statusDefs.find((status) => status.id === statusFilter[0])?.label ?? uiText('todo.chip.all'))
       : uiText('todo.filters.statusCount', { count: statusFilter.length })}`
 
   const fabLabel = uiText('todo.fab.newTodo')
@@ -671,22 +665,13 @@ export const TodoPanel = (): ReactElement => {
           {!pageActive && (
             <>
               <button
-                className={`todo-menu-btn todo-groups-menu-btn${allGroupsSelected ? '' : ' active'}`}
-                aria-label={uiText('todo.view.groups')}
-                title={uiText('todo.view.groups')}
-                type="button"
-                onClick={(e) => openGroups(e.currentTarget)}
-              >
-                <GroupGlyph />
-              </button>
-              <button
-                className={`todo-menu-btn todo-status-menu-btn${showCompleted || statusFilter !== 'all' ? ' active' : ''}`}
-                aria-label={uiText('todo.filters.statusAndCompleted')}
-                title={uiText('todo.filters.statusAndCompleted')}
+                className={`todo-menu-btn todo-status-menu-btn${showCompleted || statusFilter !== 'all' || !allGroupsSelected ? ' active' : ''}`}
+                aria-label={uiText('todo.filters.title')}
+                title={uiText('todo.filters.title')}
                 type="button"
                 onClick={(e) => openStatusMenu(e.currentTarget)}
               >
-                <CircleCheck />
+                <ListFilter />
               </button>
               <button
                 className="todo-menu-btn todo-density-menu-btn"
@@ -760,7 +745,8 @@ export const TodoPanel = (): ReactElement => {
               SMART_ICONS[list.id](),
               undefined,
               'smart',
-              list.color
+              list.color,
+              smartListForeground(list, paletteCssContrast)
             ))}
           </nav>
           <div className="todo-navigation-groups">
@@ -797,7 +783,8 @@ export const TodoPanel = (): ReactElement => {
                   SMART_ICONS[list.id](),
                   undefined,
                   'smart',
-                  list.color
+                  list.color,
+                  smartListForeground(list, paletteCssContrast)
                 ))}
               </nav>
 

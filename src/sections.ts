@@ -1,4 +1,4 @@
-import type { TodoPriority, TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoPriority, TodoRecord } from './types'
 import { byPriorityThenName, byStartTimeThenPriority, compareByName } from './sort'
 import { parseLocalDate, startOfWeek } from '@valley/plugin-sdk/dateGrid'
 import { isTodoListRecord } from './completionHistory'

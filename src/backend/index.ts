@@ -5,7 +5,7 @@ import type { DataRecord } from '@valley/plugin-sdk/types'
 import { createTodoDomain } from '../domain'
 import { generateId } from '../lib'
 import { normalizeTodoRecord } from '../records'
-import { patchForStatus, STATUSES, OPTIONAL_STATUSES } from '../statuses'
+import { normalizeCustomStatuses, patchForStatus, STATUSES, OPTIONAL_STATUSES } from '../statuses'
 import type { TodoRecord, TodoStatus } from '../types'
 import config from '../../config.json'
 
@@ -30,9 +30,12 @@ export function todoWorkflowValues(raw: Record<string, unknown>, settings: Recor
   if (values.priority !== undefined && !['normal', 'low', 'medium', 'high'].includes(String(values.priority))) throw new Error('Unknown task priority.')
   const enabled = (settings.statuses as { active?: unknown } | undefined)?.active
   const active = ['open', 'completed', ...(Array.isArray(enabled) ? enabled : OPTIONAL_STATUSES)]
-  if (values.status !== undefined && (!STATUSES.includes(values.status as TodoStatus) || !active.includes(String(values.status)))) throw new Error('This task status is disabled.')
-  if (values.status !== undefined) Object.assign(values, patchForStatus(values.status as TodoStatus))
-  else if (values.completed !== undefined) Object.assign(values, patchForStatus(values.completed ? 'completed' : 'open'))
+  const customStatuses = normalizeCustomStatuses((settings.statuses as { custom?: unknown } | undefined)?.custom)
+  const custom = customStatuses.filter((status) => (Array.isArray(enabled) ? enabled : []).includes(status.id)).map((status) => status.id)
+  if (values.status !== undefined && (![...STATUSES, ...custom].includes(values.status as TodoStatus) || !active.includes(String(values.status)))) throw new Error('This task status is disabled.')
+  const statusSettings = { custom: customStatuses }
+  if (values.status !== undefined) Object.assign(values, patchForStatus(values.status as TodoStatus, statusSettings))
+  else if (values.completed !== undefined) Object.assign(values, patchForStatus(values.completed ? 'completed' : 'open', statusSettings))
   return values as Partial<TodoRecord>
 }
 

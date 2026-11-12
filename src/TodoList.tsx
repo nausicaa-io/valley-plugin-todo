@@ -1,7 +1,7 @@
 import { React, revealRequestStore } from './runtime'
 import { useVisibleRange } from './visibleRange'
 import type { ReactElement } from 'react'
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import type { TodoGroup } from './groups'
 import type { TodoListController } from './controller'
 import { TodoRow } from './TodoRow'

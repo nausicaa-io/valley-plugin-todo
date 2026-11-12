@@ -10,6 +10,7 @@ import {
   SMART_LISTS,
   configuredSmartLists,
   completedForView,
+  endOfWeek,
   groupCount,
   matchesVisibleView,
   matchesView,
@@ -55,18 +56,32 @@ const todo = (over: Partial<TodoRecord> = {}): TodoRecord => ({
 })
 
 describe('smart lists', () => {
-  it('is the five the sidebar shows, in order', () => {
+  it('is the six the sidebar shows, in order', () => {
     expect(SMART_LISTS.map((l) => l.id)).toEqual([
       'scheduled',
       'today',
+      'week',
       'flagged',
       'all',
       'completed'
     ])
   })
 
-  it('dates only the two date-ordered lists', () => {
-    expect(SMART_LISTS.filter((l) => l.dated).map((l) => l.id)).toEqual(['scheduled', 'today'])
+  it('dates only the three date-ordered lists', () => {
+    expect(SMART_LISTS.filter((l) => l.dated).map((l) => l.id)).toEqual(['scheduled', 'today', 'week'])
+  })
+
+  it('ends This Week on the last day of the host week, overdue included', () => {
+    // 2026-08-13 is a Thursday.
+    expect(endOfWeek('2026-08-13', 1)).toBe('2026-08-16')
+    expect(endOfWeek('2026-08-13', 0)).toBe('2026-08-15')
+    expect(endOfWeek('2026-08-16', 1)).toBe('2026-08-16')
+    expect(endOfWeek('2026-08-17', 1)).toBe('2026-08-23')
+    const week = { kind: 'smart', id: 'week' } as const
+    expect(matchesView(todo({ dueDate: '2026-08-01' }), week, '2026-08-13')).toBe(true)
+    expect(matchesView(todo({ dueDate: '2026-08-16' }), week, '2026-08-13')).toBe(true)
+    expect(matchesView(todo({ dueDate: '2026-08-17' }), week, '2026-08-13')).toBe(false)
+    expect(matchesView(todo({}), week, '2026-08-13')).toBe(false)
   })
 
   it('gives every smart list its own palette colour', () => {
@@ -84,23 +99,32 @@ describe('smart lists', () => {
 
   it('normalizes persisted order and hidden lists while keeping one visible', () => {
     expect(normalizeSmartListSettings(undefined)).toEqual({
-      order: ['scheduled', 'today', 'flagged', 'all', 'completed'],
-      hidden: []
+      order: ['scheduled', 'today', 'week', 'flagged', 'all', 'completed'],
+      hidden: [],
+      colors: {},
+      textColors: {}
     })
     const settings = normalizeSmartListSettings({
       order: ['completed', 'today', 'completed', 'unknown'],
-      hidden: ['today', 'all']
+      hidden: ['today', 'all'],
+      colors: { today: 'palette:violet', flagged: 'not a colour', all: '#12abef' },
+      textColors: { today: 'black', flagged: 'auto', all: 'pink' }
     })
     expect(settings).toEqual({
-      order: ['completed', 'today', 'scheduled', 'flagged', 'all'],
-      hidden: ['today', 'all']
+      order: ['scheduled', 'completed', 'today', 'week', 'flagged', 'all'],
+      hidden: ['today', 'all'],
+      colors: { today: 'palette:violet', all: '#12abef' },
+      textColors: { today: 'black' }
     })
     expect(configuredSmartLists(settings).map((list) => list.id)).toEqual([
-      'completed', 'scheduled', 'flagged'
+      'scheduled', 'completed', 'week', 'flagged'
     ])
+    // A saved order from before This Week gains it right after Today.
+    expect(normalizeSmartListSettings({ order: ['today', 'scheduled', 'flagged', 'all', 'completed'] }).order)
+      .toEqual(['today', 'week', 'scheduled', 'flagged', 'all', 'completed'])
     expect(normalizeSmartListSettings({
-      hidden: ['scheduled', 'today', 'flagged', 'all', 'completed']
-    }).hidden).toEqual(['today', 'flagged', 'all', 'completed'])
+      hidden: ['scheduled', 'today', 'week', 'flagged', 'all', 'completed']
+    }).hidden).toEqual(['today', 'week', 'flagged', 'all', 'completed'])
   })
 })
 
@@ -191,6 +215,7 @@ describe('viewCounts', () => {
     expect(viewCounts(todos, TODAY)).toEqual({
       scheduled: 3,
       today: 2,
+      week: 2,
       flagged: 2,
       all: 5,
       completed: 1

@@ -1,5 +1,5 @@
 import type { BundledPluginTranslationCatalogs, ValleyPluginApi } from '@valley/plugin-sdk'
-import type { TodoPriority, TodoStatus } from '@valley/plugin-sdk/types'
+import type { TodoPriority, TodoStatus } from './types'
 import en from '../locales/en.json'
 import de from '../locales/de.json'
 import es from '../locales/es.json'
@@ -33,7 +33,7 @@ export function uiText(key: string, params?: Parameters<ValleyPluginApi['ui']['t
  * that turns a stored value into words — and so a key is never resolved at
  * module scope, which would freeze the language at first import.
  */
-const STATUS_LABEL_KEYS: Record<TodoStatus, string> = {
+const STATUS_LABEL_KEYS: Partial<Record<TodoStatus, string>> = {
   open: 'todo.status.todo',
   inprogress: 'todo.status.inProgress',
   waiting: 'todo.status.waiting',
@@ -64,10 +64,17 @@ const PRIORITY_META_KEYS: Record<TodoPriority, string> = {
   high: 'todo.priority.highMeta'
 }
 
+let customStatusLabel: (status: TodoStatus) => string | undefined = () => undefined
+
+/** Set by the status module, which owns the custom statuses (and imports this one). */
+export function setCustomStatusLabels(resolve: (status: TodoStatus) => string | undefined): void {
+  customStatusLabel = resolve
+}
+
 export function todoStatusLabel(status: TodoStatus | null, fallback = ''): string {
   if (status === null || status === 'open') return uiText('todo.status.todo')
   const key = STATUS_LABEL_KEYS[status]
-  return key ? uiText(key) : fallback || status
+  return key ? uiText(key) : customStatusLabel(status) ?? (fallback || status)
 }
 
 export function todoPriorityLabel(priority: TodoPriority): string {

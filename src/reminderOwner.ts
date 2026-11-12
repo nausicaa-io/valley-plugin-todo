@@ -1,5 +1,5 @@
 import type { PluginBackendApi } from '@valley/plugin-sdk'
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 
 export function reminderTimes(record: TodoRecord, defaults: number[] = [10]): { id: string; at: number }[] {
   if (record.completed) return []

@@ -1,6 +1,6 @@
 import { React, api } from './runtime'
 import type { ReactElement } from 'react'
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import { Navigation, X } from './icons'
 import { uiText } from './localization'
 

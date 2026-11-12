@@ -1,4 +1,4 @@
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import { generateId } from './lib'
 
 export function newTodo(title: string, filePath?: string, group?: string): TodoRecord {

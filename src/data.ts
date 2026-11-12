@@ -473,3 +473,10 @@ export async function setTodoStatus(id: string, status: TodoStatus): Promise<boo
   if (!current) return false
   return updateTodo(id, { ...current, ...patchForStatus(status), updatedAt: new Date().toISOString() })
 }
+
+/** Move a todo into a group (or out of every group), rewriting only its record. */
+export async function setTodoGroup(id: string, group: string | undefined): Promise<boolean> {
+  const current = await loadTodo(id)
+  if (!current) return false
+  return updateTodo(id, { ...current, group, updatedAt: new Date().toISOString() })
+}

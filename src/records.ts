@@ -4,7 +4,7 @@ import { asColor, asString, asTime, isRecord } from '@valley/plugin-sdk/normaliz
 import { isAllowedExternalUrl, normalizeRelPathOpt, parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { canonicalGroupName, normalizeGroups } from '@valley/plugin-sdk/groups'
 import { generateId } from './lib'
-import { parseTodoStatus } from './statuses'
+import { isCustomStatusId, parseStoredStatus } from './statuses'
 import type { TodoPriority, TodoRecord, TodoSession, TodoStatusChange } from './types'
 
 const TASKS_DATASET = 'todo.tasks'
@@ -47,8 +47,8 @@ export function normalizeStatusHistory(value: unknown): TodoStatusChange[] {
   return value
     .filter((entry): entry is Record<string, unknown> => isRecord(entry))
     .map((entry) => ({
-      from: parseTodoStatus(entry.from),
-      to: parseTodoStatus(entry.to),
+      from: parseStoredStatus(entry.from),
+      to: parseStoredStatus(entry.to),
       changedAt: asString(entry.changedAt)
     }))
     .filter((entry): entry is TodoStatusChange => !!entry.from && !!entry.to && !!entry.changedAt && entry.from !== entry.to)
@@ -118,7 +118,7 @@ export function normalizeTodoRecord(record: DataRecord): TodoRecord {
   const createdAt = asString(record.createdAt, now)
   const history = normalizeHistory(record.history)
   const statusHistory = normalizeStatusHistory(record.statusHistory)
-  const status = parseTodoStatus(record.status)
+  const status = parseStoredStatus(isCustomStatusId(record.customStatus) ? record.customStatus : record.status)
   return {
     id,
     title: asString(record.title).trim(),
@@ -177,7 +177,9 @@ export function taskRow(record: TodoRecord): DatasetRecord {
     note: record.note,
     estimatedMinutes: record.estimatedMinutes ?? null,
     actualMinutes: record.actualMinutes ?? null,
-    status: record.status ?? null,
+    // The status column only holds SDK values; a custom status is kept in customStatus.
+    status: isCustomStatusId(record.status) ? (record.completed ? 'completed' : null) : record.status ?? null,
+    customStatus: isCustomStatusId(record.status) ? record.status : null,
     filePath: record.filePath ?? null,
     group: record.group ?? null,
     flagged: record.flagged ?? null,

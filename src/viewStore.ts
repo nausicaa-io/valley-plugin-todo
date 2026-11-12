@@ -51,8 +51,12 @@ interface SearchStore {
   listeners: Set<(query: string) => void>
 }
 
+/** Every table column sorts; the narrow lists offer only the shared fields. */
+export const TABLE_ONLY_SORT_FIELDS = ['group', 'notes', 'status', 'location', 'tags'] as const
+export type PageSortField = SortField | 'auto' | (typeof TABLE_ONLY_SORT_FIELDS)[number]
+
 export interface PageSort {
-  field: SortField | 'auto'
+  field: PageSortField
   dir: SortDir
 }
 
@@ -270,8 +274,8 @@ export function useTodoSearch(): [string, (query: string) => void] {
 
 function normalizePageSort(raw: unknown): PageSort {
   const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
-  const field = value.field === 'auto' || SORT_FIELDS.includes(value.field as SortField)
-    ? value.field as SortField | 'auto'
+  const field = value.field === 'auto' || (TABLE_ONLY_SORT_FIELDS as readonly unknown[]).includes(value.field) || SORT_FIELDS.includes(value.field as SortField)
+    ? value.field as PageSortField
     : 'auto'
   return { field, dir: value.dir === 'desc' ? 'desc' : 'asc' }
 }
@@ -310,10 +314,10 @@ export interface TodoVisibleState extends Record<string, unknown> {
   sort: PageSort
 }
 
-export function readTodoVisibleState(): TodoVisibleState {
+export function readTodoVisibleState(view: TodoView = getView()): TodoVisibleState {
   return {
     v: 1,
-    view: serializeView(getView()),
+    view: serializeView(view),
     showCompleted: getShowCompleted(),
     statusFilter: getStatusFilter(),
     search: searchStore().query ?? (typeof api.settings.get()[SEARCH_SETTING_KEY] === 'string'
@@ -323,9 +327,10 @@ export function readTodoVisibleState(): TodoVisibleState {
   }
 }
 
-export function applyTodoVisibleState(raw: Record<string, unknown>): boolean {
+/** Apply a saved state; a tab pinned to one list keeps its list and leaves the shared view alone (`keepView`). */
+export function applyTodoVisibleState(raw: Record<string, unknown>, keepView = false): boolean {
   if (raw.v !== 1) return false
-  setView(parseView(raw.view))
+  if (!keepView) setView(parseView(raw.view))
   setShowCompleted(raw.showCompleted === true)
   setStatusFilter(normalizeStatusFilter(raw.statusFilter))
   setTodoSearch(typeof raw.search === 'string' ? raw.search : '')

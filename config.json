@@ -39,11 +39,25 @@
     }
   },
   "settingsView": "todo.settings",
+  "settingsSections": [
+    {
+      "id": "lists",
+      "label": "Lists",
+      "labelKey": "todo.settings.section.lists",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M9%206h11M9%2012h11M9%2018h11%22%2F%3E%3Cpath%20d%3D%22M4%206h.01M4%2012h.01M4%2018h.01%22%2F%3E%3C%2Fsvg%3E"
+    },
+    {
+      "id": "statuses",
+      "label": "Statuses",
+      "labelKey": "todo.settings.section.statuses",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%229%22%2F%3E%3Cpath%20d%3D%22M12%203a9%209%200%200%201%200%2018z%22%20fill%3D%22black%22%2F%3E%3C%2Fsvg%3E"
+    }
+  ],
   "datasets": [
     {
       "id": "tasks",
       "store": "durable",
-      "version": 2,
+      "version": 3,
       "title": "Tasks",
       "primaryKey": [
         "id"
@@ -106,6 +120,10 @@
             "canceled",
             "completed"
           ]
+        },
+        "customStatus": {
+          "type": "text",
+          "nullable": true
         },
         "filePath": {
           "type": "text",
@@ -3459,6 +3477,23 @@
           }
         }
       ]
+    },
+    {
+      "id": "custom-status-v3",
+      "store": "durable",
+      "fromVersion": 2,
+      "toVersion": 3,
+      "steps": [
+        {
+          "operation": "add-column",
+          "dataset": "tasks",
+          "column": "customStatus",
+          "definition": {
+            "type": "text",
+            "nullable": true
+          }
+        }
+      ]
     }
   ],
   "settingsSchema": {
@@ -3491,14 +3526,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": [
-                  "inprogress",
-                  "waiting",
-                  "onhold",
-                  "delegated",
-                  "deferred",
-                  "canceled"
-                ]
+                "maxLength": 64
               }
             },
             "colors": {
@@ -3506,11 +3534,108 @@
               "additionalProperties": {
                 "type": "string"
               }
+            },
+            "textColors": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "white",
+                  "black"
+                ]
+              }
+            },
+            "style": {
+              "type": "string",
+              "enum": [
+                "filled",
+                "text"
+              ]
+            },
+            "strikethrough": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "boolean"
+              }
+            },
+            "custom": {
+              "type": "array",
+              "maxItems": 40,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "done": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "label",
+                  "done"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "additionalProperties": false
         },
         "labelKey": "auto.8db340a4c47c"
+      },
+      {
+        "key": "localGroups",
+        "label": "Individual To-Do groups",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "color": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "aliases": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string",
+                  "maxLength": 60
+                }
+              },
+              "parent": {
+                "type": "string",
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "color"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "default": [],
+        "labelKey": "todo.settings.localGroupsSetting"
       },
       {
         "key": "smartLists",
@@ -3527,6 +3652,7 @@
                 "enum": [
                   "scheduled",
                   "today",
+                  "week",
                   "flagged",
                   "all",
                   "completed"
@@ -3540,9 +3666,27 @@
                 "enum": [
                   "scheduled",
                   "today",
+                  "week",
                   "flagged",
                   "all",
                   "completed"
+                ]
+              }
+            },
+            "colors": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "textColors": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "white",
+                  "black"
                 ]
               }
             }
@@ -3597,16 +3741,7 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": [
-                  "open",
-                  "completed",
-                  "inprogress",
-                  "waiting",
-                  "onhold",
-                  "delegated",
-                  "deferred",
-                  "canceled"
-                ]
+                "maxLength": 64
               }
             }
           ]
@@ -3631,7 +3766,12 @@
                 "flagged",
                 "updated",
                 "created",
-                "name"
+                "name",
+                "group",
+                "notes",
+                "status",
+                "location",
+                "tags"
               ]
             },
             "dir": {

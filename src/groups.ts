@@ -14,7 +14,7 @@
  */
 
 import type { ValleyGroup } from '@valley/plugin-sdk/types'
-import { canonicalGroupName } from '@valley/plugin-sdk/groups'
+import { canonicalGroupName, groupKey as groupKeyOf } from '@valley/plugin-sdk/groups'
 
 export type TodoGroup = ValleyGroup
 
@@ -38,3 +38,15 @@ export {
   reorderGroups,
   promoteGroups
 } from '@valley/plugin-sdk/groups'
+
+let childNames: (name: string) => string[] = (name) => [name]
+
+/** Set by the group store, which knows the individual groups and their shared parents. */
+export function setGroupChildren(resolve: (name: string) => string[]): void {
+  childNames = resolve
+}
+
+/** Group keys a selection of group names matches, subgroups of a shared group included. */
+export function selectedGroupKeys(names: readonly string[]): Set<string> {
+  return new Set(names.flatMap((name) => childNames(name)).map((name) => groupKeyOf(name)))
+}

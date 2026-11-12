@@ -14,7 +14,7 @@
 import codeBlockExamples from './codeBlockExamples.json'
 import { React, api, captureTodoScope } from './runtime'
 import type { FC } from 'react'
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import { fenceInt, parseFenceParams } from '@valley/plugin-sdk/fenceParams'
 import { loadTodoList, onTodoListChanged, updateTodo } from './data'
 import { PRIORITIES } from './sort'

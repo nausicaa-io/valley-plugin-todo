@@ -1,6 +1,6 @@
 import type { ValleyPluginApi, DatasetRecord } from '@valley/plugin-sdk'
 import type { TodoRecord } from './types'
-import { STATUSES } from './statuses'
+import { allStatuses } from './statuses'
 
 export interface TodoListRecord extends TodoRecord {
   historyLoaded: false
@@ -24,7 +24,7 @@ export async function readCompletionSummaries(
           taskId: { in: pending },
           or: ['completed', 'canceled'].map((to) => ({
             to,
-            from: { in: STATUSES.filter((status) => status !== to) }
+            from: { in: allStatuses().filter((status) => status !== to) }
           })),
           ...(ceilings.size ? { and: [{ or: pending.map((taskId) => ({ taskId, position: { lt: ceilings.get(taskId)! } })) }] } : {})
         },

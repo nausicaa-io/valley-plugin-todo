@@ -95,16 +95,8 @@ const todoResult = {
       ]
     },
     "status": {
-      "enum": [
-        "open",
-        "inprogress",
-        "waiting",
-        "onhold",
-        "delegated",
-        "deferred",
-        "completed",
-        "canceled"
-      ]
+      "type": "string",
+      "maxLength": 64
     },
     "tags": {
       "type": "array",
@@ -202,28 +194,12 @@ const todoResult = {
         "type": "object",
         "properties": {
           "from": {
-            "enum": [
-              "open",
-              "inprogress",
-              "waiting",
-              "onhold",
-              "delegated",
-              "deferred",
-              "completed",
-              "canceled"
-            ]
+            "type": "string",
+            "maxLength": 64
           },
           "to": {
-            "enum": [
-              "open",
-              "inprogress",
-              "waiting",
-              "onhold",
-              "delegated",
-              "deferred",
-              "completed",
-              "canceled"
-            ]
+            "type": "string",
+            "maxLength": 64
           },
           "changedAt": {
             "type": "string",
@@ -377,7 +353,7 @@ async function completeTodo(query: string) {
 const fieldText = { type: 'string' }
 export const todoValuesSchema = { type: 'object', additionalProperties: false, properties: {
   ...Object.fromEntries(['title', 'dueDate', 'startTime', 'endTime', 'note', 'filePath', 'group', 'remindAt'].map((key) => [key, fieldText])),
-  priority: { type: 'string', enum: PRIORITIES }, status: { type: 'string', enum: ['open', 'inprogress', 'waiting', 'onhold', 'delegated', 'deferred', 'completed', 'canceled'] },
+  priority: { type: 'string', enum: PRIORITIES }, status: { type: 'string', maxLength: 64 },
   flagged: { type: 'boolean' }, completed: { type: 'boolean' },
   ...Object.fromEntries(['tags', 'urls', 'attachments'].map((key) => [key, { type: 'array', items: fieldText }])),
   estimatedMinutes: { type: 'number', minimum: 0 },

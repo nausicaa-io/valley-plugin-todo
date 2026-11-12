@@ -1,14 +1,15 @@
 import { React } from './runtime'
-import type { ReactElement, ReactNode } from 'react'
+import type { CSSProperties, ReactElement, ReactNode } from 'react'
 
 /** Inline SVG icons rendered through the plugin's injected React instance. */
-type IconProps = { className?: string; title?: string }
+type IconProps = { className?: string; title?: string; style?: CSSProperties }
 
 const Svg = (props: IconProps & { children: ReactNode }): ReactElement =>
   React.createElement(
     'svg',
     {
       className: props.className,
+      style: props.style,
       width: '1em',
       height: '1em',
       viewBox: '0 0 24 24',
@@ -28,6 +29,7 @@ const FilledSvg = (props: IconProps & { children: ReactNode; viewBox?: string })
     'svg',
     {
       className: props.className,
+      style: props.style,
       width: '1em',
       height: '1em',
       viewBox: props.viewBox ?? '0 0 24 24',
@@ -103,10 +105,15 @@ const STATUS_GLYPHS: Record<string, (p: IconProps) => ReactElement> = {
   canceled: MdCancel
 }
 
-export const TodoStatusGlyph = ({ status, dotCls }: { status: string | null; dotCls: string }): ReactElement => {
+/**
+ * `color` sets the glyph colour inline, for surfaces the status stylesheet does
+ * not reach — host menus draw outside the plugin document.
+ */
+export const TodoStatusGlyph = ({ status, dotCls, color }: { status: string | null; dotCls: string; color?: string }): ReactElement => {
   const Glyph = status ? STATUS_GLYPHS[status] : undefined
-  if (Glyph) return <Glyph className={`todo-status-menu-svg ${dotCls}`} />
-  return <span className={`todo-status-menu-dot ${dotCls}`} />
+  const style = color ? { color } : undefined
+  if (Glyph) return <Glyph className={`todo-status-menu-svg ${dotCls}`} style={style} />
+  return <span className={`todo-status-menu-dot ${dotCls}`} style={style} />
 }
 
 export const Plus = (p: IconProps): ReactElement => (
@@ -406,4 +413,23 @@ export const SlidersHorizontal = (p: IconProps): ReactElement => (
 
 export const Minus = (p: IconProps): ReactElement => (
   <Svg {...p}><path d="M5 12h14" /></Svg>
+)
+
+export const ListFilter = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M3 6h18M7 12h10M10 18h4" /></Svg>
+)
+
+export const CalendarWeek = (p: IconProps): ReactElement => (
+  <Svg {...p}>
+    <rect width="18" height="18" x="3" y="4" rx="2" />
+    <path d="M16 2v4M8 2v4M3 10h18M7 15h10" />
+  </Svg>
+)
+
+export const Strikethrough = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6M4 12h16" /></Svg>
+)
+
+export const FilterX = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M13 13.5V20l-4-2v-4.5L3 6V4h18v2l-2.5 3M17 14l4 4M21 14l-4 4" /></Svg>
 )

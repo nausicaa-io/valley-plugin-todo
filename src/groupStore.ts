@@ -2,25 +2,47 @@ import { React, api, captureTodoScope } from './runtime'
 import { loadTodoList, onTodoListChanged as onTodosChanged } from './data'
 import {
   countGroupUsage,
+  groupKey,
   normalizeTodoGroups,
+  setGroupChildren,
   type TodoGroup
 } from './groups'
+import { LOCAL_GROUPS_KEY, groupNamesWithChildren, mergedGroups, normalizeLocalGroups, type LocalGroup } from './localGroups'
 
 export function getGlobalGroups(): TodoGroup[] {
   return normalizeTodoGroups(api.getState().groups)
 }
 
-export function getGroups(): TodoGroup[] {
-  return getGlobalGroups()
+export function getLocalGroups(): LocalGroup[] {
+  return normalizeLocalGroups(api?.settings.get()[LOCAL_GROUPS_KEY], getGlobalGroups())
 }
 
+export async function setLocalGroups(groups: LocalGroup[]): Promise<void> {
+  await api.settings.set(LOCAL_GROUPS_KEY, normalizeLocalGroups(groups, getGlobalGroups()))
+}
+
+/** Shared groups and To-Do's individual groups together. */
+export function getGroups(): TodoGroup[] {
+  return mergedGroups(getGlobalGroups(), getLocalGroups())
+}
+
+setGroupChildren((name) => groupNamesWithChildren(name, getGlobalGroups(), getLocalGroups()))
+
 export function onGroupsChanged(cb: () => void): () => void {
-  return api.subscribe(cb)
+  const offState = api.subscribe(cb)
+  const offSettings = api.settings.subscribe(cb)
+  return () => { offState(); offSettings() }
 }
 
 export function useGroups(): TodoGroup[] {
   const [groups, setGroups] = React.useState<TodoGroup[]>(getGroups)
-  React.useEffect(() => api.subscribe(() => setGroups(getGroups())), [])
+  React.useEffect(() => onGroupsChanged(() => setGroups(getGroups())), [])
+  return groups
+}
+
+export function useLocalGroups(): LocalGroup[] {
+  const [groups, setGroups] = React.useState<LocalGroup[]>(getLocalGroups)
+  React.useEffect(() => onGroupsChanged(() => setGroups(getLocalGroups())), [])
   return groups
 }
 
@@ -30,7 +52,9 @@ export function startGroupUsageReporting(): () => void {
   const push = (): void => {
     void loadTodoList(scope).then((todos) => {
       scope.assertActive()
-      if (!cancelled) scope.api.workspace.reportGroupUsage(countGroupUsage(todos.map((todo) => todo.group)))
+      if (cancelled) return
+      const local = new Set(getLocalGroups().flatMap((group) => [group.name, ...(group.aliases ?? [])]).map(groupKey))
+      scope.api.workspace.reportGroupUsage(countGroupUsage(todos.map((todo) => todo.group).filter((name) => !name || !local.has(groupKey(name)))))
     }).catch(() => {})
   }
   push()

@@ -1,7 +1,7 @@
 import { ReminderOffsets } from './ReminderOffsets'
 import { React, api } from './runtime'
 import type { ReactElement } from 'react'
-import type { TodoPriority, TodoRecord, TodoStatus } from '@valley/plugin-sdk/types'
+import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { getSharedTodos, onSharedTodos } from './sharedTodos'
 import { confirmDeleteTodo, normalizeTodoUrl, useTodoStatusHistory, type DocumentRevision } from './data'

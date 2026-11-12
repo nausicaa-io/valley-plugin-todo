@@ -1,7 +1,27 @@
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import { paletteRef } from '@valley/plugin-sdk/palette'
-import { groupKey } from './groups'
-import { isoDay } from './sort'
+import { parseLocalDate, weekStartIndex } from '@valley/plugin-sdk/dateGrid'
+import { api } from './runtime'
+import { groupKey, selectedGroupKeys } from './groups'
+import { addDays, isoDay } from './sort'
+
+function hostWeekStart(): number {
+  try {
+    return weekStartIndex(api?.getState().weekStart)
+  } catch {
+    return 1
+  }
+}
+
+/**
+ * The last day of the week `today` falls in, following the host's first day of
+ * the week. This week is everything due on or before it — overdue included,
+ * for the same reason Today includes it.
+ */
+export function endOfWeek(today: string, weekStart: number = hostWeekStart()): string {
+  const day = parseLocalDate(today).getDay()
+  return addDays(today, 6 - ((day - weekStart + 7) % 7))
+}
 
 /**
  * What the sidebar selects and both surfaces show.
@@ -12,7 +32,7 @@ import { isoDay } from './sort'
  * first todo at 245px. Five fixed smart lists plus the group tree say the same
  * things in a column that also has room for counts.
  */
-export type SmartListId = 'scheduled' | 'today' | 'flagged' | 'all' | 'completed'
+export type SmartListId = 'scheduled' | 'today' | 'week' | 'flagged' | 'all' | 'completed'
 
 export type TodoView =
   | { kind: 'smart'; id: SmartListId }
@@ -41,11 +61,14 @@ export interface SmartListDef {
   color: string
   /** Renders under date headers instead of the row's inline date. */
   dated: boolean
+  /** A fixed glyph colour on the coloured tile; absent means the palette's paired contrast. */
+  textColor?: SmartListTextColor
 }
 
 export const SMART_LISTS: SmartListDef[] = [
   { id: 'scheduled', labelKey: 'todo.view.scheduled', color: paletteRef('red'), dated: true },
   { id: 'today', labelKey: 'todo.view.today', color: paletteRef('primary-blue'), dated: true },
+  { id: 'week', labelKey: 'todo.view.week', color: paletteRef('violet'), dated: true },
   { id: 'flagged', labelKey: 'todo.view.flagged', color: paletteRef('yellow'), dated: false },
   { id: 'all', labelKey: 'todo.view.all', color: paletteRef('gray'), dated: false },
   { id: 'completed', labelKey: 'todo.view.completed', color: paletteRef('green'), dated: false }
@@ -53,9 +76,15 @@ export const SMART_LISTS: SmartListDef[] = [
 
 export const DEFAULT_SMART_LIST_ORDER: SmartListId[] = SMART_LISTS.map((list) => list.id)
 
+export type SmartListTextColor = 'auto' | 'white' | 'black'
+
 export interface SmartListSettings {
   order: SmartListId[]
   hidden: SmartListId[]
+  /** Only lists the user recoloured; the rest keep their built-in colour. */
+  colors: Partial<Record<SmartListId, string>>
+  /** The glyph and label colour on the list's coloured tile; absent means auto. */
+  textColors: Partial<Record<SmartListId, SmartListTextColor>>
 }
 
 export function normalizeSmartListSettings(value: unknown): SmartListSettings {
@@ -66,21 +95,48 @@ export function normalizeSmartListSettings(value: unknown): SmartListSettings {
       order.push(id as SmartListId)
     }
   }
-  for (const id of DEFAULT_SMART_LIST_ORDER) if (!order.includes(id)) order.push(id)
+  // A list added in a later version joins beside its default neighbour, not at the end.
+  DEFAULT_SMART_LIST_ORDER.forEach((id, index) => {
+    if (order.includes(id)) return
+    const before = DEFAULT_SMART_LIST_ORDER.slice(0, index).reverse().find((candidate) => order.includes(candidate))
+    order.splice(before ? order.indexOf(before) + 1 : 0, 0, id)
+  })
   const rawHidden = Array.isArray(raw.hidden) ? raw.hidden : []
   const hidden = order.filter((id) => rawHidden.includes(id))
   if (hidden.length === order.length) hidden.shift()
-  return { order, hidden }
+  const rawColors = raw.colors && typeof raw.colors === 'object' ? raw.colors as Record<string, unknown> : {}
+  const colors: Partial<Record<SmartListId, string>> = {}
+  for (const id of DEFAULT_SMART_LIST_ORDER) {
+    const value = rawColors[id]
+    if (typeof value === 'string' && /^(palette:[\w-]+|#[0-9a-f]{6})$/i.test(value)) colors[id] = value
+  }
+  const rawText = raw.textColors && typeof raw.textColors === 'object' ? raw.textColors as Record<string, unknown> : {}
+  const textColors: Partial<Record<SmartListId, SmartListTextColor>> = {}
+  for (const id of DEFAULT_SMART_LIST_ORDER) {
+    const value = rawText[id]
+    if (value === 'white' || value === 'black') textColors[id] = value
+  }
+  return { order, hidden, colors, textColors }
 }
 
 export function configuredSmartLists(settings: SmartListSettings): SmartListDef[] {
   return settings.order
     .filter((id) => !settings.hidden.includes(id))
-    .map((id) => smartListDef(id))
+    .map((id) => smartListDef(id, settings))
 }
 
-export function smartListDef(id: SmartListId): SmartListDef {
-  return SMART_LISTS.find((l) => l.id === id) ?? SMART_LISTS[3]
+export function smartListDef(id: SmartListId, settings?: Pick<SmartListSettings, 'colors' | 'textColors'>): SmartListDef {
+  const base = SMART_LISTS.find((l) => l.id === id) ?? SMART_LISTS.find((l) => l.id === 'all')!
+  const color = settings?.colors[base.id]
+  const textColor = settings?.textColors?.[base.id]
+  return color || textColor ? { ...base, ...(color ? { color } : {}), ...(textColor ? { textColor } : {}) } : base
+}
+
+/** The CSS foreground on a smart list's coloured tile. */
+export function smartListForeground(list: SmartListDef, contrast: (color: string) => string): string {
+  if (list.textColor === 'white') return '#ffffff'
+  if (list.textColor === 'black') return '#000000'
+  return contrast(list.color)
 }
 
 /**
@@ -101,8 +157,7 @@ export function matchesView(todo: TodoRecord, view: TodoView, today: string = is
 export function matchesViewScope(todo: TodoRecord, view: TodoView, today: string = isoDay(new Date())): boolean {
   if (view.kind === 'groups') {
     if (!todo.group) return view.includeUngrouped === true
-    const selected = new Set(view.names.map(groupKey))
-    return selected.has(groupKey(todo.group))
+    return selectedGroupKeys(view.names).has(groupKey(todo.group))
   }
   if (view.kind === 'tag') return (todo.tags ?? []).some((tag) => tag.replace(/^#/, '').toLowerCase() === view.name.toLowerCase())
   if (view.kind === 'nogroup') return !todo.group
@@ -111,6 +166,8 @@ export function matchesViewScope(todo: TodoRecord, view: TodoView, today: string
       return !!todo.dueDate
     case 'today':
       return !!todo.dueDate && todo.dueDate.slice(0, 10) <= today
+    case 'week':
+      return !!todo.dueDate && todo.dueDate.slice(0, 10) <= endOfWeek(today)
     case 'flagged':
       return !!todo.flagged
     case 'completed':
@@ -154,6 +211,8 @@ export function completedForView(
         return !!todo.dueDate
       case 'today':
         return !!todo.dueDate && todo.dueDate.slice(0, 10) <= today
+      case 'week':
+        return !!todo.dueDate && todo.dueDate.slice(0, 10) <= endOfWeek(today)
       case 'flagged':
         return !!todo.flagged
       default:
@@ -164,9 +223,10 @@ export function completedForView(
 
 export type ViewCounts = Record<SmartListId, number>
 
-/** One pass for all five badges — five `filter`s over the same list is waste. */
+/** One pass for every badge — a `filter` per list over the same todos is waste. */
 export function viewCounts(todos: TodoRecord[], today: string = isoDay(new Date())): ViewCounts {
-  const counts: ViewCounts = { scheduled: 0, today: 0, flagged: 0, all: 0, completed: 0 }
+  const counts: ViewCounts = { scheduled: 0, today: 0, week: 0, flagged: 0, all: 0, completed: 0 }
+  const weekEnd = endOfWeek(today)
   for (const todo of todos) {
     if (todo.completed) {
       counts.completed++
@@ -178,14 +238,15 @@ export function viewCounts(todos: TodoRecord[], today: string = isoDay(new Date(
     if (!due) continue
     counts.scheduled++
     if (due <= today) counts.today++
+    if (due <= weekEnd) counts.week++
   }
   return counts
 }
 
 /** How many todos a group row shows — open only, so a done pile never inflates it. */
 export function groupCount(todos: TodoRecord[], name: string | null): number {
-  const key = name === null ? null : groupKey(name)
-  return todos.filter((t) => !t.completed && (key === null ? !t.group : groupKey(t.group ?? '') === key))
+  const keys = name === null ? null : selectedGroupKeys([name])
+  return todos.filter((t) => !t.completed && (keys === null ? !t.group : keys.has(groupKey(t.group ?? ''))))
     .length
 }
 

@@ -1,4 +1,4 @@
-import type { TodoPriority, TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoPriority, TodoRecord } from './types'
 import { formatIsoDateByPattern, formatIsoDateByShortPattern } from '@valley/plugin-sdk/datePattern'
 import { uiText } from './localization'
 
@@ -90,6 +90,30 @@ export function byStartTimeThenPriority(a: TodoRecord, b: TodoRecord): number {
     return 1
   }
   return byPriorityThenName(a, b)
+}
+
+/**
+ * Sort by one column's value: text A→Z or numbers ascending, flipped for desc.
+ * Rows without a value stay last in either direction; the title breaks ties.
+ */
+export function sortTodosByKey(todos: TodoRecord[], key: (todo: TodoRecord) => string | number | undefined, dir: SortDir): TodoRecord[] {
+  const keys = new Map(todos.map((todo) => [todo, key(todo)]))
+  const empty = (value: string | number | undefined): boolean => value === undefined || value === ''
+  return [...todos].sort((a, b) => {
+    const av = keys.get(a)
+    const bv = keys.get(b)
+    if (empty(av) !== empty(bv)) return empty(av) ? 1 : -1
+    let order = 0
+    if (!empty(av) && !empty(bv)) {
+      order = typeof av === 'number' && typeof bv === 'number' ? av - bv : titleCollator.compare(String(av), String(bv))
+    }
+    if (order !== 0) return dir === 'asc' ? order : -order
+    return compareByName(a, b)
+  })
+}
+
+export function sortTodosByGroup(todos: TodoRecord[], dir: SortDir): TodoRecord[] {
+  return sortTodosByKey(todos, (todo) => todo.group ?? undefined, dir)
 }
 
 export function sortTodos(todos: TodoRecord[], field: SortField, dir: SortDir): TodoRecord[] {

@@ -1,5 +1,6 @@
 import { React, captureTodoScope } from './runtime'
-import type { SlotId, TodoRecord } from '@valley/plugin-sdk/types'
+import type { SlotId } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import { selectTodoProperties } from './surfaces'
 import { appendTodo, deleteTodo, loadTodoList, onTodoListChanged, updateTodo, type DocumentRevision } from './data'
 import { getSharedTodos, onSharedTodos, setSharedTodos } from './sharedTodos'

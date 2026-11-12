@@ -1,7 +1,7 @@
 import { parseLinkUrl } from '@valley/plugin-sdk/linkTargets'
 import { React, api } from './runtime'
 import type { MouseEvent, ReactElement } from 'react'
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import type { TodoListController } from './controller'
 import { assetUrlForRelPath, classifyFilePath } from '@valley/plugin-sdk/fileTypes'
 
@@ -70,7 +70,7 @@ export function TodoNotePreview({ todo, c }: { todo: TodoRecord; c: TodoListCont
 
   return React.createElement('div', {
     ref: root,
-    className: 'todo-notes',
+    className: rendered.source === todo.note ? 'todo-notes is-rendered' : 'todo-notes',
     onClick,
     ...(rendered.source === todo.note
       ? { dangerouslySetInnerHTML: { __html: rendered.html } }

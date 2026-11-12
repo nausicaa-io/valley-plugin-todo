@@ -1,7 +1,7 @@
 import { React, api, registerTodoRow } from './runtime'
 import { renderInlineMarkdown, TodoNotePreview } from './markdown'
 import type { ReactElement } from 'react'
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import { openTodoCalendar } from './calendarSource'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { allGroups, groupColorFor, type TodoGroup } from './groups'
@@ -27,7 +27,8 @@ import { SwipeRow, openStatusMenu, type SwipeRowActions } from './SwipeRow'
 import { statusMenuOptions, effectiveStatus, patchForStatus, statusDef } from './statuses'
 import { PRIORITIES, formatDate, formatDueLabel, isoDay } from './sort'
 import type { TodoListController } from './controller'
-import { todoPriorityMetaLabel, todoStatusLabel, uiText } from './localization'
+import { todoPriorityMetaLabel, uiText } from './localization'
+import { StatusBadge } from './StatusBadge'
 
 /**
  * How many file cards a row draws before the rest become one "+N more".
@@ -75,8 +76,8 @@ export function useStatusCheck(todo: TodoRecord, c: TodoListController): { check
             longPressed.current = true
             const anchor = checkboxRef.current
             if (anchor) void api.ui.openMenu(statusMenuOptions().map((option) => ({
-              label: uiText(option.labelKey),
-              icon: <TodoStatusGlyph status={option.status} dotCls={option.cls} />,
+              label: option.label,
+              icon: <TodoStatusGlyph status={option.status} dotCls={option.cls} color={option.color} />,
               type: 'radio' as const,
               checked: option.status === null ? status === 'open' : option.status === status,
               enabled: !pending,
@@ -242,6 +243,7 @@ export const TodoRow = ({
           compact ? ' compact' : ''
         }${todo.flagged ? ' flagged' : ''}`}
         data-todo-id={todo.id}
+        data-status={status}
         tabIndex={0}
         onKeyDown={(e) => {
           // Only a press on the row itself — inside the ⋯ button or the checkbox
@@ -306,10 +308,7 @@ export const TodoRow = ({
               {/* An in-flight status is the row's most actionable fact, so it
                   reads as words on the meta line and not only as a glyph. */}
               {todo.status && todo.status !== 'open' && !statusDef(todo.status).done && (
-                <span className={`todo-status-text ${statusDef(todo.status).cls}`}>
-                  <TodoStatusGlyph status={todo.status} dotCls={statusDef(todo.status).cls} />
-                  {todoStatusLabel(todo.status)}
-                </span>
+                <StatusBadge status={todo.status} />
               )}
               {todo.priority !== 'normal' && (
                 <span className={`todo-priority-text todo-priority-${todo.priority}`}>
@@ -378,9 +377,12 @@ export const TodoRow = ({
                   {todo.remindAt.slice(11, 16)}
                 </span>
               )}
-              {!compact && todo.tags?.map((tag) => (
+              {!compact && todo.tags?.slice(0, 3).map((tag) => (
                 <span key={tag} className="todo-tag-text">#{tag}</span>
               ))}
+              {!compact && (todo.tags?.length ?? 0) > 3 && (
+                <span className="todo-tag-more" title={todo.tags!.slice(3).map((tag) => `#${tag}`).join(' ')}>+{todo.tags!.length - 3}</span>
+              )}
             </div>
           )}
 

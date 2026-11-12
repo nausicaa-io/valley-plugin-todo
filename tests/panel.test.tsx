@@ -182,6 +182,8 @@ describe('TodoPanel', () => {
     await compose('Inspect canopy')
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Measure the north edge' } })
     fireEvent.change(screen.getByLabelText('Tags'), { target: { value: '#moss #canopy moss' } })
+    expect(screen.queryByLabelText('Due date')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add date' }))
     fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-10-02' } })
     fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '09:30' } })
     fireEvent.click(screen.getByLabelText('Flag'))
@@ -324,7 +326,7 @@ describe('TodoPanel', () => {
 
     act(() => store.mock.emitState({ activePluginTab: { pluginId: 'todo' } }))
     await waitFor(() => expect(document.querySelector('.todo-active-navigation')).not.toBeNull())
-    expect(document.querySelectorAll('.todo-smart-grid .todo-smart-chip')).toHaveLength(5)
+    expect(document.querySelectorAll('.todo-smart-grid .todo-smart-chip')).toHaveLength(6)
     expect(screen.getByText('My Lists')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Fungi/ })).toHaveTextContent('1')
     expect(screen.getByLabelText('New todo')).toBeInTheDocument()
@@ -357,15 +359,15 @@ describe('TodoPanel', () => {
     await screen.findByLabelText('New todo')
 
     const strip = document.querySelector('.todo-smart-strip')!
-    expect(strip.querySelectorAll('.todo-smart-chip')).toHaveLength(5)
-    expect(strip.querySelectorAll('.todo-tree-icon')).toHaveLength(5)
+    expect(strip.querySelectorAll('.todo-smart-chip')).toHaveLength(6)
+    expect(strip.querySelectorAll('.todo-tree-icon')).toHaveLength(6)
   })
 
   it('separates status, density, and sort controls and gives Flagged and Priority distinct sort glyphs', async () => {
     await act(async () => render(<TodoPanel />))
     await screen.findByLabelText('New todo')
 
-    const statusControl = screen.getByLabelText('Status and completed')
+    const statusControl = screen.getByLabelText('Filter')
     expect(statusControl).not.toHaveClass('active')
     const density = screen.getByLabelText('Compact view')
     expect(density).toHaveAttribute('aria-pressed', 'true')
@@ -402,7 +404,7 @@ describe('TodoPanel', () => {
     expect(sortControl.innerHTML).not.toBe(headerSortGlyphs)
   })
 
-  it('uses explicit Hide completed and Show all choices', async () => {
+  it('switches between All, To do and Completed from the filter popover', async () => {
     setup([
       { id: 'open', title: 'Survey meadow', completed: false } as DataRecord,
       { id: 'done', title: 'Catalog moss', completed: true } as DataRecord
@@ -410,39 +412,27 @@ describe('TodoPanel', () => {
     await act(async () => render(<TodoPanel />))
     await screen.findByText('Survey meadow')
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Status and completed' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Filter' })))
     await waitFor(() => expect(store.mock.popovers.length).toBeGreaterThan(0))
     await act(async () => render(<>{store.mock.popovers.at(-1)?.node}</>))
-    const hide = screen.getByRole('button', { name: 'Hide completed' })
-    const show = screen.getByRole('button', { name: 'Show all' })
-    expect(hide.closest('.todo-completed-row')).toContainElement(show)
-    expect(hide).toHaveAttribute('aria-pressed', 'true')
-    expect(show).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Show only unfinished statuses' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Statuses' })).not.toBeInTheDocument()
     expect(screen.queryByText('Catalog moss')).not.toBeInTheDocument()
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Statuses' })))
-    await waitFor(() => expect(store.mock.popovers).toHaveLength(2))
-    await act(async () => render(<>{store.mock.popovers[1].node}</>))
-    const statusMenu = within(document.querySelector('.todo-status-filter-menu') as HTMLElement)
-    const completedStatus = statusMenu.getByRole('button', { name: 'Completed' })
-    expect(completedStatus).toHaveAttribute('aria-pressed', 'false')
-
-    await act(async () => fireEvent.click(show))
-    expect(show).toHaveAttribute('aria-pressed', 'true')
-    expect(completedStatus).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByLabelText('Status and completed')).toHaveClass('active')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show every status' })))
     expect(await screen.findByText('Catalog moss')).toBeInTheDocument()
-    await act(async () => fireEvent.click(hide))
-    expect(completedStatus).toHaveAttribute('aria-pressed', 'false')
-    await waitFor(() => expect(screen.queryByText('Catalog moss')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Filter')).toHaveClass('active')
 
-    await act(async () => fireEvent.click(completedStatus))
-    expect(show).toHaveAttribute('aria-pressed', 'true')
-    await act(async () => fireEvent.click(completedStatus))
-    expect(hide).toHaveAttribute('aria-pressed', 'true')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show only Completed and Canceled' })))
+    await waitFor(() => expect(screen.queryByText('Survey meadow')).not.toBeInTheDocument())
+    expect(screen.getByText('Catalog moss')).toBeInTheDocument()
+
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show only unfinished statuses' })))
+    await waitFor(() => expect(screen.queryByText('Catalog moss')).not.toBeInTheDocument())
+    expect(screen.getByText('Survey meadow')).toBeInTheDocument()
   })
 
-  it('selects several statuses and never allows an empty status selection', async () => {
+  it('keeps a saved multi-status filter as a clearable chip', async () => {
     setup([
       { id: 'wait', title: 'Await bloom', completed: false, status: 'waiting' } as DataRecord,
       { id: 'hold', title: 'Pause survey', completed: false, status: 'onhold' } as DataRecord,
@@ -458,26 +448,13 @@ describe('TodoPanel', () => {
     expect(statusChip.previousElementSibling).toHaveClass('todo-smart-strip')
     expect(statusChip.nextElementSibling).toBeNull()
     expect(document.querySelector('.todo-tree-group')).toBeNull()
-    expect(screen.getByRole('button', { name: /^Groups/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
     expect(statusChip.querySelector('.todo-chip-clear')).not.toBeNull()
     expect(statusChip.lastElementChild).toHaveClass('todo-chip-clear')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Status and completed' }))
-    await waitFor(() => expect(store.mock.popovers).toHaveLength(1))
-    render(<>{store.mock.popovers[0].node}</>)
-    fireEvent.click(screen.getByRole('button', { name: 'Statuses' }))
-    await waitFor(() => expect(store.mock.popovers).toHaveLength(2))
-    render(<>{store.mock.popovers[1].node}</>)
-
-    fireEvent.click(screen.getByRole('button', { name: 'On Hold' }))
+    await act(async () => fireEvent.click(statusChip.querySelector('.todo-chip-clear')!))
     expect(await screen.findByText('Pause survey')).toBeInTheDocument()
-    expect(store.mock.api.settings.get().statusFilter).toEqual(['waiting', 'onhold'])
-
-    fireEvent.click(screen.getByRole('button', { name: 'Waiting' }))
-    await waitFor(() => expect(screen.queryByText('Await bloom')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'On Hold' }))
-    expect(store.mock.api.settings.get().statusFilter).toEqual(['onhold'])
-    expect(screen.getByText('Pause survey')).toBeInTheDocument()
+    expect(screen.getByText('Collect sample')).toBeInTheDocument()
   })
 
   it('preserves an inactive status on existing tasks but removes it from assignment menus', async () => {
@@ -1012,7 +989,7 @@ describe('TodoPanel', () => {
     expect(screen.queryByText('June nine')).not.toBeInTheDocument()
 
     await act(async () => publishSelection(null))
-    expect(document.querySelectorAll('.todo-smart-strip .todo-smart-chip')).toHaveLength(5)
+    expect(document.querySelectorAll('.todo-smart-strip .todo-smart-chip')).toHaveLength(6)
     expect(screen.getByText('June nine')).toBeInTheDocument()
   })
 

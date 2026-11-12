@@ -96,20 +96,29 @@ describe('the To-Do page', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('orders the 38px header as title, filter, Status, Priority, then columns and add', async () => {
+  it('keeps the 38px header to the title and icons, with search opening in the title\'s place', async () => {
     const { container } = render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
 
     const bar = container.querySelector('.todo-page-appbar')!
-    expect([...bar.children].map((element) => {
+    const shape = (): unknown => [...bar.children].map((element) => {
       if (element.matches('h1')) return 'title'
-      if (element.matches('.todo-search-wrap')) return 'search'
-      if (element.matches('.todo-page-appbar-btn')) return element.getAttribute('aria-label')
+      if (element.matches('.todo-page-search')) return 'search-field'
       if (element.matches('.todo-page-appbar-actions')) return [...element.children].map((child) => child.getAttribute('aria-label')).join('+')
       return 'other'
-    })).toEqual(['title', 'search', 'Status', 'Priority', 'Toggle columns+New todo'])
-    expect(bar.querySelector('.todo-page-appbar-btn')).toHaveTextContent('')
-    expect(screen.getByLabelText('Search todos')).toHaveAttribute('placeholder', 'Filter tasks…')
+    })
+    expect(shape()).toEqual(['title', 'Search todos+Priority+Toggle columns+New todo'])
+    expect(screen.queryByRole('textbox', { name: 'Search todos' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search todos' }))
+    const input = await screen.findByRole('textbox', { name: 'Search todos' })
+    expect(input).toHaveAttribute('placeholder', 'Filter tasks…')
+    expect(shape()).toEqual(['search-field', 'Clear search+Priority+Toggle columns+New todo'])
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(shape()).toEqual(['title', 'Search todos+Priority+Toggle columns+New todo'])
+
+    // The status filter sits on the header cell above the status checks.
+    expect(container.querySelector('thead th.todo-table-select button[aria-label="Statuses"]')).toBeInTheDocument()
   })
 
   it('round-trips linked navigation, filters, search, and sort into persistent settings', () => {
@@ -151,7 +160,8 @@ describe('the To-Do page', () => {
       sort: { field: 'name', dir: 'asc' }
     })
     render(<Page navigation={{ setController: vi.fn() }} />)
-    await screen.findByRole('heading', { level: 1, name: 'All' })
+    // A remembered search reopens the field in the title's place.
+    expect(await screen.findByRole('textbox', { name: 'Search todos' })).toHaveValue('survey')
 
     expect(readTodoVisibleState()).toMatchObject({
       view: 'all',
@@ -225,7 +235,7 @@ describe('the To-Do page', () => {
     )
     await screen.findAllByText('Fungi Survey sheet')
 
-    fireEvent.click(screen.getByRole('button', { name: /^Groups/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
     render(<>{store.mock.popovers.at(-1)?.node}</>)
     fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Fungi/ }))
@@ -240,28 +250,20 @@ describe('the To-Do page', () => {
         <Page navigation={{ setController: vi.fn() }} />
       </>
     )
-    const searches = await screen.findAllByLabelText('Search todos')
-    for (const input of searches) {
-      expect(input).toHaveClass('search-field-input')
-      expect(input.parentElement).toHaveClass('search-field')
-      expect(input.parentElement?.querySelector('.search-field-icon')).toBeInTheDocument()
-    }
-
-    fireEvent.change(searches[0], { target: { value: 'moss' } })
-
-    expect(searches[1]).toHaveValue('moss')
+    const sidebar = await screen.findByRole('textbox', { name: 'Search todos' })
+    expect(sidebar).toHaveClass('search-field-input')
+    await act(async () => fireEvent.change(sidebar, { target: { value: 'moss' } }))
     await waitFor(() => expect(screen.queryByText('Review species list')).not.toBeInTheDocument())
     expect(screen.getAllByText('Record moss growth')).toHaveLength(2)
-    const clear = screen.getAllByRole('button', { name: 'Clear search' })
-    expect(clear.every((button) => button.classList.contains('search-field-action'))).toBe(true)
-    fireEvent.click(clear[1])
-    expect(searches[0]).toHaveValue('')
-    expect(searches[1]).toHaveValue('')
-    fireEvent.change(searches[0], { target: { value: 'moss' } })
-    fireEvent.keyDown(searches[0], { key: 'Escape' })
-    expect(searches[0]).toHaveValue('')
-    expect(searches[1]).toHaveValue('')
-    expect(await screen.findAllByLabelText('Search todos')).toEqual(searches)
+    expect(screen.getByRole('button', { name: 'Search todos' })).toHaveClass('active')
+
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Search todos' })))
+    const fields = await screen.findAllByRole('textbox', { name: 'Search todos' })
+    expect(fields).toHaveLength(2)
+    expect(fields[1]).toHaveValue('moss')
+    await act(async () => fireEvent.keyDown(fields[1], { key: 'Escape' }))
+    expect(sidebar).toHaveValue('')
+    expect(screen.getAllByRole('textbox', { name: 'Search todos' })).toHaveLength(1)
   })
 
   it('persists the shared selection under the one key both surfaces read', async () => {
@@ -270,19 +272,26 @@ describe('the To-Do page', () => {
     expect(store.mock.api.settings.get()).not.toHaveProperty('pageChip')
   })
 
-  it('opens a compact sidebar composer from the main page add button', async () => {
-    store.mock.emitState({ activePluginTab: { pluginId: 'todo' } })
-    render(<><TodoPanel /><Page navigation={{ setController: vi.fn() }} /></>)
+  it('adds tasks from an empty row at the top of the table, one per pasted line', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED, panelChip: 'group:Fungi' })
+    render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
-    const button = document.querySelector<HTMLButtonElement>('.todo-page-add')!
-    fireEvent.click(button)
-    expect(await screen.findByLabelText('New todo title')).toBeInTheDocument()
-    expect(store.mock.api.workspace.revealOwnPanel).toHaveBeenCalledWith('left_sidebar')
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('New todo title'), { target: { value: 'Record fern habitat' } })
-    fireEvent.submit(screen.getByLabelText('New todo title').closest('form')!)
-    await waitFor(() => expect(store.records.some(record => record.title === 'Record fern habitat')).toBe(true))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await act(async () => fireEvent.click(document.querySelector<HTMLButtonElement>('.todo-page-add')!))
+    const input = await screen.findByLabelText('New todo title')
+    expect(input.closest('tr')).toHaveClass('todo-table-new-row')
+    expect(input.closest('tbody')!.firstElementChild).toBe(input.closest('tr'))
+    expect(store.mock.api.workspace.revealOwnPanel).not.toHaveBeenCalled()
+
+    await act(async () => fireEvent.change(input, { target: { value: 'Record fern habitat' } }))
+    await act(async () => fireEvent.keyDown(input, { key: 'Enter' }))
+    await waitFor(() => expect(store.records.find((record) => record.title === 'Record fern habitat')).toMatchObject({ group: 'Fungi' }))
+    expect(input).toHaveValue('')
+
+    await act(async () => fireEvent.paste(input, { clipboardData: { getData: () => '- [ ] Count moss beds\n- Label spore prints\n\n' } }))
+    await waitFor(() => expect(store.records.map((record) => record.title)).toEqual(expect.arrayContaining(['Count moss beds', 'Label spore prints'])))
+
+    await act(async () => fireEvent.keyDown(input, { key: 'Escape' }))
+    expect(screen.queryByLabelText('New todo title')).not.toBeInTheDocument()
   })
 
   it('hides done tasks until the Status filter includes them', async () => {
@@ -294,9 +303,9 @@ describe('the To-Do page', () => {
     await screen.findByText('Open one')
     expect(titles()).toEqual(['Open one'])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Statuses' }))
     render(<>{store.mock.popovers.at(-1)?.node}</>)
-    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show every status' }))
     await waitFor(() => expect(titles()).toEqual(['Open one', 'Done one']))
   })
 
@@ -354,7 +363,7 @@ describe('the To-Do page', () => {
     expect(screen.queryByText('Reopened task')).not.toBeInTheDocument()
   })
 
-  it('orders a dated view overdue first and opens due dates in Calendar', async () => {
+  it('orders a dated view overdue first and never opens Calendar from the table', async () => {
     const today = isoDay(new Date())
     store = installTodoNotes(
       [
@@ -371,6 +380,20 @@ describe('the To-Do page', () => {
     const overdue = screen.getByText('Long overdue').closest('tr')!.querySelector('.todo-table-due .todo-table-cell-btn')!
     expect(overdue).toHaveClass('is-overdue')
     expect(screen.getByText('Due today').closest('tr')!.querySelector('.todo-table-due')).toHaveTextContent('Today')
+    const openLink = vi.spyOn(store.mock.api.links, 'open')
+    await act(async () => fireEvent.click(overdue))
+    expect(store.mock.popovers.at(-1)).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(screen.getByText('Future survey'))
+      await new Promise((resolve) => setTimeout(resolve, 260))
+    })
+    expect(openLink).not.toHaveBeenCalled()
+    // The click edited the title in place instead.
+    const titleInput = screen.getByRole('textbox', { name: 'Title' })
+    expect(titleInput).toHaveValue('Future survey')
+    await act(async () => fireEvent.change(titleInput, { target: { value: 'Future field survey' } }))
+    await act(async () => fireEvent.keyDown(titleInput, { key: 'Enter' }))
+    await waitFor(() => expect(store.records.find((record) => record.id === 'c')?.title).toBe('Future field survey'))
   })
 
   it('orders Today by start time', async () => {
@@ -437,22 +460,103 @@ describe('the To-Do page', () => {
   it('hides and restores columns from View', async () => {
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
-    expect(document.querySelector('td.todo-table-group .todo-group-text')).toHaveTextContent('Fungi')
+    expect(document.querySelector('tr.todo-table-row td.todo-table-group .todo-table-group-pill')).toHaveTextContent('Fungi')
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle columns' }))
     render(<>{store.mock.popovers.at(-1)?.node}</>)
     fireEvent.click(screen.getByRole('button', { name: 'Priority' , pressed: true }))
     fireEvent.click(screen.getByRole('button', { name: 'Group', pressed: true }))
     await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Priority' })).not.toBeInTheDocument())
-    expect(document.querySelector('td.todo-table-group')).toBeNull()
-    expect(store.mock.api.settings.get()).toMatchObject({ pageColumns: ['note', 'due'] })
+    expect(document.querySelector('tr.todo-table-row td.todo-table-group')).toBeNull()
+    expect(store.mock.api.settings.get()).toMatchObject({ pageColumns: ['title', 'due', 'note'] })
+  })
+
+  it('offers All, To do and Completed as quick picks in the status filter', async () => {
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    fireEvent.click(screen.getByRole('button', { name: 'Statuses' }))
+    render(<>{store.mock.popovers.at(-1)?.node}</>)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show only Completed and Canceled' })))
+    expect(store.mock.api.settings.get()).toMatchObject({ statusFilter: ['completed', 'canceled'] })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show only unfinished statuses' })))
+    expect((store.mock.api.settings.get().statusFilter as string[])).not.toContain('completed')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show every status' })))
+    expect(store.mock.api.settings.get()).toMatchObject({ statusFilter: 'all' })
+  })
+
+  it('sorts by every column header and resizes all but Due and Priority', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED, pageColumns: ['due', 'priority', 'group', 'note', 'status'] })
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    for (const [name, field] of [['Notes', 'notes'], ['Status', 'status'], ['Group', 'group'], ['Title', 'name']] as const) {
+      await act(async () => fireEvent.click(screen.getByRole('button', { name })))
+      expect(store.mock.api.settings.get()).toMatchObject({ pageSort: { field, dir: 'asc' } })
+    }
+
+    expect(screen.queryByRole('separator', { name: /Resize Due/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('separator', { name: /Resize Priority/ })).not.toBeInTheDocument()
+    const split = screen.getByRole('separator', { name: /Resize Notes/ })
+    await act(async () => {
+      fireEvent.pointerDown(split, { button: 0, clientX: 100, pointerId: 1 })
+      fireEvent.pointerMove(split, { clientX: 340, pointerId: 1 })
+      fireEvent.pointerUp(split, { clientX: 340, pointerId: 1 })
+    })
+    expect(store.mock.api.settings.get()).toMatchObject({ pageColumnWidths: { note: 240 } })
+    expect(split.closest('th')).toHaveStyle({ width: '240px' })
+    await act(async () => fireEvent.doubleClick(split))
+    expect(store.mock.api.settings.get().pageColumnWidths).toEqual({})
+  })
+
+  it('reorders columns, Title included, by dragging one header onto another', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED, pageColumns: ['title', 'due', 'group'] })
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    const header = (name: string): HTMLElement => screen.getByRole('button', { name }).closest('th')!
+    let payload = ''
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: (_t: string, value: string) => { payload = value }, getData: () => payload, setDragImage: vi.fn() }
+    await act(async () => fireEvent.dragStart(header('Due'), { dataTransfer }))
+    expect(dataTransfer.setDragImage).toHaveBeenCalledWith(expect.objectContaining({ className: 'todo-col-drag-chip', textContent: 'Due' }), expect.any(Number), expect.any(Number))
+    expect(document.querySelector('table.todo-table')).toHaveAttribute('data-dragging-col', 'due')
+    await act(async () => fireEvent.dragOver(header('Title'), { dataTransfer, clientX: -1 }))
+    await act(async () => fireEvent.drop(header('Title'), { dataTransfer }))
+    expect(store.mock.api.settings.get()).toMatchObject({ pageColumns: ['due', 'title', 'group'] })
+    expect([...document.querySelectorAll('thead th')].map((cell) => cell.textContent)).toEqual(['', 'Due', 'Title', 'Group', ''])
+    expect(screen.getByText('Fungi Survey sheet').closest('tr')!.children[2]).toHaveClass('todo-table-title')
+  })
+
+  it('offers a fixed-width Flagged column that toggles the flag and sorts', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED, pageColumns: ['due', 'flagged'] })
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    expect(screen.queryByRole('separator', { name: /Resize Flagged/ })).not.toBeInTheDocument()
+    const row = screen.getByText('Fungi Survey sheet').closest('tr')!
+    const flag = row.querySelector<HTMLButtonElement>('td.todo-table-flagged button')!
+    const before = flag.getAttribute('aria-pressed') === 'true'
+    await act(async () => fireEvent.click(flag))
+    await waitFor(() => expect(screen.getByText('Fungi Survey sheet').closest('tr')!.querySelector('td.todo-table-flagged button')).toHaveAttribute('aria-pressed', String(!before)))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Flagged' })))
+    expect(store.mock.api.settings.get()).toMatchObject({ pageSort: { field: 'flagged', dir: 'asc' } })
+  })
+
+  it('shows the columns in the order the picker saved and sorts by Group', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED, pageColumns: ['due', 'group'] })
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    expect([...document.querySelectorAll('thead th')].map((cell) => cell.textContent)).toEqual(['', 'Title', 'Due', 'Group', ''])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Group' }))
+    await waitFor(() => expect(store.mock.api.settings.get()).toMatchObject({ pageSort: { field: 'group', dir: 'asc' } }))
+    const groups = (): string[] => [...document.querySelectorAll('tr.todo-table-row td.todo-table-group')].map((cell) => cell.textContent ?? '')
+    const named = groups().filter(Boolean)
+    expect(named).toEqual([...named].sort((a, b) => a.localeCompare(b)))
+    expect(groups().slice(named.length).every((value) => value === '')).toBe(true)
   })
 
   it('reads in the list row order, with the status check first', async () => {
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
 
-    expect([...document.querySelectorAll('thead th')].map((cell) => cell.textContent)).toEqual(['', 'Title', 'Text', 'Group', 'Priority', 'Due', ''])
+    expect([...document.querySelectorAll('thead th')].map((cell) => cell.textContent)).toEqual(['', 'Title', 'Due', 'Priority', 'Group', 'Notes', ''])
     const row = screen.getByText('Fungi Survey sheet').closest('tr')!
     expect(row.querySelector('td:first-child input.todo-check')).toBeInTheDocument()
     expect(screen.queryByLabelText('Select all')).not.toBeInTheDocument()
@@ -469,7 +573,7 @@ describe('the To-Do page', () => {
     store = installTodoNotes([{ id: 'n', title: 'With a note', completed: false, note } as DataRecord], { groups: CONFIGURED })
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('With a note')
-    expect(document.querySelector('td.todo-table-note')?.textContent).toBe(text)
+    expect(document.querySelector('tr.todo-table-row td.todo-table-note')?.textContent).toBe(text)
   })
 
   it('toggles completion from the check and opens the statuses on a long press', async () => {

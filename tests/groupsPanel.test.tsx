@@ -28,7 +28,7 @@ function titles(): string[] {
 
 /** Group rows live in the header popover. */
 function expandGroups(): void {
-  fireEvent.click(screen.getByRole('button', { name: /^Groups/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
   render(<>{store.mock.popovers.at(-1)?.node}</>)
 }
 
@@ -144,10 +144,10 @@ describe('the sidebar tree', () => {
     await screen.findByText('Fungi Survey sheet')
 
     expect(screen.queryByRole('button', { name: /^Fungi/ })).not.toBeInTheDocument()
-    const disclosure = screen.getByRole('button', { name: /^Groups/ })
+    const disclosure = screen.getByRole('button', { name: 'Filter' })
     expect(disclosure.textContent).toBe('')
     expect(disclosure.querySelector('svg')).toBeInTheDocument()
-    expect(disclosure).toHaveAttribute('title', 'Groups')
+    expect(disclosure).toHaveAttribute('title', 'Filter')
     expect(disclosure).not.toHaveClass('active')
     expandGroups()
     expect(screen.getByText('Group')).toBeInTheDocument()
@@ -175,14 +175,14 @@ describe('the sidebar tree', () => {
     expect(screen.getByRole('button', { name: /^Fungi/ })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: /^Wildlife/ })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: /^No group/ })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: /^Groups/ }).textContent).toBe('')
-    expect(screen.getByRole('button', { name: /^Groups/ })).toHaveClass('active')
+    expect(screen.getByRole('button', { name: 'Filter' }).textContent).toBe('')
+    expect(screen.getByRole('button', { name: 'Filter' })).toHaveClass('active')
     expect(screen.queryAllByRole('heading', { level: 4 })).toHaveLength(0)
 
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Select all' })))
     expect(screen.getByRole('button', { name: 'Deselect all' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Groups/ }).textContent).toBe('')
-    expect(screen.getByRole('button', { name: /^Groups/ })).not.toHaveClass('active')
+    expect(screen.getByRole('button', { name: 'Filter' }).textContent).toBe('')
+    expect(screen.getByRole('button', { name: 'Filter' })).not.toHaveClass('active')
     expect(titles()).toHaveLength(3)
   })
 
@@ -248,7 +248,7 @@ describe('the sidebar tree', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Wildlife/ }))
 
     await waitFor(() => expect(titles()).toEqual(['Fungi Survey sheet', 'Review species list']))
-    expect(screen.getByRole('button', { name: /^Groups/ }).textContent).toBe('')
+    expect(screen.getByRole('button', { name: 'Filter' }).textContent).toBe('')
     expect(parseView(store.mock.api.settings.get().panelChip)).toEqual({
       kind: 'groups',
       names: ['Fungi', 'Wildlife'],
@@ -306,7 +306,7 @@ describe('the sidebar tree', () => {
       groups: [{ id: 'group_empty', name: 'Fresh', color: '#22c55e' }]
     })
     render(<TodoPanel />)
-    await screen.findByRole('button', { name: /^Groups/ })
+    await screen.findByRole('button', { name: 'Filter' })
     expandGroups()
 
     expect(await screen.findByRole('button', { name: /^Fresh/ })).toBeTruthy()
@@ -318,11 +318,11 @@ describe('the sidebar tree', () => {
 
     await act(async () => fireEvent.change(search, { target: { value: 'moss' } }))
 
-    expect(screen.getByRole('button', { name: /^Groups/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
     expect(titles()).toEqual(['Record moss growth'])
 
     await act(async () => fireEvent.change(search, { target: { value: '' } }))
-    expect(screen.getByRole('button', { name: /^Groups/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
   })
 })
 
@@ -399,15 +399,12 @@ describe('the group machinery', () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
 
-    fireEvent.click(screen.getByLabelText('Status and completed'))
+    fireEvent.click(screen.getByLabelText('Filter'))
 
     await waitFor(() => expect(store.mock.popovers).toHaveLength(1))
     render(<>{store.mock.popovers[0].node}</>)
-    fireEvent.click(screen.getByRole('button', { name: 'Statuses' }))
-    await waitFor(() => expect(store.mock.popovers).toHaveLength(2))
-    render(<>{store.mock.popovers[1].node}</>)
-    expect(screen.getByRole('button', { name: 'In Progress' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Completed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show every status' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Statuses' })).not.toBeInTheDocument()
     expect(screen.queryByText('New group')).not.toBeInTheDocument()
     expect(screen.queryByText('Manage groups')).not.toBeInTheDocument()
   })

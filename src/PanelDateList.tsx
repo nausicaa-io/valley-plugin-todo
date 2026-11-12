@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { isoWeek, parseLocalDate, weekStartIndex } from '@valley/plugin-sdk/dateGrid'
-import type { TodoRecord } from '@valley/plugin-sdk/types'
+import type { TodoRecord } from './types'
 import { React, api } from './runtime'
 import type { TodoListController } from './controller'
 import type { TodoGroup } from './groups'
