@@ -2495,6 +2495,20 @@ button.todo-date:hover .todo-date-day {
 .todo-sheet-attachments .todo-attach-name { font-size: var(--small-font-size); }
 .todo-sheet-attachments .todo-attach-meta { font-size: var(--smaller-font-size); }
 .todo-sheet-attachments > .todo-file-search { grid-column: 1 / -1; }
+/* In the tiles the remove button sits inside the tile, at its right, so the sheet never clips it. */
+.todo-sheet-attachments .todo-attach-open { padding-right: 34px; }
+.todo-sheet-attachments .todo-attach-remove {
+  top: 50%;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transform: translateY(-50%);
+}
+.todo-sheet-attachments .todo-attach-remove:hover { background: var(--hover-bg); color: var(--negative-color); }
+.todo-sheet-attachments .todo-attach-remove svg { width: 12px; height: 12px; }
 .todo-sheet .todo-detail-url-card .todo-detail-url-open > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-detail-footer > .todo-sheet-delete { margin-right: auto; }
 .todo-sheet-times { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }

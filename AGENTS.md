@@ -10,3 +10,5 @@
 - Notification schedules and completion handling belong to the backend. Calendar/To-Do reminder offsets preserve Off, explicit choices and absolute reminders; date-only items require an explicit time. Persist occurrence recovery before notification and never replay a missed alarm or timer. Pomodoro recovery advances once into a paused phase. The host owns notification audio; UI sound players are for previews only.
 
 - Reminder dataset version changes include explicit additive migrations and an existing-database preservation check; fresh-realm tests alone do not validate rollout.
+
+- Visual checks of To-Do dialogs and tiles include hover and focus states: hover every card, tile and row with a hover-only control (remove ×, actions) and confirm the control sits fully inside its container and the dialog never clips it.
