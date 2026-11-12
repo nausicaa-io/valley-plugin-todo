@@ -463,5 +463,8 @@
   "todo.settings.localGroupDeleteUnused": "No task uses this group.",
   "todo.settings.localGroupNew": "New To-Do group",
   "todo.settings.localGroupAdd": "Add group",
-  "todo.settings.localGroupsSetting": "Individual To-Do groups"
+  "todo.settings.localGroupsSetting": "Individual To-Do groups",
+  "todo.location.searching": "Searching…",
+  "todo.location.noResults": "No places found. Press Enter to keep the text.",
+  "todo.location.failed": "Place search is unavailable. Press Enter to keep the text."
 }

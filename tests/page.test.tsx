@@ -485,10 +485,10 @@ describe('the To-Do page', () => {
   })
 
   it('sorts by every column header and resizes all but Due and Priority', async () => {
-    store = installTodoNotes(RECORDS, { groups: CONFIGURED, pageColumns: ['due', 'priority', 'group', 'note', 'status'] })
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED, pageColumns: ['due', 'priority', 'group', 'note'] })
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
-    for (const [name, field] of [['Notes', 'notes'], ['Status', 'status'], ['Group', 'group'], ['Title', 'name']] as const) {
+    for (const [name, field] of [['Notes', 'notes'], ['Group', 'group'], ['Title', 'name']] as const) {
       await act(async () => fireEvent.click(screen.getByRole('button', { name })))
       expect(store.mock.api.settings.get()).toMatchObject({ pageSort: { field, dir: 'asc' } })
     }
@@ -599,16 +599,13 @@ describe('the To-Do page', () => {
     await waitFor(() => expect(store.records.find((r) => r.id === 'a')).toMatchObject({ completed: true }))
   })
 
-  it('changes status from its cell and deletes the selection after confirmation', async () => {
+  it('offers no Status column and deletes the selection after confirmation', async () => {
     void store.mock.api.settings.set('pageColumns', ['group', 'status', 'priority', 'due'])
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
 
-    const statusCell = screen.getByText('Review species list').closest('tr')!.querySelector<HTMLButtonElement>('.todo-table-status button')!
-    fireEvent.click(statusCell)
-    const inProgress = store.mock.menus.at(-1)!.find((item) => item.label === 'In Progress')!
-    await act(async () => { await inProgress.onSelect?.() })
-    await waitFor(() => expect(store.records.find((r) => r.id === 'b')).toMatchObject({ status: 'inprogress' }))
+    // The status check at the front of each row shows the status; a saved Status column is dropped.
+    expect(document.querySelector('.todo-table-status')).toBeNull()
 
     const order = titles()
     fireEvent.click(screen.getByText(order[0]), { metaKey: true })

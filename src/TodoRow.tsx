@@ -19,7 +19,7 @@ import {
   TodoStatusGlyph
 } from './icons'
 import { openLocation } from './LocationField'
-import { TodoMenu } from './TodoMenu'
+import { TodoMenu, openTodoContextMenu } from './TodoMenu'
 import { confirmDeleteTodo } from './data'
 import { basename } from './draft'
 import { kindLabel } from './AttachmentCard'
@@ -245,6 +245,15 @@ export const TodoRow = ({
         data-todo-id={todo.id}
         data-status={status}
         tabIndex={0}
+        onContextMenu={(e) => openTodoContextMenu(e, {
+          todo,
+          groupNames,
+          setOpenId: c.setMenuId,
+          onEdit: () => c.openDetail(todo.id),
+          onPatch: patch,
+          onRequestDelete: () => confirmDeleteTodo(todo, c.removeTodo),
+          disabled: pending
+        })}
         onKeyDown={(e) => {
           // Only a press on the row itself — inside the ⋯ button or the checkbox
           // the keys belong to that control.

@@ -19,9 +19,10 @@ import {
   MapPin,
   Minus,
   PriorityGlyph,
-  SlidersHorizontal
+  SlidersHorizontal,
+  X
 } from './icons'
-import { TodoMenu } from './TodoMenu'
+import { TodoMenu, openTodoContextMenu } from './TodoMenu'
 import { useStatusCheck } from './TodoRow'
 import { LocationField } from './LocationField'
 import { openStatusMenu } from './SwipeRow'
@@ -43,13 +44,12 @@ import { todoPriorityLabel, todoStatusLabel, uiText } from './localization'
  * current page are session state.
  */
 
-export type TodoColumn = 'note' | 'group' | 'status' | 'priority' | 'due' | 'flagged' | 'location' | 'tags'
+export type TodoColumn = 'note' | 'group' | 'priority' | 'due' | 'flagged' | 'location' | 'tags'
 
 // The order a list row reads in: title, text, then its details.
 const COLUMNS: { id: TodoColumn; labelKey: string }[] = [
   { id: 'note', labelKey: 'todo.table.note' },
   { id: 'group', labelKey: 'todo.table.group' },
-  { id: 'status', labelKey: 'todo.table.status' },
   { id: 'priority', labelKey: 'todo.table.priority' },
   { id: 'due', labelKey: 'todo.table.due' },
   { id: 'flagged', labelKey: 'todo.flagged' },
@@ -66,7 +66,7 @@ const PRIORITY_ORDER: TodoPriority[] = PRIORITIES.map((p) => p.id).reverse()
 
 const COLUMN_IDS = COLUMNS.map((column) => column.id)
 /** Mirrors the stylesheet widths; Text counts at its narrowest useful width. */
-const COLUMN_MIN_WIDTH: Record<TodoColumn, number> = { note: 200, group: 132, status: 112, priority: 104, due: 156, flagged: 92, location: 140, tags: 140 }
+const COLUMN_MIN_WIDTH: Record<TodoColumn, number> = { note: 200, group: 132, priority: 104, due: 156, flagged: 92, location: 140, tags: 140 }
 
 /** Rendered width of `html` inside an element of `className`, in the table's own document. */
 function measureWidth(table: HTMLElement, className: string, html: string): number {
@@ -418,10 +418,10 @@ function SortHeader({ field, label, className, sort, onSort, width, resize, thPr
 }
 
 /** Columns whose width can be dragged; Due and Priority keep their measured width. */
-type ResizableColumn = 'title' | 'note' | 'group' | 'status' | 'location' | 'tags'
-const RESIZABLE: ResizableColumn[] = ['title', 'note', 'group', 'status', 'location', 'tags']
+type ResizableColumn = 'title' | 'note' | 'group' | 'location' | 'tags'
+const RESIZABLE: ResizableColumn[] = ['title', 'note', 'group', 'location', 'tags']
 /** A column never drags narrower than this, nor than its own header label (measured). */
-const MIN_RESIZE_WIDTH: Record<ResizableColumn, number> = { title: 180, note: 120, group: 104, status: 100, location: 104, tags: 96 }
+const MIN_RESIZE_WIDTH: Record<ResizableColumn, number> = { title: 180, note: 120, group: 104, location: 104, tags: 96 }
 const MAX_RESIZE_WIDTH = 900
 
 function normalizeColumnWidths(raw: unknown): Partial<Record<ResizableColumn, number>> {
@@ -542,22 +542,72 @@ function NotesEditor({ initial, onInput, onDone }: { initial: string; onInput: (
   )
 }
 
+/**
+ * Tags as one field: chips flow inline before the input. Enter, comma or space
+ * adds what is typed; Backspace in an empty input removes the last tag.
+ */
 function TagsEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: Partial<TodoRecord>) => void }): ReactElement {
-  const { ChipsField } = api.ui.settings
   const [tags, setTags] = React.useState<string[]>(todo.tags ?? [])
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const commit = (next: string[]): void => {
+    setTags(next)
+    onPatch({ tags: next })
+  }
+  const add = (raw: string): boolean => {
+    const additions = raw.split(/[\s,]+/).map((value) => value.trim().replace(/^#+/, '')).filter(Boolean)
+    const next = [...tags]
+    for (const tag of additions) if (!next.some((existing) => existing.toLowerCase() === tag.toLowerCase())) next.push(tag)
+    if (next.length === tags.length) return false
+    commit(next)
+    return true
+  }
+  React.useEffect(() => { inputRef.current?.focus() }, [])
   return (
     <div className="todo-cell-editor">
-      <ChipsField
-        items={tags}
-        ariaLabel={uiText('todo.edit.tags')}
-        placeholder={uiText('todo.compose.addTags')}
-        normalize={(value) => value.trim().replace(/^#+/, '')}
-        removable
-        onChange={(next) => {
-          setTags(next)
-          onPatch({ tags: next })
-        }}
-      />
+      <div className="todo-tags-input" onMouseDown={(event) => { if (event.target === event.currentTarget) { event.preventDefault(); inputRef.current?.focus() } }}>
+        {tags.map((tag) => (
+          <span key={tag} className="todo-tags-chip">
+            <span>#{tag}</span>
+            <button
+              type="button"
+              className="todo-tags-chip-remove"
+              aria-label={uiText('todo.compose.removeTag', { tag })}
+              title={uiText('todo.compose.removeTag', { tag })}
+              onClick={() => { commit(tags.filter((candidate) => candidate !== tag)); inputRef.current?.focus() }}
+            >
+              <X />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          className="todo-tags-field"
+          type="text"
+          placeholder={tags.length ? '' : uiText('todo.compose.addTags')}
+          aria-label={uiText('todo.edit.tags')}
+          autoComplete="off"
+          spellCheck={false}
+          onKeyDown={(event) => {
+            const input = event.currentTarget
+            if (event.nativeEvent.isComposing) return
+            if (event.key === 'Enter' || event.key === ',' || (event.key === ' ' && input.value.trim())) {
+              event.preventDefault()
+              if (add(input.value)) input.value = ''
+            } else if (event.key === 'Backspace' && !input.value && tags.length) {
+              event.preventDefault()
+              commit(tags.slice(0, -1))
+            }
+          }}
+          onBlur={(event) => { if (add(event.currentTarget.value)) event.currentTarget.value = '' }}
+          onPaste={(event) => {
+            const text = event.clipboardData.getData('text/plain')
+            if (!/[\s,]/.test(text.trim())) return
+            event.preventDefault()
+            add(event.currentTarget.value + text)
+            event.currentTarget.value = ''
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -639,38 +689,48 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
     setEditingTitle(false)
     if (next && next !== todo.title) void patch({ title: next })
   }
-  const editIn = (anchor: HTMLElement, label: string, render: () => ReactElement, width = 260): void => {
-    void api.ui.openPopover(render, { anchor, align: 'start', gap: 4 }, { className: 'todo-cell-popover', ariaLabel: label, width })
+  /** The cell whose editor is open: marked so it is clear which row the popover edits. */
+  const [editing, setEditing] = React.useState<TodoColumn | null>(null)
+  const track = (column: TodoColumn, open: Promise<unknown>): void => {
+    setEditing(column)
+    void open.catch(() => {}).finally(() => setEditing((current) => (current === column ? null : current)))
   }
+  const editIn = (column: TodoColumn, anchor: HTMLElement, label: string, render: () => ReactElement, width = 260): void => {
+    track(column, api.ui.openPopover(render, { anchor, align: 'start', gap: 4 }, { className: 'todo-cell-popover', ariaLabel: label, width }))
+  }
+  const placeholder = (column: TodoColumn, icon: ReactElement | null, label: string): ReactElement | null =>
+    editing === column ? <span className="todo-table-placeholder">{icon}<span>{label}</span></span> : null
+  const tdClass = (column: TodoColumn): string => `todo-table-${column}${editing === column ? ' is-editing' : ''}`
   const openNotes = (anchor: HTMLElement): void => {
     let value = todo.note
     const save = (): void => { if (value !== todo.note) void patch({ note: value }) }
+    setEditing('note')
     void api.ui.openPopover(
       ({ close }) => <NotesEditor initial={todo.note} onInput={(next) => { value = next }} onDone={() => { save(); close() }} />,
       { anchor, align: 'start', gap: 4 },
       { className: 'todo-cell-popover', ariaLabel: uiText('todo.edit.notes'), width: 360, beforeDismiss: () => { save(); return true } }
-    )
+    ).catch(() => {}).finally(() => setEditing((current) => (current === 'note' ? null : current)))
   }
 
   const cell = (id: TodoColumn): ReactElement => {
     switch (id) {
       case 'note':
         return (
-          <td className="todo-table-note" title={noteLine || undefined}>
+          <td className={tdClass('note')} title={noteLine || undefined}>
             <button type="button" className="todo-table-edit-btn" disabled={pending} aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.note') })} onClick={(event) => openNotes(event.currentTarget)}>
-              <span className="todo-table-note-text">{noteLine}</span>
+              {noteLine ? <span className="todo-table-note-text">{noteLine}</span> : placeholder('note', null, uiText('todo.table.note'))}
             </button>
           </td>
         )
       case 'group':
         return (
-          <td className="todo-table-group">
+          <td className={tdClass('group')}>
             <button
               type="button"
               className="todo-table-edit-btn"
               disabled={pending}
               aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.group') })}
-              onClick={(event) => void api.ui.openMenu([
+              onClick={(event) => track('group', api.ui.openMenu([
                 { label: uiText('todo.chip.noGroup'), type: 'radio' as const, checked: !todo.group, onSelect: () => patch({ group: undefined }) },
                 ...allGroups(groups).map((name) => ({
                   label: name,
@@ -679,48 +739,32 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
                   color: groupColorFor(name, groups),
                   onSelect: () => patch({ group: name })
                 }))
-              ], { anchor: event.currentTarget, align: 'start' })}
+              ], { anchor: event.currentTarget, align: 'start' }))}
             >
-              {todo.group && (
+              {todo.group ? (
                 <span className="todo-table-group-pill" title={todo.group} style={{ '--todo-group-color': paletteCssValue(groupColorFor(todo.group, groups)) } as CSSProperties}>
                   <span className="todo-group-dot" aria-hidden="true" />
                   <span className="todo-table-group-name">{todo.group}</span>
                 </span>
-              )}
-            </button>
-          </td>
-        )
-      case 'status':
-        return (
-          <td className="todo-table-status">
-            <button
-              type="button"
-              className="todo-table-cell-btn"
-              disabled={pending}
-              title={uiText('todo.table.status')}
-              onClick={(event) => openStatusMenu(event.currentTarget, todo, patch)}
-            >
-              {status === 'open'
-                ? <span className="todo-status-plain">{todoStatusLabel(status)}</span>
-                : <StatusBadge status={status} />}
+              ) : placeholder('group', null, uiText('todo.table.group'))}
             </button>
           </td>
         )
       case 'priority':
         return (
-          <td className="todo-table-priority">
+          <td className={tdClass('priority')}>
             <button
               type="button"
               className={`todo-table-cell-btn${todo.priority === 'normal' ? ' muted' : ''}`}
               disabled={pending}
               title={uiText('todo.table.priority')}
-              onClick={(event) => void api.ui.openMenu(PRIORITY_ORDER.map((id) => ({
+              onClick={(event) => track('priority', api.ui.openMenu(PRIORITY_ORDER.map((id) => ({
                 label: todoPriorityLabel(id),
                 icon: <PriorityIcon priority={id} />,
                 type: 'radio' as const,
                 checked: todo.priority === id,
                 onSelect: () => patch({ priority: id })
-              })), { anchor: event.currentTarget })}
+              })), { anchor: event.currentTarget }))}
             >
               <PriorityIcon priority={todo.priority} />
               <span>{todoPriorityLabel(todo.priority)}</span>
@@ -729,7 +773,7 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
         )
       case 'due':
         return (
-          <td className="todo-table-due">
+          <td className={tdClass('due')}>
             {/* Edits the date in place; the table never jumps to Calendar. */}
             <button
               type="button"
@@ -737,7 +781,7 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
               disabled={pending}
               aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.due') })}
               title={todo.dueDate ? formatDate(todo.dueDate, dateFormat) : uiText('todo.field.dueDate')}
-              onClick={(event) => editIn(event.currentTarget, uiText('todo.field.dueDate'), () => <DueEditor todo={todo} onPatch={(next) => void patch(next)} />, 240)}
+              onClick={(event) => editIn('due', event.currentTarget, uiText('todo.field.dueDate'), () => <DueEditor todo={todo} onPatch={(next) => void patch(next)} />, 240)}
             >
               <span>{dueLabel}</span>
               {todo.startTime && <span className="todo-table-time">{todo.startTime}</span>}
@@ -746,7 +790,7 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
         )
       case 'flagged':
         return (
-          <td className="todo-table-flagged">
+          <td className={tdClass('flagged')}>
             <button
               type="button"
               className={`todo-table-flag-btn${todo.flagged ? ' on' : ''}`}
@@ -762,30 +806,30 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
         )
       case 'location':
         return (
-          <td className="todo-table-location">
+          <td className={tdClass('location')}>
             <button
               type="button"
               className="todo-table-cell-btn todo-table-edit-btn"
               disabled={pending}
               aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.location') })}
               title={todo.location?.name ?? uiText('todo.field.location')}
-              onClick={(event) => editIn(event.currentTarget, uiText('todo.field.location'), () => <LocationEditor todo={todo} onPatch={(next) => void patch(next)} />, 300)}
+              onClick={(event) => editIn('location', event.currentTarget, uiText('todo.field.location'), () => <LocationEditor todo={todo} onPatch={(next) => void patch(next)} />, 300)}
             >
-              {todo.location && <><MapPin /><span>{todo.location.name}</span></>}
+              {todo.location ? <><MapPin /><span>{todo.location.name}</span></> : placeholder('location', <MapPin />, uiText('todo.field.location'))}
             </button>
           </td>
         )
       case 'tags':
         return (
-          <td className="todo-table-tags" title={todo.tags?.map((tag) => `#${tag}`).join(' ') || undefined}>
+          <td className={tdClass('tags')} title={todo.tags?.map((tag) => `#${tag}`).join(' ') || undefined}>
             <button
               type="button"
               className="todo-table-edit-btn"
               disabled={pending}
               aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.tags') })}
-              onClick={(event) => editIn(event.currentTarget, uiText('todo.edit.tags'), () => <TagsEditor todo={todo} onPatch={(next) => void patch(next)} />, 280)}
+              onClick={(event) => editIn('tags', event.currentTarget, uiText('todo.edit.tags'), () => <TagsEditor todo={todo} onPatch={(next) => void patch(next)} />, 280)}
             >
-              {todo.tags?.map((tag) => <span key={tag} className="todo-table-tag">#{tag}</span>)}
+              {todo.tags?.length ? todo.tags.map((tag) => <span key={tag} className="todo-table-tag">#{tag}</span>) : placeholder('tags', null, uiText('todo.table.tags'))}
             </button>
           </td>
         )
@@ -795,11 +839,20 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
   return (
     <tr
       ref={rowRef}
-      className={`todo-table-row${todo.completed ? ' completed' : ''}${selected ? ' selected' : ''}`}
+      className={`todo-table-row${todo.completed ? ' completed' : ''}${selected ? ' selected' : ''}${editing ? ' is-editing' : ''}`}
       data-todo-id={todo.id}
       data-status={status}
       aria-selected={selected}
       tabIndex={0}
+      onContextMenu={(event) => openTodoContextMenu(event, {
+        todo,
+        groupNames: allGroups(groups),
+        setOpenId: c.setMenuId,
+        onEdit: () => c.openDetail(todo.id),
+        onPatch: patch,
+        onRequestDelete: () => confirmDeleteTodo(todo, c.removeTodo),
+        disabled: pending
+      })}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {

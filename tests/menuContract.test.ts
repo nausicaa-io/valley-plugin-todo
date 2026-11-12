@@ -5,5 +5,5 @@ import { join as joinStylePath } from 'node:path'
 import { overflowMenuDiagnostics } from '@valley/plugin-tools'
 
 it('gives TodoMenu overflow actions semantic icons', () => {
-  expect(overflowMenuDiagnostics(readFileSync(joinStylePath(process.cwd(), 'src/TodoMenu.tsx'), 'utf8'), ['TodoMenu'])).toEqual([])
+  expect(overflowMenuDiagnostics(readFileSync(joinStylePath(process.cwd(), 'src/TodoMenu.tsx'), 'utf8'), ['openTodoMenu'])).toEqual([])
 })

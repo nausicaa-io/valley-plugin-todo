@@ -1715,7 +1715,12 @@ button.todo-date:hover .todo-date-day {
   cursor: pointer;
 }
 .todo-table-cell-btn > span { overflow: hidden; text-overflow: ellipsis; }
-.todo-table-cell-btn:hover:not(:disabled) { background: var(--hover-bg); }
+/* The row and cell an open editor belongs to, so it is clear what the popover edits. */
+.todo-table-row.is-editing td { background: var(--hover-bg); }
+.todo-table td.is-editing { box-shadow: inset 0 0 0 1px var(--accent-color); border-radius: var(--radius-sm); }
+.todo-table-placeholder { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-tertiary); font-size: var(--smaller-font-size); }
+.todo-table-placeholder svg { flex: 0 0 auto; width: 13px; height: 13px; }
+.todo-table-placeholder > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-table-cell-btn:disabled { cursor: default; opacity: 0.6; }
 .todo-table-cell-btn.is-overdue { color: var(--negative-color); }
 .todo-table-cell-btn svg,
@@ -2224,9 +2229,46 @@ button.todo-date:hover .todo-date-day {
   cursor: pointer;
 }
 
-.todo-location-hit:hover {
+.todo-location-hit:hover,
+.todo-location-hit.is-active {
   background: var(--hover-bg);
 }
+.todo-location-hit-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.todo-location-hit-name svg { flex: 0 0 auto; width: 12px; height: 12px; color: var(--text-tertiary); }
+.todo-location-hit-context { padding-left: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-location-status { padding: 5px var(--space-2); color: var(--text-tertiary); font-size: var(--smaller-font-size); }
+.todo-location-field {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+.todo-location-field:focus-within { border-color: var(--accent-color); }
+.todo-location-field-icon { flex: 0 0 auto; width: 14px; height: 14px; color: var(--text-tertiary); }
+.todo-location-field-input,
+.todo-location-field-input:focus,
+.todo-location-field-input:focus-visible {
+  appearance: none;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 0;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: var(--small-font-size);
+}
+.todo-location-field-input::placeholder { color: var(--control-placeholder); }
 
 .todo-location-hit-context {
   color: var(--text-tertiary);
@@ -3888,6 +3930,69 @@ button.todo-settings-handle:active { cursor: grabbing; }
 .todo-table .todo-table-title-btn { color: var(--title-color); }
 .todo-table-title-input { height: 28px; }
 .todo-cell-editor { display: flex; flex-direction: column; gap: var(--space-2); padding: 2px; }
+/* Tags: one field, chips flowing inline before the text input, like the composer. */
+.todo-tags-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: var(--control-bg);
+  cursor: text;
+}
+.todo-tags-input:focus-within { border-color: var(--accent-color); }
+.todo-tags-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 2px 0 7px;
+  box-sizing: border-box;
+  border-radius: 11px;
+  background: var(--hover-bg);
+  color: var(--accent-color);
+  font-size: var(--smaller-font-size);
+  white-space: nowrap;
+}
+.todo-tags-chip > span { overflow: hidden; text-overflow: ellipsis; }
+.todo-tags-chip-remove {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+.todo-tags-chip-remove:hover { color: var(--text-color); }
+.todo-tags-chip-remove:focus-visible { outline: none; color: var(--text-color); background: var(--hover-bg); }
+.todo-tags-chip-remove svg { width: 10px; height: 10px; }
+.todo-tags-field {
+  appearance: none;
+  flex: 1 1 80px;
+  min-width: 80px;
+  height: 22px;
+  padding: 0 2px;
+  border: none;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-color);
+  font: inherit;
+  font-size: var(--smaller-font-size);
+}
+.todo-tags-field::placeholder { color: var(--control-placeholder); }
+.todo-tags-input .todo-tags-field:focus,
+.todo-tags-input .todo-tags-field:focus-visible { border: none; outline: none; box-shadow: none; background: transparent; }
 .todo-cell-notes {
   box-sizing: border-box;
   width: 100%;

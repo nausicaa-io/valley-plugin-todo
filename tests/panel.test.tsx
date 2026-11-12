@@ -83,6 +83,21 @@ describe('TodoPanel', () => {
     expect(within(dialog).queryByText('Subtask of')).not.toBeInTheDocument()
   })
 
+  it('opens the task menu on right-click in the sidebar list and in the table', async () => {
+    setup([{ id: 'a', title: 'Survey habitat', completed: false }] as DataRecord[])
+    const expected = ['Status', 'Reschedule', 'Flag', 'Priority', 'Move to group', undefined, 'Edit', undefined, 'Delete']
+    const panel = render(<TodoPanel />)
+    fireEvent.contextMenu((await screen.findByText('Survey habitat')).closest('.todo-row')!)
+    expect(store.mock.menus.at(-1)?.map((item) => item.label)).toEqual(expected)
+    panel.unmount()
+
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    const row = (await screen.findByText('Survey habitat')).closest('tr')!
+    await act(async () => { fireEvent.contextMenu(row) })
+    expect(store.mock.menus.at(-1)?.map((item) => item.label)).toEqual(expected)
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+  })
+
   beforeEach(() => setup())
 
   it('persists each narrow panel presentation independently across remounts', async () => {
