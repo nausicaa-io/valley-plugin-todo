@@ -388,10 +388,8 @@ export const TodoPanel = (): ReactElement => {
       selectedGroup = picked.startsWith('group:') ? view.names[Number(picked.slice(6))] : undefined
     }
     setCreateError(false)
-    // A todo created inside a smart list has to *be* in it, or it disappears
-    // the moment it is made.
+    // A todo created in Flagged is flagged; a date is only set when picked.
     const patch: Partial<TodoRecord> = { note: draftNote.trim(), tags: [...new Set([...(draftFields.tags ?? []), ...draftTags.split(/[\s,]+/).map(tag => tag.replace(/^#+/, '')).filter(Boolean)])], priority: parsed.priority, ...(selectedGroup ? { group: selectedGroup } : {}) }
-    if (view.kind === 'smart' && (view.id === 'today' || view.id === 'week')) patch.dueDate = today
     if (view.kind === 'smart' && view.id === 'flagged') patch.flagged = true
     Object.assign(patch, { ...draftFields, tags: patch.tags })
     if (parsed.dueDate) patch.dueDate = parsed.dueDate
@@ -444,7 +442,8 @@ export const TodoPanel = (): ReactElement => {
     noteRef.current.style.height = `${noteRef.current.scrollHeight}px`
   }, [draftNote, composing])
 
-  const composeDate = draftFields.dueDate ?? (view.kind === 'smart' && (view.id === 'today' || view.id === 'week') ? today : '')
+  // No date unless one is picked: the Today chip adds it with one click.
+  const composeDate = draftFields.dueDate ?? ''
   const compose = composing && (
     <form className="todo-compose" onSubmit={event => { event.preventDefault(); void create() }}
       onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented && !c.creating) { event.preventDefault(); closeComposer() } }}>

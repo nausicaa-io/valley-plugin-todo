@@ -32,9 +32,11 @@ export function openLocation(location: Location): void {
 export const LocationField = ({
   value,
   onChange,
-  disabled = false
+  disabled = false,
+  autoFocus = false
 }: {
   disabled?: boolean
+  autoFocus?: boolean
   value: Location | undefined
   onChange: (next: Location | undefined) => void
 }): ReactElement => {
@@ -51,6 +53,7 @@ export const LocationField = ({
     if (inputRef.current && document.activeElement !== inputRef.current) inputRef.current.value = value?.name ?? ''
   }, [value?.name])
   React.useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
+  React.useEffect(() => { if (autoFocus) inputRef.current?.focus() }, [autoFocus])
 
   const search = (query: string): void => {
     if (timer.current !== null) window.clearTimeout(timer.current)

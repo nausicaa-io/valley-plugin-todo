@@ -1,21 +1,26 @@
-import { ReminderOffsets } from './ReminderOffsets'
 import { React, api } from './runtime'
 import type { ReactElement } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { getSharedTodos, onSharedTodos } from './sharedTodos'
 import { confirmDeleteTodo, normalizeTodoUrl, useTodoStatusHistory, type DocumentRevision } from './data'
-import { FilePathInput } from './fields'
 import { AttachmentCard } from './AttachmentCard'
-import { Flag, Link, MapPin, Paperclip, Plus, X } from './icons'
+import { CalendarDays, Eye, FileGlyph, Flag, Link, MapPin, Paperclip, Pencil, TodoStatusGlyph, Trash, X } from './icons'
+import { FileSearchField } from './FileSearchField'
+import { TodoNotePreview } from './markdown'
+import { paletteCssValue } from '@valley/plugin-sdk/palette'
+import { PriorityIcon } from './TodoTable'
+import { openStatusMenu } from './SwipeRow'
+import { formatDueLabel } from './sort'
 import { LocationField } from './LocationField'
-import { allGroups } from './groups'
+import { TagChipsField } from './TagChipsField'
+import { noteLinkTargets } from './noteLinks'
+import { allGroups, groupColorFor } from './groups'
 import { useGroups } from './groupStore'
 import { PRIORITIES } from './sort'
-import { activeStatuses, effectiveStatus, patchForStatus } from './statuses'
-import { composeRemindAt } from './draft'
+import { effectiveStatus, statusDef } from './statuses'
 import type { TodoListController } from './controller'
-import { todoStatusLabel, uiText } from './localization'
+import { todoPriorityLabel, todoStatusLabel, uiText } from './localization'
 
 interface DetailProps {
   todoId: string
@@ -149,6 +154,35 @@ function detailDraft(todoId: string): DetailDraft {
   return draft
 }
 
+/**
+ * The files and pages a note points at — `[[…]]`, `![[…]]` and Markdown links —
+ * as small chips under the notes, so the sample PDF a note embeds is one click
+ * away while the note itself stays plain text.
+ */
+function NoteLinks({ note }: { note: string }): ReactElement | null {
+  const links = React.useMemo(() => noteLinkTargets(note), [note])
+  if (!links.length) return null
+  return (
+    <div className="todo-detail-note-links">
+      {links.map((link) => (
+        <button
+          key={link.target}
+          type="button"
+          className="todo-detail-note-link"
+          title={link.target}
+          onClick={(event) => {
+            if (link.external) void api.files.openExternalUrl(link.target)
+            else api.workspace.openFile(link.target, undefined, { newTab: api.ui.hasModKey(event) })
+          }}
+        >
+          {link.external ? <Link /> : <Paperclip />}
+          <span>{link.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
   const { Toggle, SelectField, DateField, TimeField } = api.ui.settings
   const [todos, setTodos] = React.useState<TodoRecord[]>(getSharedTodos)
@@ -158,8 +192,10 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
   const groups = useGroups()
 
   const [addingAttachment, setAddingAttachment] = React.useState(false)
-  const [attachmentDraft, setAttachmentDraft] = React.useState('')
   const [addingUrl, setAddingUrl] = React.useState(false)
+  const [addingFile, setAddingFile] = React.useState(false)
+  const [showActivity, setShowActivity] = React.useState(false)
+  const [editingNotes, setEditingNotes] = React.useState(false)
   const [urlDraft, setUrlDraft] = React.useState('')
   const draft = detailDraft(todoId)
   const draftValue = React.useSyncExternalStore(React.useCallback((listener) => { draft.listeners.add(listener); return () => { draft.listeners.delete(listener) } }, [draft]), () => draft.value, () => draft.value)
@@ -213,25 +249,48 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
     patch({ attachments: paths.length ? paths : undefined })
   /** Same contract for links: absent, never an empty array. */
   const setUrls = (urls: string[]): void => patch({ urls: urls.length ? urls : undefined })
-  const remindDate = todo.remindAt?.slice(0, 10) ?? ''
-  const remindTime = todo.remindAt?.slice(11, 16) ?? ''
-  const setRemind = (date: string, time: string): void =>
-    patch({ remindAt: composeRemindAt(date, time), reminderFiredAt: undefined })
   const groupNames = allGroups(groups)
+
+  const status = effectiveStatus(todo)
+  const today = todayIso()
+  const dueLabel = todo.dueDate
+    ? `${formatDueLabel(todo.dueDate.slice(0, 10), today, { today: uiText('todo.due.today'), tomorrow: uiText('todo.due.tomorrow'), yesterday: uiText('todo.due.yesterday') }, api.ui.language(), api.getState().dateFormat)}${todo.startTime ? ` · ${todo.startTime}${todo.endTime ? `–${todo.endTime}` : ''}` : ''}`
+    : ''
+  const popover = (anchor: HTMLElement, label: string, render: () => ReactElement, width = 300): void => {
+    void api.ui.openPopover(render, { anchor, align: 'start', gap: 4 }, { className: 'todo-cell-popover', ariaLabel: label, width })
+  }
+  const chip = (key: string, icon: ReactElement, label: string, placeholder: string, onClick: (anchor: HTMLElement) => void, extraClass = ''): ReactElement => (
+    <button
+      key={key}
+      type="button"
+      className={`todo-sheet-chip${label ? '' : ' is-empty'}${extraClass ? ` ${extraClass}` : ''}`}
+      aria-label={label ? `${placeholder}: ${label}` : placeholder}
+      title={key === 'place' && todo.location ? todo.location.name : undefined}
+      onClick={(event) => onClick(event.currentTarget)}
+    >
+      {icon}
+      <span>{label || placeholder}</span>
+    </button>
+  )
 
   return (
     <api.ui.Modal
       title={uiText('todo.edit.title')}
-      size="large"
-      bodyClassName="todo-detail-body"
+      size="medium"
+      bodyClassName="todo-detail-body todo-sheet-body"
       onClose={close}
       footer={
         <div className="todo-detail-footer">
           <button
             type="button"
-            className="btn-danger todo-detail-delete"
-            onClick={() => void confirmDeleteTodo(todo, c.removeTodo)}
+            className="todo-sheet-delete"
+            onClick={() => {
+              // The sheet steps aside for the question and comes back on Cancel.
+              close()
+              void confirmDeleteTodo(todo, c.removeTodo).then((deleted) => { if (!deleted) c.openDetail(todo.id) })
+            }}
           >
+            <Trash />
             {uiText('auto.f6fdbe48dc54')}
           </button>
           <button type="button" className="btn-primary" onClick={close}>
@@ -240,59 +299,93 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
         </div>
       }
     >
-      <div className="todo-detail-content">
-      {draftValue.error && <p role="alert">{draftValue.error}</p>}
-      <div className="todo-detail-title-row">
-        {/* The host focuses this on open instead of its own ✕ — the title is
-            what a just-created todo is waiting for, and Enter here closes. */}
-        <input
-          className="todo-detail-title"
-          data-modal-initial-focus="true"
-          value={titleDraft ?? todo.title}
-          aria-label={uiText('auto.c5e8306a511f')}
-          onChange={(e) => { setTitleDraft(e.target.value); writeTitle(e.target.value) }}
-          onBlur={() => { if (titleDraft === todo.title) setTitleDraft(null) }}
-          onKeyDown={(e) => { if (e.key === 'Enter') close() }}
-        />
-        <button
-          className={`todo-detail-flag${todo.flagged ? ' on' : ''}`}
-          type="button"
-          onClick={() => patch({ flagged: todo.flagged ? undefined : true })}
-          aria-pressed={!!todo.flagged}
-          title={uiText('todo.flag')}
-          aria-label={uiText('todo.flag')}
-        >
-          <Flag />
-        </button>
-      </div>
+      <div className="todo-sheet">
+        {draftValue.error && <p role="alert">{draftValue.error}</p>}
+        <div className="todo-sheet-head">
+          <button
+            type="button"
+            className="todo-sheet-status"
+            data-status={status}
+            title={todoStatusLabel(status)}
+            aria-label={`${uiText('auto.bae7d5be7082')}: ${todoStatusLabel(status)}`}
+            onClick={(event) => openStatusMenu(event.currentTarget, todo, (next) => patch(next))}
+          >
+            <TodoStatusGlyph status={status === 'open' ? null : status} dotCls={statusDef(status).cls} />
+          </button>
+          {/* The host focuses this on open instead of its own ✕ — the title is
+              what a just-created todo is waiting for, and Enter here closes. */}
+          <input
+            className="todo-sheet-title"
+            data-modal-initial-focus="true"
+            value={titleDraft ?? todo.title}
+            aria-label={uiText('auto.c5e8306a511f')}
+            onChange={(e) => { setTitleDraft(e.target.value); writeTitle(e.target.value) }}
+            onBlur={() => { if (titleDraft === todo.title) setTitleDraft(null) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') close() }}
+          />
+          <button
+            className={`todo-sheet-flag${todo.flagged ? ' on' : ''}`}
+            type="button"
+            onClick={() => patch({ flagged: todo.flagged ? undefined : true })}
+            aria-pressed={!!todo.flagged}
+            title={uiText('todo.flag')}
+            aria-label={uiText('todo.flag')}
+          >
+            <Flag />
+          </button>
+        </div>
 
-      {/* Two columns: what the todo *says* on the left, what it *is* on the
-          right. The rail collapses under the notes when the modal is narrow. */}
-      <div className="todo-detail-cols">
-        <div className="todo-detail-col">
-          <div className="todo-detail-block">
-            <div className="todo-detail-group-label">{uiText('todo.edit.notes')}</div>
-            <div className="todo-detail-notes">
-              <textarea
-                className="todo-detail-note-input"
-                value={draftValue.note ?? todo.note}
-                aria-label={uiText('todo.edit.notes')}
-                placeholder={uiText('todo.edit.notes')}
-                rows={7}
-                onChange={event => { const note = event.target.value; patchDraft({ note }); writeNote(note) }}
-              />
+        <div className="todo-sheet-notes-wrap">
+          {editingNotes || !(draftValue.note ?? todo.note).trim() ? (
+            <textarea
+              className="todo-sheet-notes"
+              value={draftValue.note ?? todo.note}
+              aria-label={uiText('todo.edit.notes')}
+              placeholder={uiText('todo.sheet.notesPlaceholder')}
+              rows={3}
+              autoFocus={editingNotes}
+              onChange={event => { const note = event.target.value; patchDraft({ note }); writeNote(note) }}
+            />
+          ) : (
+            <div className="todo-sheet-notes-view" onDoubleClick={() => setEditingNotes(true)}>
+              <TodoNotePreview todo={{ ...todo, note: draftValue.note ?? todo.note }} c={c} />
             </div>
-          </div>
+          )}
+          {(draftValue.note ?? todo.note).trim() && (
+            <button
+              type="button"
+              className={`todo-sheet-notes-toggle${editingNotes ? ' on' : ''}`}
+              aria-pressed={editingNotes}
+              title={uiText(editingNotes ? 'todo.sheet.viewNotes' : 'todo.sheet.editNotes')}
+              aria-label={uiText(editingNotes ? 'todo.sheet.viewNotes' : 'todo.sheet.editNotes')}
+              onClick={() => setEditingNotes((on) => !on)}
+            >
+              {editingNotes ? <Eye /> : <Pencil />}
+            </button>
+          )}
+        </div>
+        {editingNotes && <NoteLinks note={draftValue.note ?? todo.note} />}
 
-          <div className="todo-detail-block">
-            <div className="todo-detail-group-label">{uiText('todo.edit.tags')}</div>
-            <api.ui.TagInput value={draftValue.tags ?? todo.tags ?? []} onChange={setTags} />
-          </div>
+        <div className="todo-sheet-chips">
+          {chip('status', <TodoStatusGlyph status={status === 'open' ? null : status} dotCls={statusDef(status).cls} />, status === 'open' ? '' : todoStatusLabel(status), uiText('auto.bae7d5be7082'),
+            (anchor) => openStatusMenu(anchor, todo, (next) => patch(next)))}
+          {chip('due', <CalendarDays />, dueLabel, uiText('todo.sheet.date'),
+            (anchor) => popover(anchor, uiText('todo.edit.schedule'), () => <ScheduleEditor todo={todo} onPatch={patch} />, 280), todo.dueDate && todo.dueDate.slice(0, 10) < today && !todo.completed ? 'is-overdue' : '')}
+          {chip('group', <span className="todo-sheet-dot" style={todo.group ? { background: paletteCssValue(groupColorFor(todo.group, groups)) } : undefined} />, todo.group ?? '', uiText('todo.edit.group'),
+            (anchor) => void api.ui.openMenu([
+              { label: uiText('todo.chip.noGroup'), type: 'radio' as const, checked: !todo.group, onSelect: () => patch({ group: undefined }) },
+              ...groupNames.map((name) => ({ label: name, type: 'radio' as const, checked: todo.group === name, color: groupColorFor(name, groups), onSelect: () => patch({ group: name }) }))
+            ], { anchor, align: 'start' }))}
+          {chip('place', <MapPin />, todo.location?.name.split(',')[0].trim() ?? '', uiText('todo.sheet.place'),
+            (anchor) => popover(anchor, uiText('todo.location'), () => <PlaceEditor todo={todo} onPatch={patch} />, 320))}
+          {chip('priority', <PriorityIcon priority={todo.priority} />, todo.priority === 'normal' ? '' : todoPriorityLabel(todo.priority), uiText('auto.886cbff9d9df'),
+            (anchor) => void api.ui.openMenu(PRIORITIES.map((p) => ({ label: todoPriorityLabel(p.id), icon: <PriorityIcon priority={p.id} />, type: 'radio' as const, checked: todo.priority === p.id, onSelect: () => patch({ priority: p.id as TodoPriority }) })), { anchor, align: 'start' }))}
+        </div>
 
-          <div className="todo-detail-block">
-            <div className="todo-detail-group-label">
-              <Paperclip /> {uiText('todo.attachments')}
-            </div>
+        <TagChipsField value={draftValue.tags ?? todo.tags ?? []} onChange={setTags} bare />
+
+        {((todo.attachments ?? []).length > 0 || addingAttachment) && (
+          <div className="todo-sheet-section todo-sheet-attachments">
             {(todo.attachments ?? []).map((relPath) => (
               <AttachmentCard
                 key={relPath}
@@ -300,42 +393,51 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
                 onRemove={() => setAttachments((todo.attachments ?? []).filter((p) => p !== relPath))}
               />
             ))}
-            {addingAttachment ? (
-              <FilePathInput
-                value={attachmentDraft}
-                onChange={(v) => {
-                  setAttachmentDraft(v)
-                  if (v) {
-                    if (!(todo.attachments ?? []).includes(v)) {
-                      setAttachments([...(todo.attachments ?? []), v])
-                    }
-                    setAttachmentDraft('')
-                    setAddingAttachment(false)
-                  }
+            {addingAttachment && (
+              <FileSearchField
+                placeholder={uiText('todo.file.searchAttachment')}
+                onCancel={() => setAddingAttachment(false)}
+                onPick={(path) => {
+                  if (!(todo.attachments ?? []).includes(path)) setAttachments([...(todo.attachments ?? []), path])
+                  setAddingAttachment(false)
                 }}
               />
-            ) : (
-              <button
-                className="todo-detail-add"
-                type="button"
-                onClick={() => setAddingAttachment(true)}
-              >
-                <Plus /> {uiText('todo.addAttachment')}
-              </button>
             )}
           </div>
+        )}
 
-          <div className="todo-detail-block todo-detail-links-block">
-            <div className="todo-detail-group-label">
-              <Link /> {uiText('todo.links')}
-            </div>
-            <label className="todo-linked-file-control">
-              <span>{uiText('todo.linkedFile')}</span>
-              <FilePathInput
-                value={todo.filePath ?? ''}
-                onChange={(v) => patch({ filePath: v.trim() || undefined })}
+        {((todo.urls ?? []).length > 0 || addingUrl || todo.filePath || addingFile) && (
+          <div className="todo-sheet-section">
+            {todo.filePath && (
+              <div className="todo-detail-url-card">
+                <button
+                  className="todo-detail-url-open"
+                  type="button"
+                  title={todo.filePath}
+                  onClick={(event) => api.workspace.openFile(todo.filePath!, undefined, { newTab: api.ui.hasModKey(event) })}
+                >
+                  <FileGlyph />
+                  <span>{todo.filePath.split('/').pop()}</span>
+                  <span className="todo-sheet-muted">{uiText('todo.linkedFile')}</span>
+                </button>
+                <button
+                  className="todo-detail-url-remove"
+                  type="button"
+                  title={uiText('todo.sheet.unlinkFile')}
+                  aria-label={uiText('todo.sheet.unlinkFile')}
+                  onClick={() => patch({ filePath: undefined })}
+                >
+                  <X />
+                </button>
+              </div>
+            )}
+            {addingFile && !todo.filePath && (
+              <FileSearchField
+                placeholder={uiText('todo.file.searchLinked')}
+                onCancel={() => setAddingFile(false)}
+                onPick={(path) => { patch({ filePath: path }); setAddingFile(false) }}
               />
-            </label>
+            )}
             {(todo.urls ?? []).map((url) => (
               <div className="todo-detail-url-card" key={url}>
                 <button
@@ -349,7 +451,7 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
                   }}
                 >
                   <Link />
-                  <span>{url}</span>
+                  <span>{shortUrl(url)}</span>
                 </button>
                 <button
                   className="todo-detail-url-remove"
@@ -362,197 +464,94 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
                 </button>
               </div>
             ))}
-            {addingUrl ? (
+            {addingUrl && (
               <BufferedInput
                 className="todo-detail-link-input todo-detail-url"
                 value={urlDraft}
                 onCommit={(v) => {
                   const next = normalizeTodoUrl(v)
-                  // An empty commit closes the field; a duplicate is a no-op
-                  // rather than an error, matching the attachment picker.
-                  if (next && !(todo.urls ?? []).includes(next)) {
-                    setUrls([...(todo.urls ?? []), next])
-                  }
+                  if (next && !(todo.urls ?? []).includes(next)) setUrls([...(todo.urls ?? []), next])
                   setUrlDraft('')
                   setAddingUrl(false)
                 }}
                 placeholder={uiText('todo.urlPlaceholder')}
                 ariaLabel={uiText('todo.url')}
               />
-            ) : (
-              <button className="todo-detail-add" type="button" onClick={() => setAddingUrl(true)}>
-                <Plus /> {uiText('todo.addWebAppLink')}
-              </button>
             )}
           </div>
+        )}
+
+        {showActivity && statusHistory.length > 0 && (
+          <ol className="todo-activity-list todo-sheet-section">
+            {[...statusHistory].reverse().map((change, index) => (
+              <li key={`${change.changedAt}:${index}`}>
+                <span>{todoStatusLabel(change.from)} → {todoStatusLabel(change.to)}</span>
+                <time dateTime={change.changedAt}>{new Date(change.changedAt).toLocaleString(api.ui.language())}</time>
+              </li>
+            ))}
+          </ol>
+        )}
+
+        <div className="todo-sheet-adds">
+          <button className="todo-detail-add" type="button" onClick={() => setAddingAttachment(true)}><Paperclip /> {uiText('todo.sheet.attachment')}</button>
+          <button className="todo-detail-add" type="button" onClick={() => setAddingUrl(true)}><Link /> {uiText('todo.sheet.link')}</button>
+          {!todo.filePath && <button className="todo-detail-add" type="button" onClick={() => setAddingFile(true)}><FileGlyph /> {uiText('todo.linkedFile')}</button>}
+          {statusHistory.length > 0 && (
+            <button className="todo-detail-add todo-sheet-activity" type="button" aria-expanded={showActivity} onClick={() => setShowActivity((open) => !open)}>
+              {uiText('todo.activity')} ({statusHistory.length})
+            </button>
+          )}
         </div>
-
-        <div className="todo-detail-col todo-detail-rail">
-          <div className="todo-detail-block">
-            <div className="todo-detail-group-label">{uiText('todo.edit.properties')}</div>
-
-            <label className="todo-detail-field" data-status={effectiveStatus(todo)}>
-              <span className="todo-detail-label">{uiText('auto.bae7d5be7082')}</span>
-              <SelectField
-                className="todo-detail-select"
-                value={effectiveStatus(todo)}
-                // Through `patchForStatus`, so picking Completed here checks the
-                // box exactly as the checkbox does — one rule, not two.
-                onChange={(v) => patch(patchForStatus(v === 'open' ? null : (v as TodoStatus)))}
-                ariaLabel={uiText('auto.bae7d5be7082')}
-                options={activeStatuses().map((s) => ({ value: s, label: todoStatusLabel(s) }))}
-              />
-            </label>
-
-            <label className="todo-detail-field">
-              <span className="todo-detail-label">{uiText('auto.886cbff9d9df')}</span>
-              <div className="todo-detail-priority" role="group" aria-label={uiText('auto.886cbff9d9df')}>
-                {PRIORITIES.map(p => (
-                  <button key={p.id} type="button" aria-pressed={todo.priority === p.id}
-                    title={uiText(p.labelKey)} onClick={() => patch({ priority: p.id as TodoPriority })}>
-                    {p.symbol || uiText('todo.priorityNone')}
-                  </button>
-                ))}
-              </div>
-            </label>
-
-            {/* The group was reachable only from the row's ⋯ menu; the record
-                stores the name, so a typed one is a usable group at once. */}
-            <label className="todo-detail-field">
-              <span className="todo-detail-label">{uiText('todo.edit.group')}</span>
-              <api.ui.ComboField
-                className="todo-detail-combo"
-                value={todo.group ?? ''}
-                onChange={(v) => patch({ group: v.trim() || undefined })}
-                options={groupNames.map((name) => ({ value: name, label: name }))}
-                ariaLabel={uiText('todo.edit.group')}
-                clearLabel={uiText('todo.chip.noGroup')}
-                allowCustom={false}
-              />
-            </label>
-
-          </div>
-
-          <div className="todo-detail-block">
-            <div className="todo-detail-group-label">{uiText('todo.edit.schedule')}</div>
-
-            <label className="todo-detail-field">
-              <span className="todo-detail-label">{uiText('auto.145caf292855')}</span>
-              <DateField
-                className="todo-detail-inline-date"
-                value={todo.dueDate}
-                ariaLabel={uiText('auto.4c1aeebc433b')}
-                onChange={(next) => patch({ dueDate: next })}
-              />
-            </label>
-
-            <div className="todo-detail-times">
-              <label className="todo-detail-time">
-                <span className="todo-detail-label">{uiText('auto.88d8206d586a')}</span>
-                <TimeField
-                  className="todo-detail-time-input"
-                  value={todo.startTime ?? ''}
-                  ariaLabel={uiText('auto.88d8206d586a')}
-                  onChange={(value) => patch({ startTime: value || undefined })}
-                />
-              </label>
-              <label className="todo-detail-time">
-                <span className="todo-detail-label">{uiText('auto.cd7800da7f4f')}</span>
-                <TimeField
-                  className="todo-detail-time-input"
-                  value={todo.endTime ?? ''}
-                  ariaLabel={uiText('auto.cd7800da7f4f')}
-                  onChange={(value) => patch({ endTime: value || undefined })}
-                />
-              </label>
-            </div>
-          </div>
-
-          <div className="todo-detail-block">
-            <div className="todo-detail-group-label">{uiText('reminders.title')}</div>
-            <ReminderOffsets value={todo.reminderOffsets} onChange={reminderOffsets => patch({ reminderOffsets, remindAt: undefined, reminderFiredAt: undefined })}
-              timed={Boolean(todo.startTime)} time={todo.reminderTime} onTimeChange={reminderTime => patch({ reminderTime })} />
-          </div>
-          {/* remind me — only the triggers this app can actually honour. */}
-          <div className="todo-detail-block">
-            <div className="todo-detail-group-label">{uiText('todo.remindMe')}</div>
-            {/* The kit's Toggle takes `label` as its accessible name only — it draws
-                no text — so the visible label is ours. */}
-            <div className="todo-detail-row">
-              <span className="todo-detail-label">{uiText('todo.onADay')}</span>
-              <span className="todo-detail-row-end">
-                {remindDate && (
-                  <DateField
-                    className="todo-detail-inline-date"
-                    value={remindDate}
-                    ariaLabel={uiText('todo.remindDate')}
-                    clearable={false}
-                    onChange={(next) => setRemind(next, remindTime)}
-                  />
-                )}
-                <Toggle
-                  checked={!!remindDate}
-                  onChange={(on) => setRemind(on ? todo.dueDate || todayIso() : '', on ? remindTime : '')}
-                  label={uiText('todo.onADay')}
-                />
-              </span>
-            </div>
-            <div className="todo-detail-row">
-              <span className="todo-detail-label">{uiText('todo.atATime')}</span>
-              <span className="todo-detail-row-end">
-                {remindTime && (
-                  <TimeField
-                    className="todo-detail-inline-input"
-                    value={remindTime}
-                    ariaLabel={uiText('todo.remindTime')}
-                    clearable={false}
-                    onChange={(value) => setRemind(remindDate, value)}
-                  />
-                )}
-                <Toggle
-                  checked={!!remindTime}
-                  disabled={!remindDate}
-                  onChange={(on) => setRemind(remindDate, on ? '09:00' : '')}
-                  label={uiText('todo.atATime')}
-                />
-              </span>
-            </div>
-            {remindDate && (
-              <p className="todo-detail-hint">{uiText('todo.reminderAppOpenHint')}</p>
-            )}
-          </div>
-
-          <div className="todo-detail-block">
-            <div className="todo-detail-group-label">
-              <MapPin /> {uiText('todo.location')}
-            </div>
-            <LocationField
-              value={todo.location}
-              onChange={(location) => patch({ location })}
-            />
-          </div>
-
-          <div className="todo-detail-block todo-activity-block">
-            <div className="todo-detail-group-label">{uiText('todo.activity')}</div>
-            {statusHistory.length ? (
-              <ol className="todo-activity-list">
-                {[...statusHistory].reverse().map((change, index) => (
-                  <li key={`${change.changedAt}:${index}`}>
-                    <span>{todoStatusLabel(change.from)} → {todoStatusLabel(change.to)}</span>
-                    <time dateTime={change.changedAt}>{new Date(change.changedAt).toLocaleString(api.ui.language())}</time>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="todo-detail-hint">{uiText('todo.activity.empty')}</p>
-            )}
-          </div>
-
-        </div>
-      </div>
       </div>
     </api.ui.Modal>
   )
+}
+
+/** Due date with an optional start and end time. */
+function ScheduleEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: Partial<TodoRecord>) => void }): ReactElement {
+  const { DateField, TimeField } = api.ui.settings
+  const [date, setDate] = React.useState(todo.dueDate?.slice(0, 10) ?? '')
+  const [start, setStart] = React.useState(todo.startTime ?? '')
+  const [end, setEnd] = React.useState(todo.endTime ?? '')
+  return (
+    <div className="todo-cell-editor">
+      <DateField
+        value={date}
+        placeholder={uiText('todo.detail.noDate')}
+        ariaLabel={uiText('todo.field.dueDate')}
+        onChange={(value) => {
+          setDate(value)
+          if (!value) { setStart(''); setEnd('') }
+          onPatch(value ? { dueDate: value } : { dueDate: '', startTime: undefined, endTime: undefined })
+        }}
+      />
+      <div className="todo-sheet-times">
+        <TimeField value={start} disabled={!date} ariaLabel={uiText('auto.88d8206d586a')} onChange={(value) => { setStart(value); onPatch({ startTime: value || undefined, ...(value ? {} : { endTime: undefined }) }); if (!value) setEnd('') }} />
+        <TimeField value={end} disabled={!start} ariaLabel={uiText('auto.cd7800da7f4f')} onChange={(value) => { setEnd(value); onPatch({ endTime: value || undefined }) }} />
+      </div>
+    </div>
+  )
+}
+
+/** Where the task happens, with the place search. */
+function PlaceEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: Partial<TodoRecord>) => void }): ReactElement {
+  const [location, setLocation] = React.useState(todo.location)
+  return (
+    <div className="todo-cell-editor">
+      <LocationField value={location} autoFocus onChange={(next) => { setLocation(next); onPatch({ location: next }) }} />
+    </div>
+  )
+}
+
+/** "openstreetmap.org/#map=13/47.37/8.54" rather than the whole URL; the title keeps it all. */
+function shortUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const rest = `${parsed.pathname === '/' ? '' : parsed.pathname}${parsed.search}${parsed.hash}`
+    return `${parsed.hostname.replace(/^www\./, '')}${rest}`
+  } catch {
+    return url
+  }
 }
 
 function todayIso(): string {

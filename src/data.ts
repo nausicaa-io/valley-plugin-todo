@@ -403,10 +403,11 @@ export async function deleteTodo(id: string): Promise<boolean> {
  * path). One helper because two surfaces offer the action — a row's ⋯ menu and
  * the detail modal's footer — and they must raise the same dialog.
  */
+/** Ask, then delete. Resolves whether the task was deleted (false on Cancel). */
 export async function confirmDeleteTodo(
   todo: Pick<TodoRecord, 'id' | 'title'>,
   remove: (id: string) => Promise<void>
-): Promise<void> {
+): Promise<boolean> {
   const choice = await api.ui.confirm({
     title: uiText('todo.delete.title'),
     message: React.createElement(
@@ -420,7 +421,9 @@ export async function confirmDeleteTodo(
       { label: uiText('auto.f6fdbe48dc54'), value: 'delete', variant: 'danger' }
     ]
   })
-  if (choice === 'delete') await remove(todo.id)
+  if (choice !== 'delete') return false
+  await remove(todo.id)
+  return true
 }
 
 /**

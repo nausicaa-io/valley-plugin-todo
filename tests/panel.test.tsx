@@ -896,11 +896,25 @@ describe('TodoPanel', () => {
     await waitFor(() => expect(store.records.find((todo) => todo.id === 't2')?.title).toBe('Second survey'))
   })
 
+  it('closes the sheet for the delete question and brings it back on Cancel', async () => {
+    setup([{ id: 't1', title: 'Fern survey', completed: false } as DataRecord])
+    render(<TodoPanel />)
+    await screen.findByText('Fern survey')
+    await editFromMenu()
+    vi.mocked(store.mock.api.ui.confirm).mockResolvedValueOnce('cancel')
+    await act(async () => { fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' })) })
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    expect(store.records).toHaveLength(1)
+    expect(store.mock.api.ui.confirm).toHaveBeenCalledTimes(1)
+  })
+
   it('preserves an autosave draft when another surface changes the document', async () => {
     setup([{ id: 't1', title: 'Fern survey', note: 'Original', completed: false } as DataRecord])
     render(<TodoPanel />)
     await screen.findByText('Fern survey')
     await editFromMenu()
+    // A note opens formatted; the pencil switches it to the plain-text editor.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit notes' }))
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Local unsaved [[Ferns]]' } })
     await act(async () => {
       await store.mock.api.data.dataset('todo.tasks').update({ id: 't1' }, { note: 'External committed body' })

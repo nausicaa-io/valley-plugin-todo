@@ -25,6 +25,7 @@ import {
 import { TodoMenu, openTodoContextMenu } from './TodoMenu'
 import { useStatusCheck } from './TodoRow'
 import { LocationField } from './LocationField'
+import { TagChipsField } from './TagChipsField'
 import { openStatusMenu } from './SwipeRow'
 import { confirmDeleteTodo } from './data'
 import { effectiveStatus, patchForStatus, useStatusVocabulary } from './statuses'
@@ -542,72 +543,11 @@ function NotesEditor({ initial, onInput, onDone }: { initial: string; onInput: (
   )
 }
 
-/**
- * Tags as one field: chips flow inline before the input. Enter, comma or space
- * adds what is typed; Backspace in an empty input removes the last tag.
- */
 function TagsEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: Partial<TodoRecord>) => void }): ReactElement {
   const [tags, setTags] = React.useState<string[]>(todo.tags ?? [])
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  const commit = (next: string[]): void => {
-    setTags(next)
-    onPatch({ tags: next })
-  }
-  const add = (raw: string): boolean => {
-    const additions = raw.split(/[\s,]+/).map((value) => value.trim().replace(/^#+/, '')).filter(Boolean)
-    const next = [...tags]
-    for (const tag of additions) if (!next.some((existing) => existing.toLowerCase() === tag.toLowerCase())) next.push(tag)
-    if (next.length === tags.length) return false
-    commit(next)
-    return true
-  }
-  React.useEffect(() => { inputRef.current?.focus() }, [])
   return (
     <div className="todo-cell-editor">
-      <div className="todo-tags-input" onMouseDown={(event) => { if (event.target === event.currentTarget) { event.preventDefault(); inputRef.current?.focus() } }}>
-        {tags.map((tag) => (
-          <span key={tag} className="todo-tags-chip">
-            <span>#{tag}</span>
-            <button
-              type="button"
-              className="todo-tags-chip-remove"
-              aria-label={uiText('todo.compose.removeTag', { tag })}
-              title={uiText('todo.compose.removeTag', { tag })}
-              onClick={() => { commit(tags.filter((candidate) => candidate !== tag)); inputRef.current?.focus() }}
-            >
-              <X />
-            </button>
-          </span>
-        ))}
-        <input
-          ref={inputRef}
-          className="todo-tags-field"
-          type="text"
-          placeholder={tags.length ? '' : uiText('todo.compose.addTags')}
-          aria-label={uiText('todo.edit.tags')}
-          autoComplete="off"
-          spellCheck={false}
-          onKeyDown={(event) => {
-            const input = event.currentTarget
-            if (event.nativeEvent.isComposing) return
-            if (event.key === 'Enter' || event.key === ',' || (event.key === ' ' && input.value.trim())) {
-              event.preventDefault()
-              if (add(input.value)) input.value = ''
-            } else if (event.key === 'Backspace' && !input.value && tags.length) {
-              event.preventDefault()
-              commit(tags.slice(0, -1))
-            }
-          }}
-          onBlur={(event) => { if (add(event.currentTarget.value)) event.currentTarget.value = '' }}
-          onPaste={(event) => {
-            const text = event.clipboardData.getData('text/plain')
-            if (!/[\s,]/.test(text.trim())) return
-            event.preventDefault()
-            add(event.currentTarget.value + text)
-            event.currentTarget.value = ''
-          }}
-        />
-      </div>
+      <TagChipsField value={tags} autoFocus onChange={(next) => { setTags(next); onPatch({ tags: next }) }} />
     </div>
   )
 }
@@ -616,7 +556,7 @@ function LocationEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: 
   const [location, setLocation] = React.useState(todo.location)
   return (
     <div className="todo-cell-editor">
-      <LocationField value={location} onChange={(next) => { setLocation(next); onPatch({ location: next }) }} />
+      <LocationField value={location} autoFocus onChange={(next) => { setLocation(next); onPatch({ location: next }) }} />
     </div>
   )
 }

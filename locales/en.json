@@ -466,5 +466,19 @@
   "todo.settings.localGroupsSetting": "Individual To-Do groups",
   "todo.location.searching": "Searching…",
   "todo.location.noResults": "No places found. Press Enter to keep the text.",
-  "todo.location.failed": "Place search is unavailable. Press Enter to keep the text."
+  "todo.location.failed": "Place search is unavailable. Press Enter to keep the text.",
+  "todo.detail.noDate": "No date",
+  "todo.detail.remindAt": "At a set date and time",
+  "todo.sheet.notesPlaceholder": "Notes",
+  "todo.sheet.date": "Date",
+  "todo.sheet.place": "Place",
+  "todo.sheet.attachment": "Attachment",
+  "todo.sheet.link": "Link",
+  "todo.sheet.reminderCount": "{{count}} reminders",
+  "todo.sheet.editNotes": "Edit notes",
+  "todo.sheet.viewNotes": "Show formatted notes",
+  "todo.sheet.unlinkFile": "Unlink file",
+  "todo.file.searchAttachment": "Find a file to attach",
+  "todo.file.searchLinked": "Find the file this task belongs to",
+  "todo.file.noResults": "No matching files."
 }

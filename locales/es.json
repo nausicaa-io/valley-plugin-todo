@@ -466,5 +466,19 @@
   "todo.settings.localGroupsSetting": "Grupos individuales de To-Do",
   "todo.location.searching": "Buscando…",
   "todo.location.noResults": "No se encontraron lugares. Pulsa Intro para conservar el texto.",
-  "todo.location.failed": "La búsqueda de lugares no está disponible. Pulsa Intro para conservar el texto."
+  "todo.location.failed": "La búsqueda de lugares no está disponible. Pulsa Intro para conservar el texto.",
+  "todo.detail.noDate": "Sin fecha",
+  "todo.detail.remindAt": "En una fecha y hora fijas",
+  "todo.sheet.notesPlaceholder": "Notas",
+  "todo.sheet.date": "Fecha",
+  "todo.sheet.place": "Lugar",
+  "todo.sheet.attachment": "Adjunto",
+  "todo.sheet.link": "Enlace",
+  "todo.sheet.reminderCount": "{{count}} recordatorios",
+  "todo.sheet.editNotes": "Editar notas",
+  "todo.sheet.viewNotes": "Mostrar notas con formato",
+  "todo.sheet.unlinkFile": "Desvincular archivo",
+  "todo.file.searchAttachment": "Buscar un archivo para adjuntar",
+  "todo.file.searchLinked": "Buscar el archivo de esta tarea",
+  "todo.file.noResults": "No hay archivos coincidentes."
 }

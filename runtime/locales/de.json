@@ -466,5 +466,19 @@
   "todo.settings.localGroupsSetting": "Eigene To-Do-Gruppen",
   "todo.location.searching": "Suche …",
   "todo.location.noResults": "Keine Orte gefunden. Mit Enter bleibt der Text.",
-  "todo.location.failed": "Ortssuche nicht verfügbar. Mit Enter bleibt der Text."
+  "todo.location.failed": "Ortssuche nicht verfügbar. Mit Enter bleibt der Text.",
+  "todo.detail.noDate": "Kein Datum",
+  "todo.detail.remindAt": "Zu festem Datum und Zeit",
+  "todo.sheet.notesPlaceholder": "Notizen",
+  "todo.sheet.date": "Datum",
+  "todo.sheet.place": "Ort",
+  "todo.sheet.attachment": "Anhang",
+  "todo.sheet.link": "Link",
+  "todo.sheet.reminderCount": "{{count}} Erinnerungen",
+  "todo.sheet.editNotes": "Notizen bearbeiten",
+  "todo.sheet.viewNotes": "Formatierte Notizen anzeigen",
+  "todo.sheet.unlinkFile": "Datei lösen",
+  "todo.file.searchAttachment": "Datei zum Anhängen suchen",
+  "todo.file.searchLinked": "Datei suchen, zu der die Aufgabe gehört",
+  "todo.file.noResults": "Keine passenden Dateien."
 }

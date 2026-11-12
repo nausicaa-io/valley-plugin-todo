@@ -466,5 +466,19 @@
   "todo.settings.localGroupsSetting": "Groupes To-Do individuels",
   "todo.location.searching": "Recherche…",
   "todo.location.noResults": "Aucun lieu trouvé. Appuyez sur Entrée pour garder le texte.",
-  "todo.location.failed": "Recherche de lieux indisponible. Appuyez sur Entrée pour garder le texte."
+  "todo.location.failed": "Recherche de lieux indisponible. Appuyez sur Entrée pour garder le texte.",
+  "todo.detail.noDate": "Pas de date",
+  "todo.detail.remindAt": "À une date et une heure fixes",
+  "todo.sheet.notesPlaceholder": "Notes",
+  "todo.sheet.date": "Date",
+  "todo.sheet.place": "Lieu",
+  "todo.sheet.attachment": "Pièce jointe",
+  "todo.sheet.link": "Lien",
+  "todo.sheet.reminderCount": "{{count}} rappels",
+  "todo.sheet.editNotes": "Modifier les notes",
+  "todo.sheet.viewNotes": "Afficher les notes mises en forme",
+  "todo.sheet.unlinkFile": "Dissocier le fichier",
+  "todo.file.searchAttachment": "Rechercher un fichier à joindre",
+  "todo.file.searchLinked": "Rechercher le fichier lié à cette tâche",
+  "todo.file.noResults": "Aucun fichier correspondant."
 }

@@ -466,5 +466,19 @@
   "todo.settings.localGroupsSetting": "独立待办分组",
   "todo.location.searching": "正在搜索…",
   "todo.location.noResults": "未找到地点。按回车保留文本。",
-  "todo.location.failed": "地点搜索不可用。按回车保留文本。"
+  "todo.location.failed": "地点搜索不可用。按回车保留文本。",
+  "todo.detail.noDate": "无日期",
+  "todo.detail.remindAt": "在指定日期和时间",
+  "todo.sheet.notesPlaceholder": "备注",
+  "todo.sheet.date": "日期",
+  "todo.sheet.place": "地点",
+  "todo.sheet.attachment": "附件",
+  "todo.sheet.link": "链接",
+  "todo.sheet.reminderCount": "{{count}} 个提醒",
+  "todo.sheet.editNotes": "编辑备注",
+  "todo.sheet.viewNotes": "显示格式化备注",
+  "todo.sheet.unlinkFile": "取消关联文件",
+  "todo.file.searchAttachment": "查找要附加的文件",
+  "todo.file.searchLinked": "查找此任务所属的文件",
+  "todo.file.noResults": "没有匹配的文件。"
 }
