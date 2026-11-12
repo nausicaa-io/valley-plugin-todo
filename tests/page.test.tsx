@@ -563,13 +563,11 @@ describe('the To-Do page', () => {
   })
 
   it.each([
-    ['![Reference image](photo.png)', 'Reference image'],
-    ['![[fields/sample.pdf]]', 'sample.pdf'],
-    ['- [ ] Inspect the **sampling** labels', 'Inspect the sampling labels'],
-    ['## Observation notes', 'Observation notes'],
-    ['| Habitat | Samples |\n| --- | --- |', 'Habitat · Samples'],
-    ['\n---\n> keep snake_case_names', 'keep snake_case_names']
-  ])('shows the note %j as one line of plain text', async (note, text) => {
+    ['Inspect the sampling labels', 'Inspect the sampling labels'],
+    ['\n\n  Second line first  \nthird', 'Second line first'],
+    ['- [ ] Inspect the **sampling** labels', '- [ ] Inspect the **sampling** labels'],
+    ['| Habitat | Samples |\n| --- | --- |', '| Habitat | Samples |']
+  ])('shows the first line of the note %j as written', async (note, text) => {
     store = installTodoNotes([{ id: 'n', title: 'With a note', completed: false, note } as DataRecord], { groups: CONFIGURED })
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('With a note')

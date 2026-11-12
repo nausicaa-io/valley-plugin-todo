@@ -5,16 +5,14 @@ import { parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { getSharedTodos, onSharedTodos } from './sharedTodos'
 import { confirmDeleteTodo, normalizeTodoUrl, useTodoStatusHistory, type DocumentRevision } from './data'
 import { AttachmentCard } from './AttachmentCard'
-import { CalendarDays, Eye, FileGlyph, Flag, Link, MapPin, Paperclip, Pencil, TodoStatusGlyph, Trash, X } from './icons'
+import { CalendarDays, FileGlyph, Flag, Link, MapPin, Paperclip, TodoStatusGlyph, Trash, X } from './icons'
 import { FileSearchField } from './FileSearchField'
-import { TodoNotePreview } from './markdown'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { PriorityIcon } from './TodoTable'
 import { openStatusMenu } from './SwipeRow'
 import { formatDueLabel } from './sort'
 import { LocationField } from './LocationField'
 import { TagChipsField } from './TagChipsField'
-import { noteLinkTargets } from './noteLinks'
 import { allGroups, groupColorFor } from './groups'
 import { useGroups } from './groupStore'
 import { PRIORITIES } from './sort'
@@ -154,35 +152,6 @@ function detailDraft(todoId: string): DetailDraft {
   return draft
 }
 
-/**
- * The files and pages a note points at — `[[…]]`, `![[…]]` and Markdown links —
- * as small chips under the notes, so the sample PDF a note embeds is one click
- * away while the note itself stays plain text.
- */
-function NoteLinks({ note }: { note: string }): ReactElement | null {
-  const links = React.useMemo(() => noteLinkTargets(note), [note])
-  if (!links.length) return null
-  return (
-    <div className="todo-detail-note-links">
-      {links.map((link) => (
-        <button
-          key={link.target}
-          type="button"
-          className="todo-detail-note-link"
-          title={link.target}
-          onClick={(event) => {
-            if (link.external) void api.files.openExternalUrl(link.target)
-            else api.workspace.openFile(link.target, undefined, { newTab: api.ui.hasModKey(event) })
-          }}
-        >
-          {link.external ? <Link /> : <Paperclip />}
-          <span>{link.label}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
 const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
   const { Toggle, SelectField, DateField, TimeField } = api.ui.settings
   const [todos, setTodos] = React.useState<TodoRecord[]>(getSharedTodos)
@@ -195,7 +164,7 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
   const [addingUrl, setAddingUrl] = React.useState(false)
   const [addingFile, setAddingFile] = React.useState(false)
   const [showActivity, setShowActivity] = React.useState(false)
-  const [editingNotes, setEditingNotes] = React.useState(false)
+  const opened = React.useRef<TodoRecord | null>(null)
   const [urlDraft, setUrlDraft] = React.useState('')
   const draft = detailDraft(todoId)
   const draftValue = React.useSyncExternalStore(React.useCallback((listener) => { draft.listeners.add(listener); return () => { draft.listeners.delete(listener) } }, [draft]), () => draft.value, () => draft.value)
@@ -251,6 +220,34 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
   const setUrls = (urls: string[]): void => patch({ urls: urls.length ? urls : undefined })
   const groupNames = allGroups(groups)
 
+  // Cancel puts the task back as it was when the sheet opened. Title and notes
+  // go through their own write queues, so the original value supersedes any
+  // edit still waiting there; everything else is one patch.
+  if (!opened.current) opened.current = structuredClone(todo)
+  const cancel = (): void => {
+    const original = opened.current
+    if (original) {
+      writeTitle(original.title)
+      writeNote(original.note)
+      patch({
+        tags: original.tags,
+        status: original.status,
+        completed: original.completed,
+        priority: original.priority,
+        dueDate: original.dueDate,
+        startTime: original.startTime,
+        endTime: original.endTime,
+        group: original.group,
+        location: original.location,
+        flagged: original.flagged,
+        attachments: original.attachments,
+        urls: original.urls,
+        filePath: original.filePath
+      })
+    }
+    patchDraft({ title: null, note: null, tags: null, error: '' })
+    close()
+  }
   const status = effectiveStatus(todo)
   const today = todayIso()
   const dueLabel = todo.dueDate
@@ -292,6 +289,9 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
           >
             <Trash />
             {uiText('auto.f6fdbe48dc54')}
+          </button>
+          <button type="button" className="todo-sheet-cancel" onClick={cancel}>
+            {uiText('auto.77dfd2135f4d')}
           </button>
           <button type="button" className="btn-primary" onClick={close}>
             {uiText('todo.edit.done')}
@@ -335,36 +335,14 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
           </button>
         </div>
 
-        <div className="todo-sheet-notes-wrap">
-          {editingNotes || !(draftValue.note ?? todo.note).trim() ? (
-            <textarea
-              className="todo-sheet-notes"
-              value={draftValue.note ?? todo.note}
-              aria-label={uiText('todo.edit.notes')}
-              placeholder={uiText('todo.sheet.notesPlaceholder')}
-              rows={3}
-              autoFocus={editingNotes}
-              onChange={event => { const note = event.target.value; patchDraft({ note }); writeNote(note) }}
-            />
-          ) : (
-            <div className="todo-sheet-notes-view" onDoubleClick={() => setEditingNotes(true)}>
-              <TodoNotePreview todo={{ ...todo, note: draftValue.note ?? todo.note }} c={c} />
-            </div>
-          )}
-          {(draftValue.note ?? todo.note).trim() && (
-            <button
-              type="button"
-              className={`todo-sheet-notes-toggle${editingNotes ? ' on' : ''}`}
-              aria-pressed={editingNotes}
-              title={uiText(editingNotes ? 'todo.sheet.viewNotes' : 'todo.sheet.editNotes')}
-              aria-label={uiText(editingNotes ? 'todo.sheet.viewNotes' : 'todo.sheet.editNotes')}
-              onClick={() => setEditingNotes((on) => !on)}
-            >
-              {editingNotes ? <Eye /> : <Pencil />}
-            </button>
-          )}
-        </div>
-        {editingNotes && <NoteLinks note={draftValue.note ?? todo.note} />}
+        <textarea
+          className="todo-sheet-notes"
+          value={draftValue.note ?? todo.note}
+          aria-label={uiText('todo.edit.notes')}
+          placeholder={uiText('todo.sheet.notesPlaceholder')}
+          rows={3}
+          onChange={event => { const note = event.target.value; patchDraft({ note }); writeNote(note) }}
+        />
 
         <div className="todo-sheet-chips">
           {chip('status', <TodoStatusGlyph status={status === 'open' ? null : status} dotCls={statusDef(status).cls} />, status === 'open' ? '' : todoStatusLabel(status), uiText('auto.bae7d5be7082'),

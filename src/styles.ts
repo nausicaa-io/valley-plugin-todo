@@ -2438,6 +2438,9 @@ button.todo-date:hover .todo-date-day {
 .todo-sheet-adds { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding-top: 10px; border-top: 1px solid var(--border-light); }
 .todo-sheet-adds .todo-detail-add { margin-left: 0; }
 .todo-sheet-activity { margin-left: auto !important; }
+.todo-notes.is-plain { white-space: pre-wrap; overflow-wrap: anywhere; }
+.todo-sheet-cancel { margin-left: auto; background: transparent !important; color: var(--text-color); box-shadow: inset 0 0 0 1px var(--border-medium); }
+.todo-sheet-cancel:hover { background: var(--hover-bg) !important; }
 .todo-sheet-notes-wrap { position: relative; }
 .todo-sheet-notes-view { min-height: 24px; padding: 0 36px 0 34px; font-size: var(--small-font-size); cursor: text; }
 .todo-sheet-notes-view .todo-notes { color: var(--text-color); }
@@ -2511,6 +2514,7 @@ button.todo-date:hover .todo-date-day {
 .todo-sheet-attachments .todo-attach-remove svg { width: 12px; height: 12px; }
 .todo-sheet .todo-detail-url-card .todo-detail-url-open > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-detail-footer > .todo-sheet-delete { margin-right: auto; }
+.todo-detail-footer > .todo-sheet-cancel { margin-left: 0; }
 .todo-sheet-times { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .todo-cell-editor > [data-plugin-widget], .todo-sheet-times > [data-plugin-widget] { width: 100% !important; }
 /* Links the note points at, as quiet chips under the notes. */

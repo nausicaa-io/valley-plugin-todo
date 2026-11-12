@@ -1,5 +1,5 @@
 import { React, api, registerTodoRow } from './runtime'
-import { renderInlineMarkdown, TodoNotePreview } from './markdown'
+import { renderInlineMarkdown } from './markdown'
 import type { ReactElement } from 'react'
 import type { TodoRecord } from './types'
 import { openTodoCalendar } from './calendarSource'
@@ -302,7 +302,7 @@ export const TodoRow = ({
             {titleHtml ? <span className="todo-title-md" dangerouslySetInnerHTML={{ __html: titleHtml }} /> : <span className="todo-title-md">{todo.title}</span>}
           </h4>
 
-          {!compact && todo.note.trim() && <TodoNotePreview todo={todo} c={c} />}
+          {!compact && todo.note.trim() && <div className="todo-notes is-plain">{todo.note}</div>}
 
           {/* `!!` matters: `tags.length` is a number, and `false || 0` renders a
               literal "0" under every todo that has neither meta nor tags. */}

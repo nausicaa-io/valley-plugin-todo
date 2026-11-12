@@ -563,23 +563,9 @@ function LocationEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: 
 
 const ROW_CONTROLS = 'input, button, a, textarea, [contenteditable="true"]'
 
-/** The note's first line of words as plain text: a 37px row has no room for blocks. */
+/** The note's first non-empty line, as written: notes are plain text. */
 export function notePreview(note: string): string {
-  for (const raw of note.split('\n')) {
-    if (raw.trim().startsWith('```')) continue
-    const line = raw.trim()
-      .replace(/^(?:>\s*)+/, '')
-      .replace(/^#{1,6}\s+/, '')
-      .replace(/^(?:[-*+]|\d+[.)])\s+(?:\[.\]\s+)?/, '')
-      .replace(/!?\[\[([^\]|#]+)[^\]|]*(?:\|([^\]]+))?\]\]/g, (_, target: string, alias?: string) => alias ?? target.split('/').pop() ?? target)
-      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .replace(/(?<!\w)(\*\*|__|\*|_|~~|`)(?=\S)(.+?)(?<=\S)\1(?!\w)/g, '$2')
-      .replace(/^\||\|$/g, '')
-      .replace(/\s*\|\s*/g, ' · ')
-      .trim()
-    if (/[\p{L}\p{N}]/u.test(line)) return line
-  }
-  return ''
+  return note.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
 }
 
 function TableRow({ todo, groups, columns, c, selected, onPick }: {

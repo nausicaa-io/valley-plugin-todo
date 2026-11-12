@@ -666,53 +666,19 @@ describe('TodoPanel', () => {
     expect(store.mock.popovers).toHaveLength(0)
   })
 
-  it('opens Calendar from formatted description text inside the same scrolling row', async () => {
-    setup([{ id: 't1', title: 'Inspect habitat', note: '**Inspect** the moss', completed: false, dueDate: '2026-08-12' } as DataRecord])
+  it('shows the description as plain text and still opens Calendar from it', async () => {
+    setup([{ id: 't1', title: 'Inspect habitat', note: '**Inspect** the moss\n[[Field guide]]', completed: false, dueDate: '2026-08-12' } as DataRecord])
     const openDate = vi.mocked(store.mock.api.links.open)
     render(<TodoPanel />)
     await screen.findByText('Inspect habitat')
     await showDetails()
-    const description = await screen.findByText('Inspect', { selector: 'strong' })
-    expect(description.closest('[data-todo-id="t1"]')).not.toBeNull()
+    const description = document.querySelector<HTMLElement>('[data-todo-id="t1"] .todo-notes')!
+    // Notes are plain text: the source shows as written, with no formatting or links.
+    expect(description.textContent).toBe('**Inspect** the moss\n[[Field guide]]')
+    expect(description.querySelector('strong, a, img, input')).toBeNull()
     fireEvent.click(description)
     await waitFor(() => expect(openDate).toHaveBeenCalledWith(expect.objectContaining({ category: 'date', value: '2026-08-12', context: expect.objectContaining({ itemId: 't1' }) })))
   })
-
-  it('keeps Markdown checkboxes and links independent of the row navigation', async () => {
-    setup([{ id: 't1', title: 'Inspect habitat', note: '- [ ] Inspect moss\n[Field guide](https://example.org/guide)', completed: false, dueDate: '2026-08-12' } as DataRecord])
-    const renderMarkdown = store.mock.api.markdown.render
-    store.mock.api.markdown.render = async (source, options) => (await renderMarkdown(source, options))
-      .replace('[Field guide](https://example.org/guide)', '<a href="https://example.org/guide">Field guide</a>')
-    vi.spyOn(store.mock.api.files, 'openExternalUrl')
-    const openDate = vi.mocked(store.mock.api.links.open)
-    render(<TodoPanel />)
-    await screen.findByText('Inspect habitat')
-    await showDetails()
-    fireEvent.click(await screen.findByRole('link', { name: 'Field guide' }))
-    expect(store.mock.api.links.open).toHaveBeenCalledWith('https://example.org/guide')
-    fireEvent.click(document.querySelector('.todo-notes input')!)
-    await waitFor(() => expect(store.records[0].note).toContain('- [x] Inspect moss'))
-    expect(openDate).not.toHaveBeenCalledWith(expect.objectContaining({ category: 'date' }))
-  })
-
-
-
-
-
-  it('keeps realm image previews and document links inside the scrolling description', async () => {
-    setup([{ id: 't1', title: 'Inspect habitat', note: '![[canopy.png]] ![[Field guide.pdf]]', completed: false } as DataRecord])
-    store.mock.api.markdown.render = async (source, options) => options?.inline ? source : '<p><img class="md-embed" data-embed="canopy.png" alt="Canopy"><img class="md-embed" data-embed="Field guide.pdf" alt="Field guide"></p>'
-    vi.spyOn(store.mock.api.workspace, 'resolveWikilink').mockImplementation(reference => `Archive/${reference}`)
-    render(<TodoPanel />)
-    await screen.findByText('Inspect habitat')
-    await showDetails()
-    const image = await screen.findByAltText('Canopy')
-    expect(decodeURIComponent(image.getAttribute('src') ?? '')).toContain('Archive/canopy.png')
-    fireEvent.click(await screen.findByRole('link', { name: 'Field guide' }))
-    expect(store.mock.api.workspace.openFile).toHaveBeenCalledWith('Archive/Field guide.pdf', undefined, { newTab: false })
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
 
   it('draws two file cards and expands the rest in place', async () => {
     // Seven files drew a 460px row that owned the whole sidebar at 259px.
@@ -896,6 +862,20 @@ describe('TodoPanel', () => {
     await waitFor(() => expect(store.records.find((todo) => todo.id === 't2')?.title).toBe('Second survey'))
   })
 
+  it('Cancel puts back everything changed since the sheet opened', async () => {
+    setup([{ id: 't1', title: 'Fern survey', note: 'Original', completed: false, flagged: true } as DataRecord])
+    render(<TodoPanel />)
+    await screen.findByText('Fern survey')
+    await editFromMenu()
+    fireEvent.change(screen.getByLabelText('Todo title'), { target: { value: 'Changed title' } })
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Changed note' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Flag' }))
+    await waitFor(() => expect(store.records[0].flagged).toBeFalsy())
+    await act(async () => { fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' })) })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(store.records[0]).toMatchObject({ title: 'Fern survey', note: 'Original', flagged: true }), { timeout: 2500 })
+  })
+
   it('closes the sheet for the delete question and brings it back on Cancel', async () => {
     setup([{ id: 't1', title: 'Fern survey', completed: false } as DataRecord])
     render(<TodoPanel />)
@@ -913,8 +893,6 @@ describe('TodoPanel', () => {
     render(<TodoPanel />)
     await screen.findByText('Fern survey')
     await editFromMenu()
-    // A note opens formatted; the pencil switches it to the plain-text editor.
-    fireEvent.click(screen.getByRole('button', { name: 'Edit notes' }))
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Local unsaved [[Ferns]]' } })
     await act(async () => {
       await store.mock.api.data.dataset('todo.tasks').update({ id: 't1' }, { note: 'External committed body' })
