@@ -51,6 +51,19 @@ export interface TodoListController {
   patchTodo: (id: string, patch: Partial<TodoRecord>, documentRevision?: DocumentRevision) => Promise<boolean>
   /** Delete a todo; ⌘Z restores it. */
   removeTodo: (id: string) => Promise<void>
+  /** The stable callbacks above, bundled for memoised rows. */
+  actions: TodoRowActions
+}
+
+/**
+ * The row-level mutations, one object for the controller's lifetime, so a
+ * memoised row compares it by identity and never re-renders because a sibling changed.
+ */
+export interface TodoRowActions {
+  patchTodo: TodoListController['patchTodo']
+  removeTodo: TodoListController['removeTodo']
+  openDetail: TodoListController['openDetail']
+  setMenuId: TodoListController['setMenuId']
 }
 
 export function useTodoListController(sortField: SortField, sortDir: SortDir, surface: SlotId = 'main_workspace'): TodoListController {
@@ -59,6 +72,8 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
   const [lastCreatedId, setLastCreatedId] = React.useState<string | null>(null)
   const [menuId, setMenuId] = React.useState<string | null>(null)
   const [editingId, setEditingId] = React.useState<string | null>(null)
+  const editingIdRef = React.useRef(editingId)
+  editingIdRef.current = editingId
   const [loading, setLoading] = React.useState(true)
   const [orderNonce, setOrderNonce] = React.useState(0)
   const [creating, setCreating] = React.useState(false)
@@ -215,7 +230,7 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
       displayOrderRef.current = displayOrderRef.current.filter(oid => oid !== id)
       setSharedTodos(getSharedTodos().filter(todo => todo.id !== id))
       setLastCreatedId(current => current === id ? null : current)
-      if (editingId === id) setEditingId(null)
+      if (editingIdRef.current === id) setEditingId(null)
       const rollback = (): void => {
         if (!displayOrderRef.current.includes(id)) displayOrderRef.current.push(id)
         if (!getSharedTodos().some(todo => todo.id === id)) setSharedTodos([...getSharedTodos(), previous])
@@ -228,10 +243,15 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
         setPending(id, false)
       }
     },
-    [editingId, isPending, setPending]
+    [isPending, setPending]
   )
 
-  const controller = {
+  const actions = React.useMemo<TodoRowActions>(
+    () => ({ patchTodo, removeTodo, openDetail, setMenuId }),
+    [patchTodo, removeTodo, openDetail]
+  )
+
+  return React.useMemo<TodoListController>(() => ({
     todos,
     loading,
     ordered,
@@ -246,7 +266,7 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
     creating,
     create,
     patchTodo,
-    removeTodo
-  }
-  return controller
+    removeTodo,
+    actions
+  }), [todos, loading, ordered, lastCreatedId, clearLastCreated, menuId, editingId, openDetail, closeDetail, pendingIds, creating, create, patchTodo, removeTodo, actions])
 }

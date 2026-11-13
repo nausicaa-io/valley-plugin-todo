@@ -261,6 +261,34 @@ export function groupCount(todos: TodoRecord[], name: string | null): number {
     .length
 }
 
+export interface GroupCounts {
+  /** Todos per `groupKey` of their group; an ungrouped todo counts under `groupKey('')`. */
+  byKey: Map<string, number>
+  /** Todos without a group. */
+  ungrouped: number
+}
+
+/**
+ * Every group row's count in one pass, so a list of groups costs one walk over
+ * the todos instead of one per group. `openOnly` gives {@link groupCount}'s numbers.
+ */
+export function groupCounts(todos: readonly TodoRecord[], openOnly = true): GroupCounts {
+  const byKey = new Map<string, number>()
+  let ungrouped = 0
+  for (const todo of todos) {
+    if (openOnly && todo.completed) continue
+    const key = groupKey(todo.group ?? '')
+    byKey.set(key, (byKey.get(key) ?? 0) + 1)
+    if (!todo.group) ungrouped++
+  }
+  return { byKey, ungrouped }
+}
+
+/** One group row's count from {@link groupCounts}; `null` is the ungrouped row. */
+export function countForGroup(counts: GroupCounts, name: string | null): number {
+  return name === null ? counts.ungrouped : counts.byKey.get(groupKey(name)) ?? 0
+}
+
 /**
  * Serialize for plugin settings — a selected list must survive a restart.
  * The group spellings are unchanged from the chip bar they replace, so a realm

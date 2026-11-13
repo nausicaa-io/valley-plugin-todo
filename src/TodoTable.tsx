@@ -2,7 +2,6 @@ import { React, api, registerTodoRow, revealRequestStore } from './runtime'
 import type { CSSProperties, HTMLAttributes, ReactElement } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
-import { renderInlineMarkdown } from './markdown'
 import { allGroups, groupColorFor, type TodoGroup } from './groups'
 import {
   ArrowDown,
@@ -24,7 +23,7 @@ import {
   X
 } from './icons'
 import { TodoMenu, openTodoContextMenu } from './TodoMenu'
-import { useStatusCheck } from './TodoRow'
+import { memoRow, useRowEnv, useStatusCheck, useStructuralValue, useTitleHtml, type RowEnv } from './TodoRow'
 import { LocationField } from './LocationField'
 import { ClockTimeField, InlineCalendar } from './DatePanel'
 import { TagChipsField } from './TagChipsField'
@@ -36,7 +35,7 @@ import { SECTION_LABEL_KEYS, parseQuickAdd, type TodoSectionId } from './section
 import { PRIORITIES, formatDate, formatDueLabel, isoDay } from './sort'
 import { useShowCompleted, useStatusFilter, type PageSort, type PageSortField } from './viewStore'
 import { StatusChoices, visibleSelectedStatuses } from './StatusFilter'
-import type { TodoListController } from './controller'
+import type { TodoListController, TodoRowActions } from './controller'
 import { todoPriorityLabel, todoStatusLabel, uiText } from './localization'
 
 /**
@@ -127,7 +126,7 @@ const TAGS_MAX_WIDTH = 360
 
 function useTagsWidth(tableRef: { current: HTMLTableElement | null }, todos: readonly TodoRecord[]): number {
   const [width, setWidth] = React.useState(COLUMN_MIN_WIDTH.tags)
-  const lists = [...new Set(todos.map((todo) => (todo.tags ?? []).join('\n')).filter(Boolean))]
+  const lists = React.useMemo(() => [...new Set(todos.map((todo) => (todo.tags ?? []).join('\n')).filter(Boolean))], [todos])
   const key = lists.join('\0')
   React.useLayoutEffect(() => {
     const table = tableRef.current
@@ -158,7 +157,11 @@ function normalizePageSize(raw: unknown): number {
 
 function useSetting<T>(key: string, normalize: (raw: unknown) => T): [T, (value: T) => void] {
   const [value, setValue] = React.useState<T>(() => normalize(api.settings.get()[key]))
-  React.useEffect(() => api.settings.subscribe(() => setValue(normalize(api.settings.get()[key]))), [key, normalize])
+  // An unrelated settings write keeps this value's identity, so the rows it feeds stay memoised.
+  React.useEffect(() => api.settings.subscribe(() => {
+    const next = normalize(api.settings.get()[key])
+    setValue((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next))
+  }), [key, normalize])
   const update = React.useCallback((next: T) => {
     setValue(next)
     void api.settings.set(key, next)
@@ -568,38 +571,36 @@ export function notePreview(note: string): string {
   return note.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
 }
 
-function TableRow({ todo, groups, columns, c, selected, onPick }: {
+const TableRow = memoRow(function TableRow({ todo, groups, columns, actions, pending, menuOpen, env, selected, onPick }: {
   todo: TodoRecord
   groups: TodoGroup[]
   columns: TableColumn[]
-  c: TodoListController
+  actions: TodoRowActions
+  /** A write for this todo is in flight. */
+  pending: boolean
+  /** This todo's ⋯ menu is the open one. */
+  menuOpen: boolean
+  env: RowEnv
   selected: boolean
   /** Toggles this row, or with `range` selects from the last picked row to it. */
-  onPick: (range: boolean) => void
+  onPick: (todoId: string, range: boolean) => void
 }): ReactElement {
   const rowRef = React.useRef<HTMLTableRowElement>(null)
   React.useEffect(() => rowRef.current ? registerTodoRow(todo.id, rowRef.current) : undefined, [todo.id])
-  const [titleHtml, setTitleHtml] = React.useState('')
-  React.useEffect(() => {
-    let active = true
-    setTitleHtml('')
-    void renderInlineMarkdown(todo.title).then((html) => { if (active) setTitleHtml(html) }).catch(() => { if (active) setTitleHtml('') })
-    return () => { active = false }
-  }, [todo.title])
+  const titleHtml = useTitleHtml(todo.title)
   const noteLine = notePreview(todo.note)
-  const { check } = useStatusCheck(todo, c)
+  const { check } = useStatusCheck(todo, pending, actions.patchTodo)
 
   const status = effectiveStatus(todo)
-  const pending = c.pendingIds.has(todo.id)
-  const patch = (next: Partial<TodoRecord>): unknown => c.patchTodo(todo.id, next)
-  const today = isoDay(new Date())
-  const dateFormat = api.getState().dateFormat
+  const patch = (next: Partial<TodoRecord>): unknown => actions.patchTodo(todo.id, next)
+  const today = env.today
+  const dateFormat = env.dateFormat
   const dueLabel = todo.dueDate
     ? formatDueLabel(
         todo.dueDate,
         today,
         { today: uiText('todo.due.today'), tomorrow: uiText('todo.due.tomorrow'), yesterday: uiText('todo.due.yesterday') },
-        api.ui.language(),
+        env.language,
         dateFormat
       )
     : ''
@@ -773,10 +774,10 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
       onContextMenu={(event) => openTodoContextMenu(event, {
         todo,
         groupNames: allGroups(groups),
-        setOpenId: c.setMenuId,
-        onEdit: () => c.openDetail(todo.id),
+        setOpenId: actions.setMenuId,
+        onEdit: () => actions.openDetail(todo.id),
         onPatch: patch,
-        onRequestDelete: () => confirmDeleteTodo(todo, c.removeTodo),
+        onRequestDelete: () => confirmDeleteTodo(todo, actions.removeTodo),
         disabled: pending
       })}
       onKeyDown={(event) => {
@@ -788,10 +789,10 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
           ;(next as HTMLElement | null)?.focus()
         } else if (event.key === 'Enter') {
           event.preventDefault()
-          c.openDetail(todo.id)
+          actions.openDetail(todo.id)
         } else if (event.key === ' ') {
           event.preventDefault()
-          onPick(false)
+          onPick(todo.id, false)
         } else if (event.key === 'Escape') {
           event.currentTarget.blur()
         }
@@ -800,13 +801,13 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
         // A click only focuses the row; Cmd/Shift-click selects, a double-click
         // opens the editor. The table never jumps to Calendar.
         if ((event.target as Element).closest(ROW_CONTROLS)) return
-        if (api.ui.hasModKey(event) || event.shiftKey) onPick(event.shiftKey)
+        if (api.ui.hasModKey(event) || event.shiftKey) onPick(todo.id, event.shiftKey)
       }}
       onDoubleClick={(event) => {
         const onTitle = !!(event.target as Element).closest('.todo-table-title-btn')
         if (onTitle && titleTimer.current) { clearTimeout(titleTimer.current); titleTimer.current = null }
         if ((!onTitle && (event.target as Element).closest(ROW_CONTROLS)) || api.ui.hasModKey(event) || event.shiftKey) return
-        c.openDetail(todo.id)
+        actions.openDetail(todo.id)
       }}
     >
       <td className="todo-table-select">{check}</td>
@@ -833,7 +834,7 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
               disabled={pending}
               aria-label={uiText('todo.table.editTitle', { p0: todo.title })}
               onClick={(event) => {
-                if (api.ui.hasModKey(event) || event.shiftKey) { onPick(event.shiftKey); return }
+                if (api.ui.hasModKey(event) || event.shiftKey) { onPick(todo.id, event.shiftKey); return }
                 if (event.detail > 1) return
                 if (titleTimer.current) clearTimeout(titleTimer.current)
                 titleTimer.current = setTimeout(() => {
@@ -855,17 +856,17 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
         <TodoMenu
           todo={todo}
           groupNames={allGroups(groups)}
-          openId={c.menuId}
-          setOpenId={c.setMenuId}
-          onEdit={() => c.openDetail(todo.id)}
+          openId={menuOpen ? todo.id : null}
+          setOpenId={actions.setMenuId}
+          onEdit={() => actions.openDetail(todo.id)}
           onPatch={patch}
-          onRequestDelete={() => confirmDeleteTodo(todo, c.removeTodo)}
+          onRequestDelete={() => confirmDeleteTodo(todo, actions.removeTodo)}
           disabled={pending}
         />
       </td>
     </tr>
   )
-}
+})
 
 /** One task per pasted line, with list markers and checkboxes stripped. */
 export function pastedTaskLines(text: string): string[] {
@@ -1298,13 +1299,19 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
     })
   }
 
-  const pick = (id: string, range: boolean): void => {
-    const to = rows.findIndex((todo) => todo.id === id)
-    const from = range ? rows.findIndex((todo) => todo.id === pickAnchor.current) : -1
-    if (from >= 0) select(rows.slice(Math.min(from, to), Math.max(from, to) + 1).map((todo) => todo.id), true)
-    else select([id], !selection.has(id))
+  // The rows call one stable `pick`, which reads the page and the selection they were drawn with.
+  const pickState = React.useRef({ rows, selection })
+  pickState.current = { rows, selection }
+  const pick = React.useCallback((id: string, range: boolean): void => {
+    const { rows: shown, selection: picked } = pickState.current
+    const to = shown.findIndex((todo) => todo.id === id)
+    const from = range ? shown.findIndex((todo) => todo.id === pickAnchor.current) : -1
+    if (from >= 0) select(shown.slice(Math.min(from, to), Math.max(from, to) + 1).map((todo) => todo.id), true)
+    else select([id], !picked.has(id))
     pickAnchor.current = id
-  }
+  }, [])
+  const env = useRowEnv()
+  const rowGroups = useStructuralValue(groups)
 
   const completeSelected = (): void => {
     for (const todo of selected) void c.patchTodo(todo.id, patchForStatus('completed'))
@@ -1396,11 +1403,14 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
       <TableRow
         key={todo.id}
         todo={todo}
-        groups={groups}
+        groups={rowGroups}
         columns={order}
-        c={c}
+        actions={c.actions}
+        pending={c.pendingIds.has(todo.id)}
+        menuOpen={c.menuId === todo.id}
+        env={env}
         selected={selection.has(todo.id)}
-        onPick={(range) => pick(todo.id, range)}
+        onPick={pick}
       />
     )
   }
