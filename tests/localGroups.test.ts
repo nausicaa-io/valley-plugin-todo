@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergedGroups, normalizeLocalGroups, renameLocalGroup } from '../src/localGroups'
+import { mergedGroups, normalizeLocalGroups, renameLocalGroup } from '../src/model/localGroups'
 
 const shared = [
   { id: 'copper-finch', name: 'Copper Finch', color: 'palette:teal' },

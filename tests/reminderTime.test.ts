@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatReminderTime, parseReminderTime } from '../src/ReminderOffsets'
+import { formatReminderTime, parseReminderTime } from '../src/ui/ReminderOffsets'
 
 describe('reminder time', () => {
   it('accepts hh:mm up to one week and rejects illegal times', () => {

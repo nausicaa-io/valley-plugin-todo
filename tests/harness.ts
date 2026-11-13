@@ -1,5 +1,5 @@
 import { createMockValleyApi as createBaseMock } from '@valley/plugin-testkit'
-import { createTodoDomain } from '../src/domain'
+import { createTodoDomain } from '../src/domain/writer'
 import { startCompletionBackfill } from '../src/backend/backfill'
 export * from '@valley/plugin-testkit'
 

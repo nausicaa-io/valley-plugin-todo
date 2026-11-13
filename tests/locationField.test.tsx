@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { installTodoNotes } from './mockTodoNotes'
-import { LocationField } from '../src/LocationField'
+import { LocationField } from '../src/ui/LocationField'
 
 afterEach(cleanup)
 

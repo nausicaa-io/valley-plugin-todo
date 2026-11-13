@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMockValleyApi } from './harness'
 import { initRuntime } from '../src/runtime'
 import { initLocalization } from '../src/localization'
-import { ClockTimeField, InlineCalendar, parseClockTime } from '../src/DatePanel'
+import { ClockTimeField, InlineCalendar, parseClockTime } from '../src/ui/DatePanel'
 
 afterEach(cleanup)
 

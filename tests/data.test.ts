@@ -9,7 +9,7 @@ import {
   normalizeTodoUrl,
   setTodoStatus,
   updateTodo
-} from '../src/data'
+} from '../src/data/reads'
 import type { TodoRecord, TodoSession } from '../src/types'
 
 const NOW = '2026-06-01T12:00:00.000Z'

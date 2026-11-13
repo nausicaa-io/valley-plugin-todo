@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
-import { SEARCH_PERSIST_DELAY_MS, flushTodoSearch, readTodoVisibleState, resetViewCache, setTodoSearch } from '../src/viewStore'
+import { SEARCH_PERSIST_DELAY_MS, flushTodoSearch, readTodoVisibleState, resetViewCache, setTodoSearch } from '../src/state/viewStore'
 
 let store: TodoNotesMock
 const searchWrites = () => (store.mock.api.settings.set as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter((call) => call[0] === 'pageSearch')

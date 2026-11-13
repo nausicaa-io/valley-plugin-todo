@@ -13,7 +13,7 @@ import {
   patchForStatus,
   statusDef,
   statusMenuOptions
-} from '../src/statuses'
+} from '../src/state/statusStore'
 import { injectStyles } from '../src/styles'
 
 describe('the status vocabulary', () => {

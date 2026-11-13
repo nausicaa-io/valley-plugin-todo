@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { PLUGIN_SURFACE_V1 } from '@valley/plugin-sdk'
 import { createMockValleyApi } from './harness'
 import { initRuntime } from '../src/runtime'
-import { registerTodoSurfaces } from '../src/surfaces'
+import { registerTodoSurfaces } from '../src/ui/surfaces'
 import type { TodoRecord } from '@valley/plugin-sdk/types'
 import { isPaletteRef, paletteRef } from '@valley/plugin-sdk/palette'
 import {
@@ -20,7 +20,7 @@ import {
   smartListDef,
   viewCounts,
   type TodoView
-} from '../src/views'
+} from '../src/model/views'
 
 const TODAY = '2026-08-13'
 

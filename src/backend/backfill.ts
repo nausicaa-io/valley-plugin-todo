@@ -1,5 +1,5 @@
 import type { DatasetRecord, DatasetTransactionOperation, PluginBackendApi } from '@valley/plugin-sdk'
-import { completionHistoryWhere, completionSources, latestCompletion } from '../completionHistory'
+import { completionHistoryWhere, completionSources, latestCompletion } from '../domain/completion'
 import { STATUS_SETTINGS_KEY } from '../model/statusModel'
 import { STATUS_HISTORY_DATASET, TASKS_DATASET } from '../domain/datasets'
 

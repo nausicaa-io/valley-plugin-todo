@@ -2,11 +2,11 @@ import * as React from 'react'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { installTodoNotes } from './mockTodoNotes'
-import { useTodoListController } from '../src/controller'
-import { TodoList } from '../src/TodoList'
-import { PanelDateList } from '../src/PanelDateList'
+import { useTodoListController } from '../src/state/controller'
+import { TodoList } from '../src/ui/TodoList'
+import { PanelDateList } from '../src/ui/PanelDateList'
 import { revealRequestStore } from '../src/runtime'
-import { useVisibleRange, visibleRange } from '../src/visibleRange'
+import { useVisibleRange, visibleRange } from '../src/model/visibleRange'
 
 const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
 afterEach(() => {

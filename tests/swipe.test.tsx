@@ -3,7 +3,7 @@ import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-l
 import { Profiler } from 'react'
 import * as React from 'react'
 import type { TodoRecord } from '@valley/plugin-sdk/types'
-import { SwipeRow, type SwipeRowActions } from '../src/SwipeRow'
+import { SwipeRow, type SwipeRowActions } from '../src/ui/SwipeRow'
 import { initRuntime } from '../src/runtime'
 import { injectStyles } from '../src/styles'
 import { createMockValleyApi } from './harness'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rescheduleActions, thisWeekend } from '../src/reschedule'
+import { rescheduleActions, thisWeekend } from '../src/model/reschedule'
 
 // 2026-08-13 is a Thursday, which makes every weekday case reachable by offset.
 const THU = '2026-08-13'

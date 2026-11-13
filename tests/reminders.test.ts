@@ -1,4 +1,4 @@
-import { reminderTimes } from '../src/reminderOwner'
+import { reminderTimes } from '../src/backend/reminders'
 import { expect, it } from 'vitest'
 
 it('supports distinct minute/hour offsets and requires an explicit time for date-only tasks', () => {

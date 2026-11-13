@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createMockValleyApi } from '@valley/plugin-testkit'
 import type { ValleyPluginManifest } from '@valley/plugin-sdk/types'
-import { createTodoDomain } from '../src/domain'
+import { createTodoDomain } from '../src/domain/writer'
 import type { TodoRecord } from '../src/types'
 import config from '../config.json'
 

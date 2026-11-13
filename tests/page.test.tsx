@@ -3,17 +3,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import * as React from 'react'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes, TodoPropertiesHost, type TodoNotesMock } from './mockTodoNotes'
-import { Page } from '../src/Page'
-import { TodoPanel } from '../src/TodoPanel'
-import { isoDay } from '../src/sort'
-import { serializeView } from '../src/views'
+import { Page } from '../src/ui/Page'
+import { TodoPanel } from '../src/ui/TodoPanel'
+import { isoDay } from '../src/model/sort'
+import { serializeView } from '../src/model/views'
 import {
   applyTodoVisibleState,
   readTodoVisibleState,
   setView
-} from '../src/viewStore'
+} from '../src/state/viewStore'
 import { PLUGIN_SURFACE_V1, type MainWorkspaceNavigationController } from '@valley/plugin-sdk'
-import { registerTodoCommands } from '../src/commands'
+import { registerTodoCommands } from '../src/commands/commands'
 import { revealRequestStore } from '../src/runtime'
 
 let store: TodoNotesMock

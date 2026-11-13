@@ -3,10 +3,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import * as React from 'react'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
-import { TodoPanel } from '../src/TodoPanel'
-import { Page } from '../src/Page'
+import { TodoPanel } from '../src/ui/TodoPanel'
+import { Page } from '../src/ui/Page'
 import { initLocalization } from '../src/localization'
-import { countForGroup, groupCount, groupCounts } from '../src/views'
+import { countForGroup, groupCount, groupCounts } from '../src/model/views'
 
 let store: TodoNotesMock
 

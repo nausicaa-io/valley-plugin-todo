@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeTodoRecord, taskRow } from '../src/records'
-import { isCustomStatusId, normalizeCustomStatuses, normalizeStatusSettings, parseStoredStatus, patchForStatus } from '../src/statuses'
+import { normalizeTodoRecord, taskRow } from '../src/domain/records'
+import { isCustomStatusId, normalizeCustomStatuses, normalizeStatusSettings, parseStoredStatus, patchForStatus } from '../src/state/statusStore'
 
 describe('custom statuses', () => {
   it('keeps well-formed custom statuses and drops the rest', () => {

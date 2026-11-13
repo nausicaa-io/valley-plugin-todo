@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import config from '../config.json'
-import { normalizeStatusSettings } from '../src/statuses'
+import { normalizeStatusSettings } from '../src/state/statusStore'
 
 describe('statuses settings schema', () => {
   it('accepts every key the plugin saves, so the host never rejects a save', () => {

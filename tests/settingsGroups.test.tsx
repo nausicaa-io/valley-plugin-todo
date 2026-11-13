@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMockValleyApi } from './harness'
 import { initRuntime } from '../src/runtime'
 import { initLocalization } from '../src/localization'
-import { Settings } from '../src/Settings'
+import { Settings } from '../src/ui/Settings'
 
 const todoList = vi.hoisted(() => ({ current: null as Array<Record<string, unknown>> | null }))
-vi.mock('../src/data', async (original) => {
-  const actual = await original<typeof import('../src/data')>()
+vi.mock('../src/data/reads', async (original) => {
+  const actual = await original<typeof import('../src/data/reads')>()
   return { ...actual, loadTodoList: vi.fn((...args: Parameters<typeof actual.loadTodoList>) => todoList.current ? Promise.resolve(todoList.current as never) : actual.loadTodoList(...args)) }
 })
 

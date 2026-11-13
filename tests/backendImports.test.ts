@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 
 const ROOT = resolve(__dirname, '..')
-const UI_MODULES = ['src/runtime.ts', 'src/localization.ts', 'src/statuses.ts']
+const UI_MODULES = ['src/runtime.ts', 'src/localization.ts', 'src/state/statusStore.ts']
 
 /** Every package module the backend bundle loads, following relative imports from its entry point. */
 function backendModules(): string[] {
@@ -31,5 +31,5 @@ function backendModules(): string[] {
 it('keeps the backend bundle free of the UI runtime, localization and components', () => {
   const modules = backendModules()
   expect(modules).toContain('src/backend/index.ts')
-  expect(modules.filter((file) => file.endsWith('.tsx') || UI_MODULES.includes(file) || file.startsWith('locales/'))).toEqual([])
+  expect(modules.filter((file) => file.endsWith('.tsx') || UI_MODULES.includes(file) || file.startsWith('locales/') || /^src\/(ui|state|data|integrations|commands)\//.test(file))).toEqual([])
 })

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createMockValleyApi, type MockValleyApi } from './harness'
 import type { DataRecord, TodoRecord } from '@valley/plugin-sdk/types'
 import { initRuntime } from '../src/runtime'
-import { appendTodo, updateTodo, deleteTodo, loadTodo, loadTodoList } from '../src/data'
+import { appendTodo, updateTodo, deleteTodo, loadTodo, loadTodoList } from '../src/data/reads'
 import config from '../config.json'
 
 function makeTodo(overrides: Partial<TodoRecord> = {}): TodoRecord {

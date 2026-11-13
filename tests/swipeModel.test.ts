@@ -7,7 +7,7 @@ import {
   trackOffset,
   trayLayout,
   velocityFrom
-} from '../src/swipeModel'
+} from '../src/model/swipeModel'
 
 describe('rubberband', () => {
   it('follows the finger at the constant and never reaches the dimension', () => {

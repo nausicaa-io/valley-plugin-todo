@@ -2,7 +2,7 @@ import Ajv2020 from 'ajv/dist/2020'
 import { describe, expect, it } from 'vitest'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes } from './mockTodoNotes'
-import { registerTodoCommands } from '../src/commands'
+import { registerTodoCommands } from '../src/commands/commands'
 
 function validatePublishedResults(mock: { api: import('@valley/plugin-sdk').ValleyPluginApi }): void {
   const original = mock.api.commands.register

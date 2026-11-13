@@ -1,6 +1,6 @@
 import type { DatasetRecord, DatasetWhere, PluginBackendApi } from '@valley/plugin-sdk'
 import type { DataRecord } from '@valley/plugin-sdk/types'
-import { normalizeTodoRecord } from '../records'
+import { normalizeTodoRecord } from '../domain/records'
 import type { TodoRecord } from '../types'
 import { queryAll, TASKS_DATASET } from '../domain/datasets'
 

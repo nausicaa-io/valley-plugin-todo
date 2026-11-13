@@ -4,10 +4,10 @@ import * as React from 'react'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { PLUGIN_SURFACE_V1, type UiMenuItem } from '@valley/plugin-sdk'
 import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
-import { Page } from '../src/Page'
-import { TodoPanel } from '../src/TodoPanel'
-import { getView, setView } from '../src/viewStore'
-import { startSharedTabTitle, viewTabInstance } from '../src/tabs'
+import { Page } from '../src/ui/Page'
+import { TodoPanel } from '../src/ui/TodoPanel'
+import { getView, setView } from '../src/state/viewStore'
+import { startSharedTabTitle, viewTabInstance } from '../src/state/tabs'
 
 let store: TodoNotesMock
 

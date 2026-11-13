@@ -1,11 +1,11 @@
 import * as React from 'react'
 import { METADATA_PANEL_SEGMENT_V1, PLUGIN_SURFACE_V1 } from '@valley/plugin-sdk'
-import { registerTodoSurfaces } from '../src/surfaces'
+import { registerTodoSurfaces } from '../src/ui/surfaces'
 import type { ValleyPluginManifest, DataRecord } from '@valley/plugin-sdk/types'
 import type { GroupUsage } from '@valley/plugin-sdk/groups'
 import { createMockValleyApi, type MockValleyApi } from './harness'
 import { initRuntime } from '../src/runtime'
-import { resetViewCache } from '../src/viewStore'
+import { resetViewCache } from '../src/state/viewStore'
 import CONFIG from '../config.json'
 
 export interface TodoNotesMock {

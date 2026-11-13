@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createMockValleyApi } from './harness'
 import { initRuntime } from '../src/runtime'
-import { renderInlineMarkdown } from '../src/markdown'
+import { renderInlineMarkdown } from '../src/ui/markdown'
 import CONFIG from '../config.json'
 
 describe('shared To-Do Markdown documents', () => {

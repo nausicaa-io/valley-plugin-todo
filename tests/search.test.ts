@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { SEARCH_RESULT_ACTION_V1 } from '@valley/plugin-sdk'
 import { createMockValleyApi } from './harness'
-import { matchesSearch, parseSearch } from '../src/search'
-import { registerSearchCard } from '../src/searchCard'
+import { matchesSearch, parseSearch } from '../src/model/search'
+import { registerSearchCard } from '../src/ui/searchCard'
 
 describe('parseSearch', () => {
   it('extracts #tags and leftover text', () => {

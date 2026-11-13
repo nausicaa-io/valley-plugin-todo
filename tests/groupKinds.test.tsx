@@ -7,11 +7,11 @@ import { METADATA_PANEL_SEGMENT_V1 } from '@valley/plugin-sdk'
 import config from '../config.json'
 import { installTodoNotes } from './mockTodoNotes'
 import { initLocalization } from '../src/localization'
-import { getAllGroups, getGroupKinds, getGroups, startGroupUsageReporting } from '../src/groupStore'
-import { groupColorFor } from '../src/groups'
-import { editTodoValues } from '../src/commands'
-import { Settings } from '../src/Settings'
-import { TodoPanel } from '../src/TodoPanel'
+import { getAllGroups, getGroupKinds, getGroups, startGroupUsageReporting } from '../src/state/groupStore'
+import { groupColorFor } from '../src/model/groups'
+import { editTodoValues } from '../src/commands/commands'
+import { Settings } from '../src/ui/Settings'
+import { TodoPanel } from '../src/ui/TodoPanel'
 
 const SHARED = [{ id: 'group_fungi', name: 'Fungi', color: '#3b82f6' }]
 const LOCAL = [{ id: 'local-0f9e8d7c6b5a', name: 'Errands', color: '#eab308' }]

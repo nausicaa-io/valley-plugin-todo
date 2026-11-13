@@ -1,0 +1,80 @@
+import type { ReactElement } from 'react'
+import { isoWeek, parseLocalDate, weekStartIndex } from '@valley/plugin-sdk/dateGrid'
+import type { TodoRecord } from '../types'
+import { React, api } from '../runtime'
+import type { TodoListController } from '../state/controller'
+import type { TodoGroup } from '../model/groups'
+import { TodoList } from './TodoList'
+import { TodoSections } from './TodoSections'
+import { addDays, formatDayHeader } from '../model/sort'
+import {
+  completionTimestamp,
+  localDayOfTimestamp,
+  panelDateSections,
+  todayIso,
+  type DateBreakdown
+} from '../model/sections'
+import { uiText } from '../localization'
+import { useHostState } from '../state/hooks'
+
+function sectionLabel(kind: 'none' | DateBreakdown, key: string, today: string, shortDateFormat: string, locale: string): string {
+  if (kind === 'none') return uiText('todo.breakdown.noDate')
+  if (kind === 'monthly') {
+    return parseLocalDate(`${key}-01`).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+  }
+  if (kind === 'weekly') {
+    const start = parseLocalDate(key)
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6)
+    return uiText('todo.breakdown.weekLabel', {
+      count: isoWeek(start),
+      p0: `${formatDayHeader(key, locale, shortDateFormat)} – ${formatDayHeader(todayIso(end), locale, shortDateFormat)}`
+    })
+  }
+  if (key === addDays(today, -1)) return uiText('todo.due.yesterday')
+  if (key === today) return uiText('todo.due.today')
+  if (key === addDays(today, 1)) return uiText('todo.due.tomorrow')
+  return formatDayHeader(key, locale, shortDateFormat)
+}
+
+export function PanelDateList({
+  todos,
+  groups,
+  compact,
+  controller,
+  mode,
+  weekStart,
+  timeline = false
+}: {
+  todos: TodoRecord[]
+  groups: TodoGroup[]
+  compact: boolean
+  controller: TodoListController
+  mode: DateBreakdown
+  weekStart: string
+  timeline?: boolean
+}): ReactElement {
+  const today = todayIso()
+  const { shortDateFormat } = useHostState('shortDateFormat')
+  const locale = api.ui.language()
+  const sections = React.useMemo(
+    () => {
+      if (!timeline) return panelDateSections(todos, mode, weekStartIndex(weekStart))
+      const stamps = new Map(todos.map((todo) => [todo, completionTimestamp(todo)]))
+      const ordered = [...todos].sort((a, b) => stamps.get(b)!.localeCompare(stamps.get(a)!))
+      return panelDateSections(ordered, mode, weekStartIndex(weekStart), {
+        dateOf: (todo) => localDayOfTimestamp(stamps.get(todo)!)
+      })
+    },
+    [mode, timeline, todos, weekStart]
+  )
+  return (
+    <TodoSections className="todo-panel-date-sections" sections={sections} c={controller} compact={compact}>
+      {(section) => (
+        <section className="todo-panel-date-section" key={`${section.kind}:${section.key}`}>
+          <div className="todo-panel-date-head">{sectionLabel(section.kind, section.key, today, shortDateFormat, locale)}</div>
+          <TodoList todos={section.todos} groups={groups} compact={compact} c={controller} />
+        </section>
+      )}
+    </TodoSections>
+  )
+}

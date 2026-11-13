@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { CALENDAR_ITEM_SOURCE_V2, type CalendarSourceItem, type CalendarItemSourcePage, type DatasetQuery, type DatasetRecord } from '@valley/plugin-sdk'
 import { createMockValleyApi } from './harness'
 import todoPlugin from '../src/index'
-import { registerCalendarSource } from '../src/calendarSource'
+import { registerCalendarSource } from '../src/integrations/calendarSource'
 import { initRuntime, revealRequestStore as todoRevealRequestStore } from '../src/runtime'
-import { getView } from '../src/viewStore'
+import { getView } from '../src/state/viewStore'
 import config from '../config.json'
 const todoManifest = { id: 'todo', indexState: 'scoped' as const, datasets: config.datasets as unknown as ValleyPluginManifest['datasets'], noteDocuments: config.noteDocuments }
 function todoDatasets(records: DatasetRecord[]): Record<string, DatasetRecord[]> {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { installTodoNotes } from './mockTodoNotes'
-import { registerTodoCommands } from '../src/commands'
+import { registerTodoCommands } from '../src/commands/commands'
 
 const ARGV_CASES: { args: string[]; flags: Record<string, string | boolean> }[] = [
   { args: [], flags: {} },

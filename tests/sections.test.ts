@@ -6,7 +6,7 @@ import {
   completionTimestamp,
   panelDateSections,
   parseQuickAdd
-} from '../src/sections'
+} from '../src/model/sections'
 
 const TODAY = '2026-06-13'
 

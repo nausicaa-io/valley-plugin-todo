@@ -8,11 +8,11 @@ import {
   normalizeTodoGroups,
   reorderGroups,
   type TodoGroup
-} from '../src/groups'
+} from '../src/model/groups'
 import { PALETTE_AUTO_ASSIGN, isPaletteRef, paletteRef } from '@valley/plugin-sdk/palette'
 import { createMockValleyApi } from './harness'
 import { initRuntime } from '../src/runtime'
-import { registerTodoCommands } from '../src/commands'
+import { registerTodoCommands } from '../src/commands/commands'
 import CONFIG from '../config.json'
 
 describe('group names', () => {
