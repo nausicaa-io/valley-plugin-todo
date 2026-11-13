@@ -52,7 +52,8 @@ describe('write and read cost (todo-optimize; before/after in Work/lanes/todo-op
     io.reset()
     expect((await mock.api.backend.call<{ ok: boolean }>('records.update', { id: 'heavy', record: { ...committed, ...patchForStatus(null), updatedAt: new Date().toISOString() }, expectedUpdatedAt: committed.updatedAt })).ok).toBe(true)
     report('toggle back via records.update alone', io)
-    expect(ui.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 12, 'documents.read': 1, 'documents.update': 1 })
+    // The undo snapshot is the `previous` record update returns: the UI reads nothing itself.
+    expect(ui.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 6, 'documents.read': 1, 'documents.update': 1 })
     expect(ui.rowsWritten).toEqual({ 'status_history.insert': 1, 'task_tags.delete': 2, 'task_tags.insert': 2, 'tasks.update': 2 })
     expect(io.counts.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 6, 'documents.read': 1, 'documents.update': 1 })
     expect(io.totals()).toEqual({ calls: 9, rowsRead: 54, rowsWritten: 7 })
@@ -64,8 +65,9 @@ describe('write and read cost (todo-optimize; before/after in Work/lanes/todo-op
     expect(await loadTodoList()).toHaveLength(2000)
     report('cold loadTodoList at 2,000 tasks', io)
     // The completion time comes from the task row: no status-history aggregates or detail pages.
-    expect(io.counts.calls).toEqual({ 'rpc.records.completionReady': 1, 'dataset.query': 6 })
-    expect(io.totals()).toEqual({ calls: 7, rowsRead: 3333, rowsWritten: 0 })
+    // One host snapshot per page round (tasks and tags have two pages at 2,000 tasks).
+    expect(io.counts.calls).toEqual({ 'rpc.records.completionReady': 1, 'data.snapshot': 2 })
+    expect(io.totals()).toEqual({ calls: 3, rowsRead: 3333, rowsWritten: 0 })
   }, 60_000)
 
   it('the one-time completedAt backfill of 2,000 tasks (500 with a completion)', async () => {

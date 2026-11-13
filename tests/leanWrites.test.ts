@@ -74,6 +74,21 @@ describe('lean task writes (todo-optimize WP1)', () => {
     expect(stored()).toEqual(rewritten(record))
   })
 
+  it('keeps completedAt on the task row in the same update, so the history is never read for it', async () => {
+    const { mock, domain, operations, lastRelationWrites } = setup()
+    const taskUpdate = () => (operations.at(-1) ?? []).find((operation) => operation.dataset === 'todo.tasks')!
+    const row = () => mock.datasets.get('todo.tasks')!.find((task) => task.id === 'heavy')!
+    const earlier = mock.datasets.get('todo.status_history')!.filter((entry) => entry.to === 'completed').at(-1)!.changedAt
+    await domain.patch('heavy', { title: 'Renamed only' })
+    expect(lastRelationWrites()).toEqual([])
+    expect(taskUpdate().values).toMatchObject({ completedAt: earlier })
+    await domain.patch('heavy', patchForStatus('completed'))
+    const appended = lastRelationWrites()[0].values as DatasetRecord
+    expect(taskUpdate().values).toMatchObject({ completedAt: appended.changedAt })
+    await domain.patch('heavy', patchForStatus(null))
+    expect(row().completedAt).toBe(appended.changedAt)
+  })
+
   it('writes only the changed positions of links, attachments and sessions and stores what a full rewrite stores', async () => {
     const { domain, lastRelationWrites, stored } = setup()
     let record = await domain.patch('heavy', { urls: ['https://example.com/a', 'https://example.com/c'] })

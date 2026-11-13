@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createMockValleyApi, type MockValleyApi } from './harness'
 import type { DataRecord, TodoRecord } from '@valley/plugin-sdk/types'
 import { initRuntime } from '../src/runtime'
-import { appendTodo, updateTodo, deleteTodo } from '../src/data'
+import { appendTodo, updateTodo, deleteTodo, loadTodo, loadTodoList } from '../src/data'
 import config from '../config.json'
 
 function makeTodo(overrides: Partial<TodoRecord> = {}): TodoRecord {
@@ -57,6 +57,27 @@ describe('undoable todo records', () => {
 
     expect((await actions[0].redo!()).ok).toBe(true)
     expect(todoRecords()[0].title).toBe('Renamed task')
+  })
+
+  it('update of a list record → undo restores what the owner replaced, sessions and links included, without a UI pre-read', async () => {
+    const session = { startedAt: '2026-06-01T08:00:00.000Z', endedAt: '2026-06-01T08:25:00.000Z', activeMinutes: 25, pauseMinutes: 5 }
+    await appendTodo(makeTodo({ urls: ['https://example.com/plan'], history: [session], actualMinutes: 25 }))
+    todoMock.undoActions.length = 0
+    const before = await loadTodo('todo_1')
+    const [listed] = await loadTodoList()
+    const reads: string[] = []
+    const dataset = todoMock.api.data.dataset
+    todoMock.api.data.dataset = ((id: string) => { const handle = dataset(id); return { ...handle, query: (query) => { reads.push(id); return handle.query(query) } } }) as typeof dataset
+    expect(await updateTodo('todo_1', { ...listed, title: 'Renamed task', urls: [] })).toBe(true)
+    expect(reads.filter((id) => id === 'todo.focus_sessions')).toHaveLength(1)
+    todoMock.api.data.dataset = dataset
+    expect(await loadTodo('todo_1')).toMatchObject({ title: 'Renamed task', history: [session] })
+    expect((await todoMock.undoActions[0].undo()).ok).toBe(true)
+    const restored = await loadTodo('todo_1')
+    expect({ ...restored, updatedAt: undefined }).toEqual({ ...before, updatedAt: undefined })
+    expect((await todoMock.undoActions[0].redo!()).ok).toBe(true)
+    expect(await loadTodo('todo_1')).toMatchObject({ title: 'Renamed task', history: [session] })
+    expect((await loadTodo('todo_1'))?.urls).toBeUndefined()
   })
 
   it('delete → undo re-appends the captured record', async () => {
