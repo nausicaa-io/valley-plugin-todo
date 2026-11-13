@@ -57,7 +57,7 @@
     {
       "id": "tasks",
       "store": "durable",
-      "version": 3,
+      "version": 4,
       "title": "Tasks",
       "primaryKey": [
         "id"
@@ -162,6 +162,10 @@
         "reminderTime": {
           "type": "text",
           "nullable": true
+        },
+        "completedAt": {
+          "type": "datetime",
+          "nullable": true
         }
       },
       "indexes": [
@@ -176,6 +180,13 @@
           "id": "file_path",
           "columns": [
             "filePath"
+          ]
+        },
+        {
+          "id": "reminder",
+          "columns": [
+            "completed",
+            "remindAt"
           ]
         }
       ],
@@ -3491,6 +3502,34 @@
           "definition": {
             "type": "text",
             "nullable": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "completed-at-v4",
+      "store": "durable",
+      "fromVersion": 3,
+      "toVersion": 4,
+      "steps": [
+        {
+          "operation": "add-column",
+          "dataset": "tasks",
+          "column": "completedAt",
+          "definition": {
+            "type": "datetime",
+            "nullable": true
+          }
+        },
+        {
+          "operation": "create-index",
+          "dataset": "tasks",
+          "index": {
+            "id": "reminder",
+            "columns": [
+              "completed",
+              "remindAt"
+            ]
           }
         }
       ]

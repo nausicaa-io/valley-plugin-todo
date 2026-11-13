@@ -1,10 +1,44 @@
 import type { ValleyPluginApi, DatasetRecord } from '@valley/plugin-sdk'
 import type { TodoRecord } from './types'
-import { allStatuses } from './statuses'
+import { allStatuses, normalizeCustomStatuses, STATUSES } from './statuses'
 
 export interface TodoListRecord extends TodoRecord {
   historyLoaded: false
   completionSummary: { changedAt: string } | null
+}
+
+const COMPLETION_TARGETS = ['completed', 'canceled']
+
+/** The statuses a completion may come from: what `allStatuses()` returns for these saved status settings. */
+export function completionSources(statusSettings: unknown): string[] {
+  const custom = statusSettings && typeof statusSettings === 'object' ? (statusSettings as { custom?: unknown }).custom : undefined
+  return [...STATUSES, ...normalizeCustomStatuses(custom).map((status) => status.id)]
+}
+
+/** The host filter for status-history rows that may mark a completion. */
+export function completionHistoryWhere(sources: readonly string[]) {
+  return { or: COMPLETION_TARGETS.map((to) => ({ to, from: { in: sources.filter((status) => status !== to) } })) }
+}
+
+/**
+ * The `completedAt` of a task: the time of its latest transition into Completed
+ * or Canceled from another known status, the rule `readCompletionSummaries`
+ * applies to the stored rows (a row without a time is skipped).
+ */
+export function latestCompletion(rows: Iterable<{ position?: unknown; from?: unknown; to?: unknown; changedAt?: unknown }>, sources: readonly string[]): string | null {
+  let best: { position: number; changedAt: string } | null = null
+  for (const row of rows) {
+    const to = row.to, from = row.from, position = Number(row.position)
+    if (typeof to !== 'string' || !COMPLETION_TARGETS.includes(to) || typeof from !== 'string' || from === to || !sources.includes(from)) continue
+    if (typeof row.changedAt !== 'string' || !row.changedAt || !Number.isFinite(position)) continue
+    if (!best || position > best.position) best = { position, changedAt: row.changedAt }
+  }
+  return best?.changedAt ?? null
+}
+
+/** {@link latestCompletion} of a record's status history, its positions counted from 0 as stored. */
+export function recordCompletion(history: TodoRecord['statusHistory'], sources: readonly string[]): string | null {
+  return latestCompletion((history ?? []).map((entry, position) => ({ ...entry, position })), sources)
 }
 
 export async function readCompletionSummaries(

@@ -25,7 +25,7 @@ function deferred() {
 afterEach(cleanup)
 
 describe('ordinary completion projections', () => {
-  it.each([999, 1000, 1001])('keeps all %i tasks while returning at most one completion row per task', async (count) => {
+  it.each([999, 1000, 1001])('keeps all %i tasks and reads their completion from the task rows, not the history', async (count) => {
     const { mock } = installTodoNotes(Array.from({ length: count }, (_, i) => task(`t${i}`, { statusHistory: [transition(), transition('2026-05-01T12:00:00.000Z')] })))
     const dataset = mock.api.data.dataset
     const returned: Record<string, number> = {}
@@ -49,10 +49,10 @@ describe('ordinary completion projections', () => {
     expect(consumers[0]).toHaveLength(count)
     expect(new Set(consumers[0].map((record) => record.id)).size).toBe(count)
     expect(consumers[0].every((record) => !record.history && !record.statusHistory && record.historyLoaded === false && completionTimestamp(record) === '2026-05-01T12:00:00.000Z')).toBe(true)
-    expect(returned['todo.status_history']).toBe(count)
+    expect(returned['todo.status_history']).toBeUndefined()
     expect(returned['todo.focus_sessions']).toBeUndefined()
     expect(taskReads).toHaveLength(count > 1000 ? 2 : 1)
-    expect(aggregates).toHaveLength(Math.ceil(count / 20))
+    expect(aggregates).toHaveLength(0)
   })
 
   it('matches normalized full-history ordering, including reopened tasks, invalid transitions and fallback dates', async () => {
@@ -80,26 +80,28 @@ describe('ordinary completion projections', () => {
     expect(summaries.find((record) => record.id === 'order')?.completionSummary?.changedAt).toBe('2026-05-01T00:00:00.000Z')
   })
 
-  it('retries an aggregate/detail revision race once for all waiting consumers', async () => {
+  it('retries a task-row revision race once for all waiting consumers', async () => {
     const { mock } = installTodoNotes([task('a', { statusHistory: [transition()] })])
     const dataset = mock.api.data.dataset
     const held = deferred()
-    let aggregates = 0
+    let reads = 0
     mock.api.data.dataset = ((id) => {
       const handle = dataset(id)
-      return { ...handle, aggregate: async (request) => {
-        const result = await handle.aggregate(request)
-        if (++aggregates === 1) await held.promise
+      return { ...handle, query: async (query) => {
+        const result = await handle.query(query)
+        if (id === 'todo.tasks' && !query?.where && ++reads === 1) await held.promise
         return result
       } }
     }) as typeof dataset
     const consumers = Array.from({ length: 20 }, () => loadTodoList())
-    await vi.waitFor(() => expect(aggregates).toBe(1))
-    await dataset('todo.status_history').insert({ taskId: 'a', position: 1, ...transition('2026-06-04T00:00:00.000Z') })
+    await vi.waitFor(() => expect(reads).toBe(1))
+    expect(await updateTodo('a', { ...(await loadTodo('a'))!, status: 'canceled', completed: true })).toBe(true)
     held.resolve()
     const results = await Promise.all(consumers)
-    expect(aggregates).toBe(2)
-    expect(results.every((records) => records === results[0] && completionTimestamp(records[0]) === '2026-06-04T00:00:00.000Z')).toBe(true)
+    // The first read is retried; the task the write named is read again on its own.
+    expect(reads).toBe(1)
+    expect(results.every((records) => records === results[0] && completionTimestamp(records[0]) === (mock.datasets.get('todo.tasks')![0].completedAt as string))).toBe(true)
+    expect(completionTimestamp(results[0][0])).not.toBe(NOW)
   })
 
   it('preserves omitted sessions through list edits, undo and redo while allowing explicit history clearing', async () => {
@@ -205,7 +207,7 @@ describe('selected history lifetime', () => {
     expect(queries).toHaveLength(count > 1000 ? 2 : 1)
   })
 
-  it('rejects delayed aggregate results after A→B→A without querying another page or publishing', async () => {
+  it('rejects a delayed list read after A→B→A without querying another page or publishing', async () => {
     const a = installTodoNotes([task('a', { statusHistory: [transition()] })]).mock
     const dataset = a.api.data.dataset
     const held = deferred()
@@ -213,12 +215,13 @@ describe('selected history lifetime', () => {
     const detail = vi.fn()
     a.api.data.dataset = ((id) => {
       const handle = dataset(id)
-      return { ...handle, aggregate: async (request) => {
+      return { ...handle, query: async (query) => {
+        if (id !== 'todo.tasks') { if (id === 'todo.status_history') detail(); return handle.query(query) }
         entered = true
-        const result = await handle.aggregate(request)
+        const result = await handle.query(query)
         await held.promise
         return result
-      }, query: (query) => { if (id === 'todo.status_history') detail(); return handle.query(query) } }
+      } }
     }) as typeof dataset
     const outcome = loadTodoList().then(() => 'published', () => 'revoked')
     await vi.waitFor(() => expect(entered).toBe(true))

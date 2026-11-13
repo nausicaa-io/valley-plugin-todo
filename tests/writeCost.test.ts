@@ -7,6 +7,7 @@ import { countIo } from './ioCost'
 import { loadTodoList, updateTodo } from '../src/data'
 import { readReminderCandidates } from '../src/backend/reminderQuery'
 import { createTodoDomain } from '../src/domain'
+import { backfillCompletedAt } from '../src/backend/backfill'
 import { startReminderOwner } from '../src/reminderOwner'
 import { patchForStatus } from '../src/statuses'
 import type { TodoRecord, TodoSession, TodoStatusChange } from '../src/types'
@@ -52,7 +53,8 @@ describe('write and read cost (todo-optimize; before/after in Work/lanes/todo-op
     io.reset()
     expect((await mock.api.backend.call<{ ok: boolean }>('records.update', { id: 'heavy', record: { ...committed, ...patchForStatus(null), updatedAt: new Date().toISOString() }, expectedUpdatedAt: committed.updatedAt })).ok).toBe(true)
     report('toggle back via records.update alone', io)
-    expect(ui.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 12, 'documents.read': 1, 'documents.update': 1 })
+    // The undo snapshot is the `previous` record update returns: the UI reads nothing itself.
+    expect(ui.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 6, 'documents.read': 1, 'documents.update': 1 })
     expect(ui.rowsWritten).toEqual({ 'status_history.insert': 1, 'task_tags.delete': 2, 'task_tags.insert': 2, 'tasks.update': 2 })
     expect(io.counts.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 6, 'documents.read': 1, 'documents.update': 1 })
     expect(io.totals()).toEqual({ calls: 9, rowsRead: 54, rowsWritten: 7 })
@@ -63,9 +65,23 @@ describe('write and read cost (todo-optimize; before/after in Work/lanes/todo-op
     const io = countIo(mock)
     expect(await loadTodoList()).toHaveLength(2000)
     report('cold loadTodoList at 2,000 tasks', io)
-    expect(io.totals().calls).toBeLessThanOrEqual(206)
-    expect(io.totals().rowsRead).toBeLessThanOrEqual(3833)
-    expect(io.totals().rowsWritten).toBe(0)
+    // The completion time comes from the task row: no status-history aggregates or detail pages.
+    // One host snapshot per page round (tasks and tags have two pages at 2,000 tasks).
+    expect(io.counts.calls).toEqual({ 'rpc.records.completionReady': 1, 'data.snapshot': 2 })
+    expect(io.totals()).toEqual({ calls: 3, rowsRead: 3333, rowsWritten: 0 })
+  }, 60_000)
+
+  it('the one-time completedAt backfill of 2,000 tasks (500 with a completion)', async () => {
+    const { mock } = installTodoNotes(seed(2000))
+    const io = countIo(mock)
+    const domain = createTodoDomain(mock.api)
+    expect(await backfillCompletedAt(mock.api, domain.exclusive)).toEqual({ updated: 500, skipped: false })
+    report('completedAt backfill at 2,000 tasks', io)
+    expect(io.counts.calls).toEqual({ 'dataset.query': 42, 'data.transaction': 20 })
+    expect(io.counts.rowsWritten).toEqual({ 'tasks.update': 500 })
+    io.reset()
+    expect(await backfillCompletedAt(mock.api, domain.exclusive)).toEqual({ updated: 0, skipped: true })
+    expect(io.totals()).toEqual({ calls: 0, rowsRead: 0, rowsWritten: 0 })
   }, 60_000)
 
   it('one settings change with 2,000 tasks and the backend reminder owner running', async () => {

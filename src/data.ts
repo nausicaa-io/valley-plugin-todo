@@ -1,6 +1,6 @@
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import type { DatasetRecord, DatasetWhere, NoteInputProps } from '@valley/plugin-sdk'
-import { normalizeGroups } from '@valley/plugin-sdk/groups'
+import { canonicalGroupName, normalizeGroups } from '@valley/plugin-sdk/groups'
 import { React, api, captureTodoScope, type TodoRuntimeScope } from './runtime'
 import { isTodoListRecord, readCompletionSummaries, type TodoListRecord } from './completionHistory'
 import { uiText } from './localization'
@@ -17,12 +17,21 @@ const SESSIONS_DATASET = 'todo.focus_sessions'
 const STATUS_HISTORY_DATASET = 'todo.status_history'
 const CALENDAR_DATASETS = [TASKS_DATASET, TAGS_DATASET, LINKS_DATASET, ATTACHMENTS_DATASET]
 const ALL_DATASETS = [...CALENDAR_DATASETS, SESSIONS_DATASET, STATUS_HISTORY_DATASET]
-const LIST_DATASETS = [...CALENDAR_DATASETS, STATUS_HISTORY_DATASET]
+// The list reads its completion time from the task row; every status-history write updates that row in the same transaction.
+const LIST_DATASETS = CALENDAR_DATASETS
 
+/** One call per microtask however many of the datasets one write touched; none after the caller unsubscribes. */
 function subscribeDatasets(datasets: string[], listener: () => void): () => void {
   const scope = captureTodoScope()
-  const disposers = datasets.map((dataset) => scope.api.data.dataset(dataset).subscribe(listener))
-  const dispose = (): void => disposers.forEach((off) => off())
+  let live = true
+  let queued = false
+  const notify = (): void => {
+    if (queued) return
+    queued = true
+    queueMicrotask(() => { queued = false; if (live) listener() })
+  }
+  const disposers = datasets.map((dataset) => scope.api.data.dataset(dataset).subscribe(notify))
+  const dispose = (): void => { live = false; disposers.forEach((off) => off()) }
   const detach = scope.onDispose(dispose)
   return () => { detach(); dispose() }
 }
@@ -36,9 +45,9 @@ export function onCalendarItemsChanged(listener: () => void): () => void {
   return () => disposers.forEach((dispose) => dispose())
 }
 
-async function allRows(dataset: string, where?: DatasetWhere, scope = captureTodoScope()): Promise<DatasetRecord[]> {
+async function allRows(dataset: string, where?: DatasetWhere, scope = captureTodoScope(), from?: string): Promise<DatasetRecord[]> {
   const rows: DatasetRecord[] = []
-  let cursor: string | undefined
+  let cursor = from
   do {
     scope.assertActive()
     const page = await scope.api.data.dataset(dataset).query({ where, limit: 1000, cursor })
@@ -49,29 +58,57 @@ async function allRows(dataset: string, where?: DatasetWhere, scope = captureTod
   return rows
 }
 
-async function todoRelations(taskId?: string | string[], includeHistory = true, includeTags = true, scope = captureTodoScope()): Promise<TodoRelations> {
-  const where = !taskId ? undefined : { taskId: typeof taskId === 'string' ? taskId : { in: taskId } }
-  const results = await Promise.allSettled([
-    includeTags ? allRows(TAGS_DATASET, where, scope) : [],
-    allRows(LINKS_DATASET, where, scope),
-    allRows(ATTACHMENTS_DATASET, where, scope),
-    includeHistory ? allRows(SESSIONS_DATASET, where, scope) : [],
-    includeHistory ? allRows(STATUS_HISTORY_DATASET, where, scope) : []
-  ])
-  const [tags, links, attachments, sessions, statusHistory] = results.map((result) => {
-    if (result.status === 'rejected') throw result.reason
-    return result.value
-  })
-  return { tags, links, attachments, sessions, statusHistory }
+const isLimitExceeded = (error: unknown): boolean => !!error && typeof error === 'object' && 'code' in error && error.code === 'limit-exceeded'
+
+/**
+ * Every page of several dataset queries, read together: each round is one host
+ * snapshot (one round trip, one consistent read) of the next page of every query
+ * that has one. A round the host refuses as too large is read query by query.
+ */
+async function allRowsTogether(reads: { dataset: string; where?: DatasetWhere }[], scope: TodoRuntimeScope): Promise<DatasetRecord[][]> {
+  const rows = reads.map((): DatasetRecord[] => [])
+  let pending = reads.map((read, index) => ({ ...read, index, cursor: undefined as string | undefined }))
+  while (pending.length) {
+    scope.assertActive()
+    const requests = pending.map((read) => ({ operation: 'query' as const, dataset: read.dataset, query: { where: read.where, limit: 1000, cursor: read.cursor } }))
+    let pages: { rows: DatasetRecord[]; cursor?: string }[]
+    try {
+      pages = (await scope.api.data.snapshot(requests)).values as typeof pages
+    } catch (error) {
+      if (!isLimitExceeded(error)) throw error
+      const rest = await Promise.allSettled(pending.map((read) => allRows(read.dataset, read.where, scope, read.cursor)))
+      rest.forEach((result, position) => {
+        if (result.status === 'rejected') throw result.reason
+        rows[pending[position].index].push(...result.value)
+      })
+      break
+    }
+    scope.assertActive()
+    pending = pending.flatMap((read, position) => {
+      rows[read.index].push(...pages[position].rows)
+      const cursor = pages[position].cursor
+      return cursor ? [{ ...read, cursor }] : []
+    })
+  }
+  return rows
+}
+
+async function readTodoRows(scope: TodoRuntimeScope, includeHistory: boolean, taskId?: string | string[]): Promise<{ tasks: DatasetRecord[]; relations: TodoRelations }> {
+  const ids = !taskId ? undefined : typeof taskId === 'string' ? taskId : { in: taskId }
+  const where = ids === undefined ? undefined : { taskId: ids }
+  const datasets = [LINKS_DATASET, ATTACHMENTS_DATASET, ...(includeHistory ? [SESSIONS_DATASET, STATUS_HISTORY_DATASET] : [])]
+  const [tasks, tags, links, attachments, sessions = [], statusHistory = []] = await allRowsTogether([
+    { dataset: TASKS_DATASET, where: ids === undefined ? undefined : { id: ids } },
+    { dataset: TAGS_DATASET, where },
+    ...datasets.map((dataset) => ({ dataset, where }))
+  ], scope)
+  scope.assertActive()
+  return { tasks, relations: { tags, links, attachments, sessions, statusHistory } }
 }
 
 async function readTodos(scope: TodoRuntimeScope, includeHistory: boolean, taskId?: string | string[]): Promise<TodoRecord[]> {
-  const where = !taskId ? undefined : { id: typeof taskId === 'string' ? taskId : { in: taskId } }
-  const [tasksResult, relationsResult] = await Promise.allSettled([allRows(TASKS_DATASET, where, scope), todoRelations(taskId, includeHistory, true, scope)])
-  if (tasksResult.status === 'rejected') throw tasksResult.reason
-  if (relationsResult.status === 'rejected') throw relationsResult.reason
-  scope.assertActive()
-  return hydrateTodos(tasksResult.value, relationsResult.value, normalizeGroups(scope.api.getState().groups))
+  const { tasks, relations } = await readTodoRows(scope, includeHistory, taskId)
+  return hydrateTodos(tasks, relations, normalizeGroups(scope.api.getState().groups))
 }
 
 interface TodoReadState {
@@ -157,15 +194,41 @@ function todoListCache(scope: TodoRuntimeScope): TodoListCache {
   return cache
 }
 
-async function readListRecords(scope: TodoRuntimeScope, ids?: string[]): Promise<TodoListRecord[]> {
-  let todos: TodoRecord[]
-  if (!ids) todos = await readTodos(scope, false)
-  else {
-    todos = []
-    for (let offset = 0; offset < ids.length; offset += 100) todos.push(...await readTodos(scope, false, ids.slice(offset, offset + 100)))
+const completionReady = new WeakMap<TodoRuntimeScope, Promise<boolean>>()
+
+/** Whether the backend has filled `completedAt` for every saved task; asked once per runtime, again after a failure. */
+function completionBackfilled(scope: TodoRuntimeScope): Promise<boolean> {
+  let ready = completionReady.get(scope)
+  if (!ready) {
+    const asked = scope.api.backend.call<boolean>('records.completionReady').then((value) => value === true, () => false)
+    void asked.then((value) => { if (!value && completionReady.get(scope) === asked) completionReady.delete(scope) })
+    completionReady.set(scope, asked)
+    ready = asked
   }
-  const summaries = await readCompletionSummaries(scope.api, todos.map((todo) => todo.id), scope.assertActive)
-  return todos.map((todo) => ({ ...todo, historyLoaded: false, completionSummary: summaries.get(todo.id) ?? null }))
+  return ready
+}
+
+/**
+ * List records with their completion time from the task row (`completedAt`).
+ * Until the backend reports the one-time backfill finished, tasks still without
+ * one fall back to reading their status history, so the result never depends on
+ * how far the backfill got.
+ */
+async function readListRecords(scope: TodoRuntimeScope, backfilled: boolean, ids?: string[]): Promise<TodoListRecord[]> {
+  const todos: TodoRecord[] = []
+  const completions = new Map<string, string>()
+  const groups = normalizeGroups(scope.api.getState().groups)
+  for (let offset = 0; offset < (ids?.length ?? 1); offset += 100) {
+    const { tasks, relations } = await readTodoRows(scope, false, ids?.slice(offset, offset + 100))
+    for (const row of tasks) if (typeof row.completedAt === 'string' && row.completedAt) completions.set(String(row.id), row.completedAt)
+    todos.push(...hydrateTodos(tasks, relations, groups))
+  }
+  const missing = backfilled ? [] : todos.filter((todo) => !completions.has(todo.id)).map((todo) => todo.id)
+  const summaries = missing.length ? await readCompletionSummaries(scope.api, missing, scope.assertActive) : new Map<string, { changedAt: string }>()
+  return todos.map((todo) => {
+    const changedAt = completions.get(todo.id)
+    return { ...todo, historyLoaded: false, completionSummary: changedAt ? { changedAt } : summaries.get(todo.id) ?? null }
+  })
 }
 
 /**
@@ -175,6 +238,12 @@ async function readListRecords(scope: TodoRuntimeScope, ids?: string[]): Promise
  * the whole list again.
  */
 export function loadTodoList(scope = captureTodoScope()): Promise<TodoListRecord[]> {
+  try { scope.assertActive() } catch (error) { return Promise.reject(error) }
+  // Asked before the read starts, so the backfill's own writes never count as a change during it.
+  return completionBackfilled(scope).then((backfilled) => listRead(scope, backfilled))
+}
+
+function listRead(scope: TodoRuntimeScope, backfilled: boolean): Promise<TodoListRecord[]> {
   const cache = todoListCache(scope)
   return coalescedRead(scope, 'list', LIST_DATASETS, '', async () => {
     const groups = JSON.stringify(normalizeGroups(scope.api.getState().groups))
@@ -182,7 +251,7 @@ export function loadTodoList(scope = captureTodoScope()): Promise<TodoListRecord
       cache.full = false
       cache.dirty.clear()
       try {
-        cache.value = await readListRecords(scope)
+        cache.value = await readListRecords(scope, backfilled)
         cache.groups = groups
       } catch (error) {
         cache.full = true
@@ -195,7 +264,7 @@ export function loadTodoList(scope = captureTodoScope()): Promise<TodoListRecord
     cache.dirty.clear()
     let changed: TodoListRecord[]
     try {
-      changed = await readListRecords(scope, ids)
+      changed = await readListRecords(scope, backfilled, ids)
     } catch (error) {
       for (const id of ids) cache.dirty.add(id)
       throw error
@@ -327,12 +396,19 @@ export async function rawAppend(record: TodoRecord): Promise<boolean> {
   try { return await api.backend.call<boolean>('records.append', { record }) } catch { return false }
 }
 
-async function callUpdate(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision, exactStatusHistory = false): Promise<TodoRecord | null> {
+type UpdateResult = { ok: boolean; record?: TodoRecord; previous?: TodoRecord; documentRevision?: DocumentRevision }
+
+async function callUpdateResult(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision, exactStatusHistory = false): Promise<UpdateResult | null> {
   try {
-    const result = await api.backend.call<{ ok: boolean; record?: TodoRecord; documentRevision?: DocumentRevision }>('records.update', { id, record, expectedUpdatedAt, documentRevision, ...(exactStatusHistory ? { exactStatusHistory } : {}) })
+    const result = await api.backend.call<UpdateResult>('records.update', { id, record, expectedUpdatedAt, documentRevision, ...(exactStatusHistory ? { exactStatusHistory } : {}) })
     if (result.ok && documentRevision && result.documentRevision) Object.assign(documentRevision, result.documentRevision)
-    return result.ok ? result.record ?? record : null
+    return result.ok ? result : null
   } catch { return null }
+}
+
+async function callUpdate(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision, exactStatusHistory = false): Promise<TodoRecord | null> {
+  const result = await callUpdateResult(id, record, expectedUpdatedAt, documentRevision, exactStatusHistory)
+  return result ? result.record ?? record : null
 }
 
 export async function rawUpdate(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision): Promise<boolean> {
@@ -366,15 +442,25 @@ export async function appendTodo(record: TodoRecord): Promise<boolean> {
   return ok
 }
 
+/**
+ * Save an edit and register its undo. The undo snapshot is the record the owner
+ * replaced, returned by `records.update`, with its group spelled as the list
+ * spells it; a list record's omitted focus sessions are the owner's to keep.
+ */
 export async function updateTodo(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision): Promise<boolean> {
   if (!id || !record.title.trim()) return false
-  const prev = await loadTodo(id)
-  const next = isTodoListRecord(record) ? { ...record, history: record.history === undefined ? prev?.history : record.history } : record
-  if (isTodoListRecord(next)) {
-    delete (next as Partial<TodoListRecord>).historyLoaded
-    delete (next as Partial<TodoListRecord>).completionSummary
+  const listed = isTodoListRecord(record)
+  const sent = listed ? { ...record } : record
+  if (listed) {
+    delete (sent as Partial<TodoListRecord>).historyLoaded
+    delete (sent as Partial<TodoListRecord>).completionSummary
   }
-  const ok = await rawUpdate(id, next, expectedUpdatedAt, documentRevision)
+  const result = await callUpdateResult(id, sent, expectedUpdatedAt, documentRevision)
+  const previous = result?.previous
+  // As the list would have read it: groups in their configured spelling, a task without a title not at all.
+  const prev = previous?.title ? { ...previous, group: canonicalGroupName(previous.group, normalizeGroups(api.getState().groups)) ?? previous.group } : null
+  const next = listed ? { ...sent, history: record.history === undefined ? prev?.history : record.history } : record
+  const ok = result !== null
   if (ok && prev) {
     api.undo.push({
       label: uiText('todo.undo.edit', { title: prev.title }),

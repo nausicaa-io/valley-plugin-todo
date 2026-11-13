@@ -22,6 +22,7 @@ const rowCount = (operation: DatasetTransactionOperation): number => {
 export function countIo(mock: MockValleyApi) {
   let counts: IoCounts = { calls: {}, rowsRead: {}, rowsWritten: {} }
   let nested = 0
+  let reading = 0
   const written = (operations: DatasetTransactionOperation[]): void => {
     for (const operation of operations) bump(counts.rowsWritten, `${short(operation.dataset)}.${operation.operation}`, rowCount(operation))
   }
@@ -44,7 +45,7 @@ export function countIo(mock: MockValleyApi) {
     return {
       ...handle,
       query: async (query) => {
-        bump(counts.calls, 'dataset.query')
+        if (!reading) bump(counts.calls, 'dataset.query')
         const page = await handle.query(query)
         bump(counts.rowsRead, name, page.rows.length)
         return page
@@ -58,6 +59,12 @@ export function countIo(mock: MockValleyApi) {
       delete: async (key, options) => { single('delete')(key); nested++; try { return await handle.delete(key, options) } finally { nested-- } }
     }
   }) as typeof data.dataset
+  const snapshot = data.snapshot.bind(data)
+  data.snapshot = (async (requests) => {
+    bump(counts.calls, 'data.snapshot')
+    reading++
+    try { return await snapshot(requests) } finally { reading-- }
+  }) as typeof data.snapshot
   const documents = mock.api.documents
   const read = documents.read.bind(documents)
   const update = documents.update.bind(documents)

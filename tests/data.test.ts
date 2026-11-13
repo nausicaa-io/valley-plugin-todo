@@ -70,7 +70,8 @@ describe('todo data layer', () => {
     const first = loadTodos()
     const consumers = Array.from({ length: 20 }, () => loadTodos())
     expect(consumers.every((pending) => pending === first)).toBe(true)
-    await vi.waitFor(() => expect(reads.filter((id) => id === 'todo.status_history')).toHaveLength(2))
+    // Pages are read in rounds (one host snapshot each), so the second history page waits for the held first round.
+    await vi.waitFor(() => expect(reads.filter((id) => id === 'todo.status_history')).toHaveLength(1))
     await dataset('todo.status_history').insert({ taskId: 'todo_test', position: 1001, from: 'waiting', to: 'open', changedAt: NOW })
     await dataset('todo.task_tags').insert({ taskId: 'todo_test', tag: 'fern' })
     release()

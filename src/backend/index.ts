@@ -1,5 +1,6 @@
 import { startReminderOwner } from '../reminderOwner'
 import { readReminderCandidates } from './reminderQuery'
+import { startCompletionBackfill } from './backfill'
 import { DEFAULT_TODO_ICONS } from '../todoIconDefaults'
 import type { PluginBackendApi } from '@valley/plugin-sdk'
 import { registerWorkflowContribution, type WorkflowContributionContract } from '@valley/plugin-sdk/workflow'
@@ -50,6 +51,7 @@ export function register(api: PluginBackendApi): () => Promise<void> {
     try { await api.services.emit('workflow.provider', event, JSON.parse(JSON.stringify(payload))) }
     catch (error) { api.rpc.emit('records.eventDeliveryFailed', { event, recordId: payload.record.id, message: error instanceof Error ? error.message : String(error) }) }
   })
+  const backfill = startCompletionBackfill(api, domain.exclusive)
   const offReminders = startReminderOwner(api, () => readReminderCandidates(api), id => domain.patch(id, patchForStatus('completed')), ids => readReminderCandidates(api, ids))
   const offs = [
     // The shared task icons (Settings › Markdown task markers) as SVG source by
@@ -72,6 +74,7 @@ export function register(api: PluginBackendApi): () => Promise<void> {
         return { icons }
       } finally { await api.storage.close(grant.handle).catch(() => {}) }
     }),
+    api.rpc.handle('records.completionReady', () => backfill.ready()),
     api.rpc.handle('records.append', payload => domain.append((payload as { record: TodoRecord }).record)),
     api.rpc.handle('records.update', payload => {
       const input = payload as { id: string; record: TodoRecord; expectedUpdatedAt?: string; documentRevision?: { expectedRevision: number; realmGeneration: number }; exactStatusHistory?: boolean }
@@ -129,10 +132,11 @@ export function register(api: PluginBackendApi): () => Promise<void> {
   })
   void contribution.ready.catch(error => api.rpc.emit('workflow.registrationFailed', { message: error instanceof Error ? error.message : String(error) }))
   return async () => {
+    const completion = backfill.stop()
     const writes = domain.dispose()
     const reminders = offReminders()
     offs.forEach(off => off())
     contribution.dispose()
-    await Promise.all([writes, reminders])
+    await Promise.all([completion, writes, reminders])
   }
 }
