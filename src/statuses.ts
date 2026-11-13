@@ -160,8 +160,19 @@ export function normalizeStatusSettings(value: unknown): TodoStatusSettings {
   return { active: active.filter((id) => !removed.includes(id as OptionalTodoStatus)), custom, colors, textColors, strikethrough, style, labels, icons, done, removed: [...new Set(removed)] }
 }
 
+let statusMemo: { raw: unknown; palette: unknown; value: TodoStatusSettings } | null = null
+
+/**
+ * The normalised settings, shared by every row until the stored value (or the
+ * palette it is validated against) changes identity.
+ */
 export function getStatusSettings(): TodoStatusSettings {
-  return normalizeStatusSettings(api?.settings.get()[STATUS_SETTINGS_KEY])
+  const raw = api?.settings.get()[STATUS_SETTINGS_KEY]
+  const palette = runtimePaletteSnapshot()
+  if (statusMemo && statusMemo.raw === raw && statusMemo.palette === palette) return statusMemo.value
+  const value = normalizeStatusSettings(raw)
+  statusMemo = { raw, palette, value }
+  return value
 }
 
 export function setStatusSettings(settings: TodoStatusSettings): void {

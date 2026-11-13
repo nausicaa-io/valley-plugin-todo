@@ -1,6 +1,7 @@
 import type { TodoPriority, TodoRecord } from './types'
 import { byPriorityThenName, byStartTimeThenPriority, compareByName } from './sort'
 import { parseLocalDate, startOfWeek } from '@valley/plugin-sdk/dateGrid'
+import { addDays, isoDay } from './dates'
 import { isTodoListRecord } from './completionHistory'
 
 /**
@@ -24,11 +25,7 @@ export const SECTION_LABEL_KEYS: Record<TodoSectionId, string> = {
 }
 
 /** Local `YYYY-MM-DD` for "today" (calendar day, not UTC). */
-export function todayIso(now: Date = new Date()): string {
-  const mm = String(now.getMonth() + 1).padStart(2, '0')
-  const dd = String(now.getDate()).padStart(2, '0')
-  return `${now.getFullYear()}-${mm}-${dd}`
-}
+export const todayIso = (now: Date = new Date()): string => isoDay(now)
 
 /**
  * Bucket todos into the page sections relative to `today`:
@@ -257,7 +254,7 @@ export function rollUpFutureDays(
   from: string,
   horizonDays: number = DAY_HEADER_HORIZON_DAYS
 ): { near: DaySection[]; months: MonthSection[] } {
-  const horizon = addDaysIso(from, horizonDays)
+  const horizon = addDays(from, horizonDays)
   const near: DaySection[] = []
   const later: DaySection[] = []
   for (const day of days) {
@@ -281,13 +278,6 @@ export function rollUpFutureDays(
     .map(([key, list]) => ({ key, days: list, partial: key === currentMonth }))
 
   return { near, months }
-}
-
-/** `YYYY-MM-DD` plus n days, calendar-safe across month and year ends. */
-function addDaysIso(day: string, days: number): string {
-  const [y, m, d] = day.split('-').map(Number)
-  const date = new Date(y, (m || 1) - 1, (d || 1) + days)
-  return todayIso(date)
 }
 
 export interface PageStats {

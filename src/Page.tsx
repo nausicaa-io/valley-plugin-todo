@@ -2,7 +2,7 @@ import { React, api, useTodoRevealRequest, openTodoComposer } from './runtime'
 import type { ReactElement } from 'react'
 import type { MainWorkspaceViewProps, UiMenuItem } from '@valley/plugin-sdk'
 import { useActiveCalendarSelection, useHostState } from './hooks'
-import { searchMatcher } from './search'
+import { todoSearchMatcher } from './search'
 import { FilterX, FolderInput, GroupGlyph, Link, Plus, Search, Settings, X } from './icons'
 import { useTodoListController } from './controller'
 import { TodoDetailModal } from './TodoDetail'
@@ -118,8 +118,7 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
     if (statusFilter !== 'all') list = list.filter((todo) => matchesStatusFilter(todo, statusFilter))
     if (priorities.length) list = list.filter((todo) => priorities.includes(todo.priority))
     if (search.trim()) {
-      const matches = searchMatcher(search)
-      list = list.filter((todo) => matches(todo.tags ?? [], todo.title, todo.note, todo.group ?? ''))
+      list = list.filter(todoSearchMatcher(search))
     }
     if (selectedDateRange) {
       list = list.filter((todo) => {

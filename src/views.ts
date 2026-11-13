@@ -153,12 +153,22 @@ export function matchesView(todo: TodoRecord, view: TodoView, today: string = is
   return view.id === 'completed' ? todo.completed : !todo.completed
 }
 
+const groupKeyCache = new WeakMap<object, { names: readonly string[]; count: number; keys: Set<string> }>()
+
+/** The selected group keys of a groups view, built once per view object rather than per todo. */
+function groupViewKeys(view: Extract<TodoView, { kind: 'groups' }>): Set<string> {
+  const hit = groupKeyCache.get(view)
+  if (hit && hit.names === view.names && hit.count === view.names.length) return hit.keys
+  const keys = new Set(view.names.map(groupKey))
+  groupKeyCache.set(view, { names: view.names, count: view.names.length, keys })
+  return keys
+}
+
 /** Apply every criterion of a view except the open/completed split. */
 export function matchesViewScope(todo: TodoRecord, view: TodoView, today: string = isoDay(new Date())): boolean {
   if (view.kind === 'groups') {
     if (!todo.group) return view.includeUngrouped === true
-    const selected = new Set(view.names.map(groupKey))
-    return selected.has(groupKey(todo.group))
+    return groupViewKeys(view).has(groupKey(todo.group))
   }
   if (view.kind === 'tag') return (todo.tags ?? []).some((tag) => tag.replace(/^#/, '').toLowerCase() === view.name.toLowerCase())
   if (view.kind === 'nogroup') return !todo.group
