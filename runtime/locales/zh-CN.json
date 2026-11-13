@@ -480,5 +480,20 @@
   "todo.sheet.unlinkFile": "取消关联文件",
   "todo.file.searchAttachment": "查找要附加的文件",
   "todo.file.searchLinked": "查找此任务所属的文件",
-  "todo.file.noResults": "没有匹配的文件。"
+  "todo.file.noResults": "没有匹配的文件。",
+  "todo.settings.statusIcon": "状态图标",
+  "todo.settings.statusIconOf": "{{p0}} 的图标",
+  "todo.settings.statusIconHint": "再次点击所选图标即可恢复该状态自带的图标。将 SVG 文件添加到 {{p0}}；文件名即图标名称。",
+  "todo.settings.statusesDescAll": "“待办”和“已完成”始终排在最前，且无法删除。每个状态都可以重命名、设置图标和更改颜色；其他状态还可以标记为完成、重新排序、关闭或删除。",
+  "todo.settings.colIcon": "图标",
+  "todo.settings.colDone": "视为已完成",
+  "todo.settings.statusRestore": "恢复 {{count}} 个已删除的内置状态",
+  "reminders.timeBefore": "提前时间 (hh:mm)",
+  "reminders.timeBeforeDesc": "任务开始前多久，例如 00:10 或 01:30。",
+  "reminders.timeInvalid": "请输入如 00:10 的小时和分钟（分钟 00–59，最多 168:00）。",
+  "todo.calendar.clear": "清除",
+  "todo.calendar.prev": "上个月",
+  "todo.calendar.next": "下个月",
+  "todo.time.invalid": "请输入如 09:30 的时间（00:00–23:59）。",
+  "todo.settings.statusDoneFixed": "{{p0}} 始终保持此设置"
 }

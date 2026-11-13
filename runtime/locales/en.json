@@ -480,5 +480,20 @@
   "todo.sheet.unlinkFile": "Unlink file",
   "todo.file.searchAttachment": "Find a file to attach",
   "todo.file.searchLinked": "Find the file this task belongs to",
-  "todo.file.noResults": "No matching files."
+  "todo.file.noResults": "No matching files.",
+  "todo.settings.statusIcon": "Status icon",
+  "todo.settings.statusIconOf": "Icon of {{p0}}",
+  "todo.settings.statusIconHint": "Click the chosen icon again to go back to the status’s own icon. Add SVG files to {{p0}}; the file name is the icon name.",
+  "todo.settings.statusesDescAll": "To do and Completed always come first and cannot be deleted. Every status can be renamed, given an icon and recoloured; the others can also be marked done, reordered, switched off or deleted.",
+  "todo.settings.colIcon": "Icon",
+  "todo.settings.colDone": "Counts as done",
+  "todo.settings.statusRestore": "Restore {{count}} deleted built-in statuses",
+  "reminders.timeBefore": "Time before (hh:mm)",
+  "reminders.timeBeforeDesc": "How long before the task starts, for example 00:10 or 01:30.",
+  "reminders.timeInvalid": "Enter hours and minutes like 00:10 (minutes 00–59, at most 168:00).",
+  "todo.calendar.clear": "Clear",
+  "todo.calendar.prev": "Previous month",
+  "todo.calendar.next": "Next month",
+  "todo.time.invalid": "Enter a time like 09:30 (00:00–23:59).",
+  "todo.settings.statusDoneFixed": "{{p0}} always keeps this setting"
 }

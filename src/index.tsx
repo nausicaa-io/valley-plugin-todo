@@ -25,6 +25,7 @@ import { applyTodoVisibleState, resetViewCache } from './viewStore'
 import { initLocalization, uiText } from './localization'
 import { todoAgentTools } from './agentTools'
 import { startStatusVocabulary } from './statuses'
+import { startTaskIcons } from './taskIcons'
 import { registerTodoSurfaces } from './surfaces'
 
 export function register(api: ValleyPluginApi): () => void {
@@ -32,6 +33,7 @@ export function register(api: ValleyPluginApi): () => void {
   const disposeRuntime = initRuntime(api)
   const disposeStyles = injectStyles()
   const disposeStatusVocabulary = startStatusVocabulary()
+  const disposeTaskIcons = startTaskIcons()
   let deliveryWarningOpen = false
   const offDeliveryWarning = api.backend.on('records.eventDeliveryFailed', () => {
     if (deliveryWarningOpen) return
@@ -79,6 +81,7 @@ export function register(api: ValleyPluginApi): () => void {
     offGroupUsage()
     offLinks()
     disposeStatusVocabulary()
+    disposeTaskIcons()
     disposeStyles()
   }
 }

@@ -3579,8 +3579,22 @@ button.todo-date:hover .todo-date-day {
 }
 .todo-settings-item + .todo-settings-item { border-top: 1px solid var(--border-light); }
 .todo-status-settings .todo-settings-item {
-  grid-template-columns: 24px 22px minmax(0, 1fr) minmax(0, 120px) 30px 34px 104px 40px 60px;
+  grid-template-columns: 24px 30px minmax(0, 1fr) 30px 34px 30px 40px 30px;
 }
+.todo-settings-icon-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; cursor: pointer; }
+.todo-settings-icon-btn:hover { background: var(--hover-bg); }
+.todo-settings-icon-btn .todo-status-menu-svg, .todo-settings-icon-btn .todo-status-menu-dot { width: 16px; height: 16px; }
+.todo-status-asset { display: inline-grid; width: 1em; height: 1em; }
+.todo-status-asset > svg { width: 100%; height: 100%; }
+.todo-icon-picker { display: flex; flex-direction: column; gap: 8px; padding: 4px; }
+.todo-icon-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 4px; max-height: 220px; overflow: auto; }
+.todo-icon-picker-item { display: inline-grid; place-items: center; height: 34px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-color); cursor: pointer; }
+.todo-icon-picker-item:hover { background: var(--hover-bg); }
+.todo-icon-picker-item.is-active { background: var(--accent-tint-bg); color: var(--title-color); }
+.todo-icon-picker-svg { display: inline-grid; width: 18px; height: 18px; }
+.todo-icon-picker-svg > svg { width: 100%; height: 100%; }
+.todo-icon-picker-hint { margin: 0; color: var(--text-tertiary); font-size: var(--smaller-font-size); line-height: 1.4; overflow-wrap: anywhere; }
+.todo-status-restore { margin-top: 6px; }
 .todo-local-groups .todo-settings-item { grid-template-columns: 40px minmax(0, 1fr) minmax(0, 200px) 32px; }
 .todo-settings-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .todo-settings-row-actions svg { width: 15px; height: 15px; }
@@ -3663,12 +3677,14 @@ button.todo-settings-handle:active { cursor: grabbing; }
 .todo-settings-item.drop-before::before { top: 0; transform: translateY(-50%); }
 .todo-settings-item.drop-after::before { bottom: 0; transform: translateY(50%); }
 @container (max-width: 560px) {
-  .todo-status-settings .todo-settings-item { grid-template-columns: 24px 22px minmax(0, 1fr) 30px 34px 96px 40px 60px; }
+  .todo-status-settings .todo-settings-item { grid-template-columns: 24px 30px minmax(0, 1fr) 30px 34px 30px 40px 30px; }
   .todo-status-settings .todo-settings-preview { display: none; }
 }
 
 .todo-reminder-offsets { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 290px; max-width: 100%; }
 .todo-reminder-mode { width: 100%; }
+.todo-reminder-time { box-sizing: border-box; width: 96px; font-variant-numeric: tabular-nums; text-align: center; }
+.todo-reminder-time.invalid { border-color: var(--negative-color); }
 .todo-reminder-line {
   display: grid;
   grid-template-columns: 80px 170px 28px;
@@ -3802,7 +3818,7 @@ button.todo-settings-handle:active { cursor: grabbing; }
 .todo-table-status-filter svg { width: 16px; height: 16px; }
 
 /* The empty row + adds at the top of the table: type a task or paste several lines. */
-.todo-table-new-row td { background: color-mix(in srgb, var(--accent-color) 6%, transparent); }
+.todo-table-new-row:not(.is-idle) td { background: color-mix(in srgb, var(--accent-color) 6%, transparent); }
 .todo-table-new-circle {
   display: block;
   box-sizing: border-box;
@@ -3826,6 +3842,31 @@ button.todo-settings-handle:active { cursor: grabbing; }
 .todo-table-new-input:focus,
 .todo-table-new-input:focus-visible { border: none; outline: none; box-shadow: none; }
 .todo-table-new-input::placeholder { color: var(--text-tertiary); }
+.todo-table-new-hint { color: var(--text-tertiary); font-size: var(--smaller-font-size); }
+.todo-table-new-row:not(.is-idle) .todo-table-cell-btn.muted,
+.todo-table-new-row:not(.is-idle) .todo-table-flag-btn:not(.on) { opacity: 1; }
+.todo-table-new-row.is-idle .todo-table-new-hint { visibility: hidden; }
+.todo-table-new-row.is-idle .todo-table-new-circle { border-style: solid; }
+.todo-calendar { display: flex; flex-direction: column; gap: 4px; user-select: none; }
+.todo-calendar-head { display: flex; align-items: center; gap: 2px; padding: 0 2px 2px; }
+.todo-calendar-title { flex: 1 1 auto; font-weight: 600; font-size: var(--font-ui-small, 13px); color: var(--text-color); }
+.todo-calendar-nav { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.todo-calendar-nav:hover { background: var(--hover-bg); color: var(--text-color); }
+.todo-calendar-nav svg { width: 14px; height: 14px; }
+.todo-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.todo-calendar-weekday { display: grid; place-items: center; height: 22px; font-size: var(--smaller-font-size); color: var(--text-tertiary); }
+.todo-calendar-day { display: grid; place-items: center; height: 28px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-color); font: inherit; font-size: var(--smaller-font-size); font-variant-numeric: tabular-nums; cursor: pointer; }
+.todo-calendar-day:hover { background: var(--hover-bg); }
+.todo-calendar-day.is-outside { color: var(--text-tertiary); }
+.todo-calendar-day.is-today { color: var(--accent-color); font-weight: 600; }
+.todo-calendar-day.is-selected { background: var(--accent-color); color: var(--text-on-accent, #fff); font-weight: 600; }
+.todo-calendar-day:focus-visible, .todo-calendar-nav:focus-visible, .todo-calendar-link:focus-visible { outline: 2px solid var(--accent-color); outline-offset: -2px; }
+.todo-calendar-foot { display: flex; justify-content: space-between; padding: 4px 2px 0; border-top: 1px solid var(--border-color); }
+.todo-calendar-link { padding: 2px 4px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--accent-color); font: inherit; font-size: var(--smaller-font-size); cursor: pointer; }
+.todo-calendar-link:hover:not(:disabled) { background: var(--hover-bg); }
+.todo-calendar-link:disabled { color: var(--text-tertiary); cursor: default; }
+.todo-clock-input { box-sizing: border-box; width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+.todo-clock-input.is-invalid { border-color: var(--text-error, var(--color-red)); }
 
 /* Headers drag to reorder: the drop lands on the shared insertion line. */
 .todo-table th[draggable='true'] { cursor: grab; }

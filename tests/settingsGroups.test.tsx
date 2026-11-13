@@ -1,11 +1,10 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import * as React from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMockValleyApi } from './harness'
 import { initRuntime } from '../src/runtime'
 import { initLocalization } from '../src/localization'
 import { Settings } from '../src/Settings'
-import { statusForeground } from '../src/statuses'
 
 afterEach(cleanup)
 
@@ -43,7 +42,7 @@ describe('todo settings', () => {
     for (const name of ['In Progress', 'Waiting', 'On Hold', 'Delegated', 'Deferred', 'Canceled']) {
       expect(screen.getByRole('switch', { name: `Show ${name}` })).not.toBeChecked()
       expect(screen.getByLabelText(`Color of ${name}`)).toBeVisible()
-      expect(screen.getByRole('combobox', { name: `Text color of ${name}` })).toBeVisible()
+      expect(screen.getByRole('button', { name: `Icon of ${name}` })).toBeVisible()
     }
 
     await act(async () => fireEvent.click(screen.getByRole('switch', { name: 'Show Waiting' })))
@@ -57,19 +56,44 @@ describe('todo settings', () => {
     expect((mock.api.settings.get().statuses as { active: string[] }).active).toEqual(['canceled'])
   })
 
-  it('chooses each badge label colour and the badge style', async () => {
+  it('renames, deletes and restores built-in statuses, with no style or preview controls', async () => {
     const mock = setup({ statuses: { active: ['waiting'] } })
     render(<Settings section="statuses" />)
 
-    expect(screen.getByRole('combobox', { name: 'Text color of Waiting' })).toHaveValue('auto')
-    await act(async () => fireEvent.change(screen.getByRole('combobox', { name: 'Text color of Waiting' }), { target: { value: 'black' } }))
-    expect(mock.api.settings.get()).toMatchObject({ statuses: { textColors: { waiting: 'black', open: 'auto' } } })
-    expect(statusForeground('waiting')).toBe('#000000')
-    expect(document.querySelector('.todo-status-pill[data-status="waiting"]')).toHaveTextContent('Waiting')
-
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Text' })))
-    expect(mock.api.settings.get()).toMatchObject({ statuses: { style: 'text' } })
+    expect(screen.queryByRole('button', { name: 'Text' })).toBeNull()
     expect(document.querySelector('.todo-status-pill')).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /Text color of/ })).toBeNull()
+
+    const waitingName = screen.getAllByRole('textbox', { name: 'Status name' }).find((input) => (input as HTMLInputElement).value === 'Waiting')!
+    await act(async () => {
+      fireEvent.change(waitingName, { target: { value: 'Blocked' } })
+      fireEvent.blur(waitingName)
+    })
+    expect(mock.api.settings.get()).toMatchObject({ statuses: { labels: { waiting: 'Blocked' } } })
+
+    vi.mocked(mock.api.ui.confirm).mockResolvedValueOnce('delete')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Delete Deferred' })))
+    expect((mock.api.settings.get().statuses as { removed: string[] }).removed).toEqual(['deferred'])
+    expect(screen.queryByRole('switch', { name: 'Show Deferred' })).toBeNull()
+
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Restore 1 deleted built-in statuses' })))
+    expect((mock.api.settings.get().statuses as { removed: string[] }).removed).toEqual([])
+    expect(screen.getByRole('switch', { name: 'Show Deferred' })).toBeInTheDocument()
+  })
+
+  it('renames To do and Completed, with their done state shown but fixed', async () => {
+    const mock = setup()
+    render(<Settings section="statuses" />)
+    const todoName = screen.getAllByRole('textbox', { name: 'Status name' }).find((input) => (input as HTMLInputElement).value === 'To do')!
+    await act(async () => {
+      fireEvent.change(todoName, { target: { value: 'Inbox' } })
+      fireEvent.blur(todoName)
+    })
+    expect(mock.api.settings.get()).toMatchObject({ statuses: { labels: { open: 'Inbox' } } })
+    expect(screen.getByRole('button', { name: 'Icon of Completed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Completed counts as done' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Completed counts as done' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Delete Completed' })).toBeNull()
   })
 
   it('reorders, recolours and switches smart lists, always keeping one visible', async () => {

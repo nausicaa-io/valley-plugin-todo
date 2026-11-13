@@ -480,5 +480,20 @@
   "todo.sheet.unlinkFile": "Desvincular archivo",
   "todo.file.searchAttachment": "Buscar un archivo para adjuntar",
   "todo.file.searchLinked": "Buscar el archivo de esta tarea",
-  "todo.file.noResults": "No hay archivos coincidentes."
+  "todo.file.noResults": "No hay archivos coincidentes.",
+  "todo.settings.statusIcon": "Icono del estado",
+  "todo.settings.statusIconOf": "Icono de {{p0}}",
+  "todo.settings.statusIconHint": "Vuelve a hacer clic en el icono elegido para recuperar el icono propio del estado. Añade archivos SVG a {{p0}}; el nombre del archivo es el nombre del icono.",
+  "todo.settings.statusesDescAll": "Por hacer y Completado van siempre primero y no se pueden eliminar. Todos los estados se pueden renombrar, recibir un icono y cambiar de color; los demás también se pueden marcar como hechos, reordenar, desactivar o eliminar.",
+  "todo.settings.colIcon": "Icono",
+  "todo.settings.colDone": "Cuenta como completada",
+  "todo.settings.statusRestore": "Restaurar {{count}} estados integrados eliminados",
+  "reminders.timeBefore": "Tiempo antes (hh:mm)",
+  "reminders.timeBeforeDesc": "Cuánto antes de que empiece la tarea, por ejemplo 00:10 o 01:30.",
+  "reminders.timeInvalid": "Escribe horas y minutos como 00:10 (minutos 00–59, como máximo 168:00).",
+  "todo.calendar.clear": "Borrar",
+  "todo.calendar.prev": "Mes anterior",
+  "todo.calendar.next": "Mes siguiente",
+  "todo.time.invalid": "Introduce una hora como 09:30 (00:00–23:59).",
+  "todo.settings.statusDoneFixed": "{{p0}} siempre mantiene este ajuste"
 }

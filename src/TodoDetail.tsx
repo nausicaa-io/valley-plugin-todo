@@ -7,6 +7,7 @@ import { confirmDeleteTodo, normalizeTodoUrl, useTodoStatusHistory, type Documen
 import { AttachmentCard } from './AttachmentCard'
 import { CalendarDays, FileGlyph, Flag, Link, MapPin, Paperclip, TodoStatusGlyph, Trash, X } from './icons'
 import { FileSearchField } from './FileSearchField'
+import { ClockTimeField, InlineCalendar } from './DatePanel'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { PriorityIcon } from './TodoTable'
 import { openStatusMenu } from './SwipeRow'
@@ -485,18 +486,15 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
   )
 }
 
-/** Due date with an optional start and end time. */
+/** Due date with an optional start and end time, all drawn inside the popover. */
 function ScheduleEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: Partial<TodoRecord>) => void }): ReactElement {
-  const { DateField, TimeField } = api.ui.settings
   const [date, setDate] = React.useState(todo.dueDate?.slice(0, 10) ?? '')
   const [start, setStart] = React.useState(todo.startTime ?? '')
   const [end, setEnd] = React.useState(todo.endTime ?? '')
   return (
     <div className="todo-cell-editor">
-      <DateField
+      <InlineCalendar
         value={date}
-        placeholder={uiText('todo.detail.noDate')}
-        ariaLabel={uiText('todo.field.dueDate')}
         onChange={(value) => {
           setDate(value)
           if (!value) { setStart(''); setEnd('') }
@@ -504,8 +502,8 @@ function ScheduleEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: 
         }}
       />
       <div className="todo-sheet-times">
-        <TimeField value={start} disabled={!date} ariaLabel={uiText('auto.88d8206d586a')} onChange={(value) => { setStart(value); onPatch({ startTime: value || undefined, ...(value ? {} : { endTime: undefined }) }); if (!value) setEnd('') }} />
-        <TimeField value={end} disabled={!start} ariaLabel={uiText('auto.cd7800da7f4f')} onChange={(value) => { setEnd(value); onPatch({ endTime: value || undefined }) }} />
+        <ClockTimeField value={start} disabled={!date} ariaLabel={uiText('auto.88d8206d586a')} placeholder={uiText('auto.88d8206d586a')} onChange={(value) => { setStart(value); onPatch({ startTime: value || undefined, ...(value ? {} : { endTime: undefined }) }); if (!value) setEnd('') }} />
+        <ClockTimeField value={end} disabled={!start} ariaLabel={uiText('auto.cd7800da7f4f')} placeholder={uiText('auto.cd7800da7f4f')} onChange={(value) => { if (value && start && value <= start) { setEnd(end); return } setEnd(value); onPatch({ endTime: value || undefined }) }} />
       </div>
     </div>
   )

@@ -71,10 +71,19 @@ export function setCustomStatusLabels(resolve: (status: TodoStatus) => string | 
   customStatusLabel = resolve
 }
 
+/** The built-in name of a status, ignoring any name the user gave it. */
+export function todoStatusLabelDefault(status: TodoStatus): string {
+  const key = STATUS_LABEL_KEYS[status]
+  return key ? uiText(key) : status
+}
+
 export function todoStatusLabel(status: TodoStatus | null, fallback = ''): string {
   if (status === null || status === 'open') return uiText('todo.status.todo')
+  // A name the user gave (a renamed built-in or a custom status) wins over the translation.
+  const own = customStatusLabel(status)
+  if (own) return own
   const key = STATUS_LABEL_KEYS[status]
-  return key ? uiText(key) : customStatusLabel(status) ?? (fallback || status)
+  return key ? uiText(key) : fallback || status
 }
 
 export function todoPriorityLabel(priority: TodoPriority): string {

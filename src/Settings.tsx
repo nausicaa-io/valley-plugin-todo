@@ -27,10 +27,9 @@ import {
   normalizeStatusSettings,
   setStatusSettings,
   statusDef,
+  type OptionalTodoStatus,
   type ShowableStatus,
   type StatusDef,
-  type StatusStyle,
-  type StatusTextColor,
   type TodoStatusSettings
 } from './statuses'
 import {
@@ -43,36 +42,12 @@ import {
 } from './viewStore'
 import type { DateBreakdown } from './sections'
 import { smartListDef, smartListForeground, type SmartListId, type SmartListSettings, type SmartListTextColor } from './views'
-import { StatusBadgeView } from './StatusBadge'
 import { loadTodoList, setTodoGroup, setTodoStatus } from './data'
+import { TASK_ICON_FOLDER, useTaskIcons } from './taskIcons'
+import { todoStatusLabelDefault } from './localization'
 import { getLocalGroups, setLocalGroups, useGroups, useLocalGroups } from './groupStore'
 import { groupKey, nextGroupColor } from './groups'
 import { LOCAL_GROUP_LIMIT, LOCAL_GROUP_NAME_MAX, newLocalGroupId, renameLocalGroup, type LocalGroup } from './localGroups'
-
-/**
- * The host draws its Segmented control at its natural width inside a full-width
- * placeholder, starting at the left. Sizing the placeholder to that width
- * (host .settings-segmented: 1px border, 0.75rem labels, 10px side padding,
- * 1px dividers) lets the row end-align it like the other controls.
- */
-function segmentedStyle(labels: string[]): CSSProperties | undefined {
-  const width = segmentedWidth(labels)
-  return width ? { '--todo-segmented-width': `${width}px` } as CSSProperties : undefined
-}
-
-function segmentedWidth(labels: string[]): number {
-  const root = getComputedStyle(document.documentElement)
-  const family = root.getPropertyValue('--interface-font').trim() || getComputedStyle(document.body).fontFamily
-  const context = document.createElement('canvas').getContext('2d')
-  if (!context) return 0
-  const size = (parseFloat(root.fontSize) || 16) * 0.75
-  // The host buttons may keep the browser's button font, so take the wider of the two.
-  const text = Math.max(...[family, 'system-ui, -apple-system, sans-serif'].map((font) => {
-    context.font = `${size}px ${font}`
-    return labels.reduce((sum, label) => sum + context.measureText(label).width, 0)
-  }))
-  return Math.ceil(text + labels.length * 20 + (labels.length - 1) + 2) + 4
-}
 
 const SMART_LIST_ICONS: Record<SmartListId, () => ReactElement> = {
   scheduled: () => <CalendarClock />,
@@ -249,14 +224,34 @@ function CommitTextField({ initial, onCommit, onType, placeholder, ariaLabel, di
   )
 }
 
+/** A grid of the shared task icons; picking one closes the popover, picking the chosen one again goes back to the status's own glyph. */
+function StatusIconPicker({ current, onPick }: { current: string | undefined; onPick: (name: string | undefined) => void }): ReactElement {
+  const icons = useTaskIcons()
+  const names = Object.keys(icons).sort((a, b) => a.localeCompare(b))
+  return (
+    <div className="todo-icon-picker">
+      <div className="todo-icon-picker-grid" role="listbox" aria-label={uiText('todo.settings.statusIcon')}>
+        {names.map((name) => (
+          <button key={name} type="button" role="option" aria-selected={current === name} className={`todo-icon-picker-item${current === name ? ' is-active' : ''}`} title={name} aria-label={name} onClick={() => onPick(current === name ? undefined : name)}>
+            <span className="todo-icon-picker-svg" dangerouslySetInnerHTML={{ __html: icons[name] }} />
+          </button>
+        ))}
+      </div>
+      <p className="todo-icon-picker-hint">{uiText('todo.settings.statusIconHint', { p0: TASK_ICON_FOLDER })}</p>
+    </div>
+  )
+}
+
 /**
- * One row per status: its badge as it will look, the badge colour, the label
- * colour, and whether the status is offered at all. To do and Completed are
- * always offered and stay first; the rest reorder by their grip.
+ * One row per status. To do and Completed are fixed; every other status — the
+ * built-in ones included — can be renamed, given an icon from the shared task
+ * icon folder, recoloured, marked done, struck through, hidden, reordered and
+ * deleted. Statuses are always drawn as coloured text.
  */
 function StatusesSettings(): ReactElement {
-  const { Button, ColorField, IconButton, Row, Section, Segmented, SelectField, Toggle, useReorderDrag } = api.ui.settings
+  const { Button, ColorField, IconButton, Section, Toggle, useReorderDrag } = api.ui.settings
   const [settings, setLocal] = useSetting<TodoStatusSettings>(getStatusSettings)
+  useTaskIcons()
   const draft = React.useRef('')
   const [addKey, setAddKey] = React.useState(0)
   const [canAdd, setCanAdd] = React.useState(false)
@@ -292,18 +287,36 @@ function StatusesSettings(): ReactElement {
     setCanAdd(false)
     setAddKey((key) => key + 1)
   }
-  const renameStatus = (id: CustomStatusId, value: string): void => {
+  const rename = (id: TodoStatus, value: string): void => {
     const label = customLabel(value)
-    if (!label) return
-    commit({ ...settings, custom: settings.custom.map((status) => status.id === id ? { ...status, label } : status) })
+    if (isCustomStatusId(id)) {
+      if (!label) return
+      commit({ ...settings, custom: settings.custom.map((status) => status.id === id ? { ...status, label } : status) })
+    } else {
+      // An empty name puts the built-in status back to its own name.
+      const labels = { ...settings.labels }
+      if (label && label !== todoStatusLabelDefault(id)) labels[id] = label
+      else delete labels[id]
+      commit({ ...settings, labels })
+    }
   }
   /** Tasks carry `completed` next to their status, so flipping Done rewrites the tasks in that status. */
-  const setDone = async (id: CustomStatusId, done: boolean): Promise<void> => {
-    commit({ ...settings, custom: settings.custom.map((status) => status.id === id ? { ...status, done } : status) })
+  const setDone = async (id: TodoStatus, done: boolean): Promise<void> => {
+    if (isCustomStatusId(id)) commit({ ...settings, custom: settings.custom.map((status) => status.id === id ? { ...status, done } : status) })
+    else commit({ ...settings, done: { ...settings.done, [id]: done } })
     const todos = (await loadTodoList()).filter((todo) => todo.status === id)
     await Promise.all(todos.map((todo) => setTodoStatus(todo.id, id)))
   }
-  const deleteStatus = async (id: CustomStatusId): Promise<void> => {
+  const setIcon = (id: TodoStatus, name: string | undefined): void => {
+    const icons = { ...settings.icons }
+    if (name) icons[id] = name
+    else delete icons[id]
+    commit({ ...settings, icons })
+  }
+  const pickIcon = (anchor: HTMLElement, id: TodoStatus): void => {
+    void api.ui.openPopover(({ close }) => <StatusIconPicker current={settings.icons[id]} onPick={(name) => { setIcon(id, name); close() }} />, { anchor, align: 'start', gap: 4 }, { className: 'todo-cell-popover', ariaLabel: uiText('todo.settings.statusIcon'), width: 300 })
+  }
+  const deleteStatus = async (id: TodoStatus): Promise<void> => {
     const label = statusDef(id, settings).label
     const todos = (await loadTodoList()).filter((todo) => todo.status === id)
     const choice = await api.ui.confirm({
@@ -319,56 +332,37 @@ function StatusesSettings(): ReactElement {
     if (choice !== 'delete') return
     await Promise.all(todos.map((todo) => setTodoStatus(todo.id, 'open')))
     const current = getStatusSettings()
-    commit({ ...current, custom: current.custom.filter((status) => status.id !== id), active: current.active.filter((candidate) => candidate !== id) })
+    if (isCustomStatusId(id)) commit({ ...current, custom: current.custom.filter((status) => status.id !== id), active: current.active.filter((candidate) => candidate !== id) })
+    else commit({ ...current, removed: [...current.removed, id as OptionalTodoStatus], active: current.active.filter((candidate) => candidate !== id) })
   }
-
-  const textOptions = [
-    { value: 'auto', label: uiText('todo.settings.textAuto') },
-    { value: 'white', label: uiText('todo.settings.textWhite'), color: '#ffffff' },
-    { value: 'black', label: uiText('todo.settings.textBlack'), color: '#000000' }
-  ]
 
   const row = (status: StatusDef, kind: 'locked' | 'shown' | 'off', index: number): ReactElement => {
     const id = status.id
     const slot = `${id}@${index}`
     const label = status.label
     const handleProps = kind === 'shown' ? reorder.getHandleProps(status) : null
-    const custom = isCustomStatusId(id) ? id : null
+    const locked = kind === 'locked'
     return (
       <div
         role="listitem"
-        className={'todo-settings-item todo-status-setting-row' + (kind === 'locked' ? ' locked' : '') + (kind === 'off' ? ' is-off' : '') + (kind === 'shown' && reorder.overId === id ? ' drop-' + (reorder.dropPosition ?? 'before') : '')}
+        className={'todo-settings-item todo-status-setting-row' + (locked ? ' locked' : '') + (kind === 'off' ? ' is-off' : '') + (kind === 'shown' && reorder.overId === id ? ' drop-' + (reorder.dropPosition ?? 'before') : '')}
         key={id}
         {...(kind === 'shown' ? reorder.getItemProps(status) : {})}
       >
         {handleProps ? (
-          <button
-            {...handleProps}
-            className={(handleProps.className ?? '') + ' todo-settings-handle'}
-            title={uiText('todo.settings.statusReorder')}
-          >
+          <button {...handleProps} className={(handleProps.className ?? '') + ' todo-settings-handle'} title={uiText('todo.settings.statusReorder')}>
             <GripVertical />
           </button>
         ) : (
-          <span className="todo-settings-handle is-static" title={kind === 'locked' ? uiText('todo.settings.statusLocked') : undefined}>
-            {kind === 'locked' && <Lock />}
+          <span className="todo-settings-handle is-static" title={locked ? uiText('todo.settings.statusLocked') : undefined}>
+            {locked && <Lock />}
           </span>
         )}
-        <span className="todo-settings-glyph">
+        <button type="button" className={`todo-settings-glyph todo-settings-icon-btn ${status.cls}`} title={uiText('todo.settings.statusIconOf', { p0: label })} aria-label={uiText('todo.settings.statusIconOf', { p0: label })} onClick={(event) => pickIcon(event.currentTarget, id)}>
           <TodoStatusGlyph status={id === 'open' ? null : id} dotCls={status.cls} />
-        </span>
-        {custom ? (
-          <span className="todo-settings-name todo-settings-name-field">
-            <CommitTextField
-              key={`name:${slot}:${label}`}
-              initial={label}
-              ariaLabel={uiText('todo.settings.statusName')}
-              onCommit={(value) => renameStatus(custom, value)}
-            />
-          </span>
-        ) : <span className="todo-settings-name">{label}</span>}
-        <span className="todo-settings-preview">
-          <StatusBadgeView status={id} style={settings.style} />
+        </button>
+        <span className="todo-settings-name todo-settings-name-field">
+          <CommitTextField key={`name:${slot}:${label}`} initial={label} ariaLabel={uiText('todo.settings.statusName')} onCommit={(value) => rename(id, value)} />
         </span>
         <IconButton
           key={`strike:${slot}`}
@@ -388,109 +382,79 @@ function StatusesSettings(): ReactElement {
           ariaLabel={uiText('todo.settings.statusColor', { p0: label })}
           allowCustom={false}
         />
-        <SelectField
-          key={`text:${slot}`}
-          className="todo-settings-text-select"
-          value={settings.textColors[id]}
-          options={textOptions}
-          disabled={settings.style !== 'filled'}
-          ariaLabel={uiText('todo.settings.statusText', { p0: label })}
-          onChange={(value) => commit({ ...settings, textColors: { ...settings.textColors, [id]: value as StatusTextColor } })}
-        />
+        {/* To do never counts as done and Completed always does: shown, not switchable. */}
+        <IconButton
+          key={`done:${slot}`}
+          className="todo-settings-strike"
+          pressed={status.done}
+          aria-pressed={status.done}
+          disabled={locked}
+          ariaLabel={uiText('todo.settings.statusDone', { p0: label })}
+          title={uiText(locked ? 'todo.settings.statusDoneFixed' : 'todo.settings.statusDone', { p0: label })}
+          onClick={() => void setDone(id, !status.done)}
+        >
+          <CircleCheck />
+        </IconButton>
         <Toggle
           key={`show:${slot}`}
           checked={kind !== 'off'}
-          disabled={kind === 'locked'}
-          label={uiText(custom ? 'todo.settings.statusShowCustom' : 'todo.settings.statusShow', { p0: label })}
+          disabled={locked}
+          label={uiText('todo.settings.statusShow', { p0: label })}
           onChange={(next) => setShown(id as ShowableStatus, next)}
         />
-        <span className="todo-settings-row-actions">
-          {custom && (
-            <>
-              <IconButton
-                key={`done:${slot}`}
-                className="todo-settings-strike"
-                pressed={status.done}
-                aria-pressed={status.done}
-                ariaLabel={uiText('todo.settings.statusDone', { p0: label })}
-                title={uiText('todo.settings.statusDone', { p0: label })}
-                onClick={() => void setDone(custom, !status.done)}
-              >
-                <CircleCheck />
-              </IconButton>
-              <IconButton
-                key={`delete:${slot}`}
-                ariaLabel={uiText('todo.settings.statusDelete', { p0: label })}
-                title={uiText('todo.settings.statusDelete', { p0: label })}
-                onClick={() => void deleteStatus(custom)}
-              >
-                <Trash />
-              </IconButton>
-            </>
-          )}
-        </span>
+        {locked ? <span /> : (
+          <IconButton key={`delete:${slot}`} ariaLabel={uiText('todo.settings.statusDelete', { p0: label })} title={uiText('todo.settings.statusDelete', { p0: label })} onClick={() => void deleteStatus(id)}>
+            <Trash />
+          </IconButton>
+        )}
       </div>
     )
   }
 
   const hidden = [
-    ...OPTIONAL_STATUSES.filter((id) => !settings.active.includes(id)),
+    ...OPTIONAL_STATUSES.filter((id) => !settings.active.includes(id) && !settings.removed.includes(id)),
     ...settings.custom.map((status) => status.id).filter((id) => !settings.active.includes(id))
   ].map((id) => statusDef(id, settings))
-  const styleOptions = [
-    { value: 'filled', label: uiText('todo.settings.styleFilled') },
-    { value: 'text', label: uiText('todo.settings.styleText') }
-  ]
   const full = settings.custom.length >= CUSTOM_STATUS_LIMIT
 
   return (
-    <>
-      <Section title={uiText('todo.settings.statusAppearance')}>
-        <Row title={uiText('todo.settings.statusStyle')} description={uiText('todo.settings.statusStyleDesc')}>
-          <div className="todo-settings-end" style={segmentedStyle(styleOptions.map((option) => option.label))}>
-            <Segmented
-              value={settings.style}
-              ariaLabel={uiText('todo.settings.statusStyle')}
-              options={styleOptions}
-              onChange={(value) => commit({ ...settings, style: value as StatusStyle })}
-            />
-          </div>
-        </Row>
-      </Section>
-      <Section title={uiText('todo.settings.statuses')}>
-        <p className="todo-settings-desc">{uiText('todo.settings.statusesDescCustom')}</p>
-        <div className="todo-settings-list todo-status-settings" role="list">
-          <div className="todo-settings-item todo-settings-head" aria-hidden="true">
-            <span />
-            <span />
-            <span className="todo-settings-name">{uiText('todo.settings.colStatus')}</span>
-            <span className="todo-settings-preview">{uiText('todo.settings.colPreview')}</span>
-            <span className="todo-settings-head-glyph" title={uiText('todo.settings.colStrike')}><Strikethrough /></span>
-            <span>{uiText('todo.settings.colColor')}</span>
-            <span>{uiText('todo.settings.colText')}</span>
-            <span>{uiText('todo.settings.colShow')}</span>
-            <span />
-          </div>
-          {row(statusDef('open', settings), 'locked', 0)}
-          {row(statusDef('completed', settings), 'locked', 1)}
-          {active.map((status, index) => row(status, 'shown', 2 + index))}
-          {hidden.map((status, index) => row(status, 'off', 2 + active.length + index))}
+    <Section title={uiText('todo.settings.statuses')}>
+      <p className="todo-settings-desc">{uiText('todo.settings.statusesDescAll')}</p>
+      <div className="todo-settings-list todo-status-settings" role="list">
+        <div className="todo-settings-item todo-settings-head" aria-hidden="true">
+          <span />
+          <span>{uiText('todo.settings.colIcon')}</span>
+          <span className="todo-settings-name">{uiText('todo.settings.colStatus')}</span>
+          <span className="todo-settings-head-glyph" title={uiText('todo.settings.colStrike')}><Strikethrough /></span>
+          <span>{uiText('todo.settings.colColor')}</span>
+          <span className="todo-settings-head-glyph" title={uiText('todo.settings.colDone')}><CircleCheck /></span>
+          <span>{uiText('todo.settings.colShow')}</span>
+          <span />
         </div>
-        {reorder.liveRegion}
-        <div className="todo-status-add">
-          <CommitTextField
-            key={`add:${addKey}`}
-            initial=""
-            placeholder={uiText('todo.settings.statusNewPlaceholder')}
-            ariaLabel={uiText('todo.settings.statusNew')}
-            disabled={full}
-            onType={(value) => { draft.current = value; if (!!customLabel(value) !== canAdd) setCanAdd(!canAdd) }}
-            onCommit={(value) => { draft.current = value }}
-          />
-          <Button type="button" disabled={full || !canAdd} onClick={addStatus}>{uiText('todo.settings.statusAdd')}</Button>
-        </div>
-      </Section>
-    </>
+        {row(statusDef('open', settings), 'locked', 0)}
+        {row(statusDef('completed', settings), 'locked', 1)}
+        {active.map((status, index) => row(status, 'shown', 2 + index))}
+        {hidden.map((status, index) => row(status, 'off', 2 + active.length + index))}
+      </div>
+      {reorder.liveRegion}
+      <div className="todo-status-add">
+        <CommitTextField
+          key={`add:${addKey}`}
+          initial=""
+          placeholder={uiText('todo.settings.statusNewPlaceholder')}
+          ariaLabel={uiText('todo.settings.statusNew')}
+          disabled={full}
+          onType={(value) => { draft.current = value; if (!!customLabel(value) !== canAdd) setCanAdd(!canAdd) }}
+          onCommit={(value) => { draft.current = value }}
+        />
+        <Button type="button" disabled={full || !canAdd} onClick={addStatus}>{uiText('todo.settings.statusAdd')}</Button>
+      </div>
+      {settings.removed.length > 0 && (
+        <button type="button" className="todo-detail-add todo-status-restore" onClick={() => commit({ ...settings, removed: [], active: [...settings.active, ...settings.removed] })}>
+          {uiText('todo.settings.statusRestore', { count: settings.removed.length })}
+        </button>
+      )}
+    </Section>
   )
 }
 

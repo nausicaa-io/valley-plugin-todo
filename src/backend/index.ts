@@ -1,4 +1,5 @@
 import { startReminderOwner } from '../reminderOwner'
+import { DEFAULT_TODO_ICONS } from '../todoIconDefaults'
 import type { PluginBackendApi } from '@valley/plugin-sdk'
 import { registerWorkflowContribution, type WorkflowContributionContract } from '@valley/plugin-sdk/workflow'
 import type { DataRecord } from '@valley/plugin-sdk/types'
@@ -33,7 +34,9 @@ export function todoWorkflowValues(raw: Record<string, unknown>, settings: Recor
   const customStatuses = normalizeCustomStatuses((settings.statuses as { custom?: unknown } | undefined)?.custom)
   const custom = customStatuses.filter((status) => (Array.isArray(enabled) ? enabled : []).includes(status.id)).map((status) => status.id)
   if (values.status !== undefined && (![...STATUSES, ...custom].includes(values.status as TodoStatus) || !active.includes(String(values.status)))) throw new Error('This task status is disabled.')
-  const statusSettings = { custom: customStatuses }
+  const rawDone = (settings.statuses as { done?: unknown } | undefined)?.done
+  const done = rawDone && typeof rawDone === 'object' ? Object.fromEntries(Object.entries(rawDone as Record<string, unknown>).filter(([, value]) => typeof value === 'boolean')) as Record<string, boolean> : {}
+  const statusSettings = { custom: customStatuses, done }
   if (values.status !== undefined) Object.assign(values, patchForStatus(values.status as TodoStatus, statusSettings))
   else if (values.completed !== undefined) Object.assign(values, patchForStatus(values.completed ? 'completed' : 'open', statusSettings))
   return values as Partial<TodoRecord>
@@ -46,6 +49,26 @@ export function register(api: PluginBackendApi): () => Promise<void> {
   })
   const offReminders = startReminderOwner(api, () => domain.list(), id => domain.patch(id, patchForStatus('completed')), ids => domain.getMany(ids))
   const offs = [
+    // The shared task icons (Settings › Markdown task markers) as SVG source by
+    // name, so a status can wear one. Read-only: the host seeds and owns the folder.
+    api.rpc.handle('taskIcons', async () => {
+      // To-Do's own status icons: the bundled set is seeded once, files the user adds or edits are kept.
+      const grant = await api.storage.open({ area: 'metadata', path: 'assets/icons/todo-icon', kind: 'directory', mode: 'write' })
+      const location = (path: string) => ({ handle: grant.handle, path })
+      try {
+        await api.storage.mkdir(location(''))
+        for (const [name, svg] of Object.entries(DEFAULT_TODO_ICONS)) {
+          if (!await api.storage.stat(location(`${name}.svg`))) await api.storage.write(location(`${name}.svg`), svg)
+        }
+        const icons: Record<string, string> = {}
+        let bytes = 0
+        for (const entry of await api.storage.list(location(''))) {
+          if (entry.kind !== 'file' || !/^[^/\\]+\.svg$/i.test(entry.name) || entry.size > 64_000 || bytes + entry.size > 1_000_000) continue
+          try { icons[entry.name.slice(0, -4)] = await api.storage.read(location(entry.name)); bytes += entry.size } catch { /* skip unreadable */ }
+        }
+        return { icons }
+      } finally { await api.storage.close(grant.handle).catch(() => {}) }
+    }),
     api.rpc.handle('records.append', payload => domain.append((payload as { record: TodoRecord }).record)),
     api.rpc.handle('records.update', payload => {
       const input = payload as { id: string; record: TodoRecord; expectedUpdatedAt?: string; documentRevision?: { expectedRevision: number; realmGeneration: number }; exactStatusHistory?: boolean }

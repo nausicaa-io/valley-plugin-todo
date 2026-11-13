@@ -1,3 +1,5 @@
+import { taskIconSvg } from './taskIcons'
+import { statusIconName } from './statusIcons'
 import { React } from './runtime'
 import type { CSSProperties, ReactElement, ReactNode } from 'react'
 
@@ -110,8 +112,11 @@ const STATUS_GLYPHS: Record<string, (p: IconProps) => ReactElement> = {
  * not reach — host menus draw outside the plugin document.
  */
 export const TodoStatusGlyph = ({ status, dotCls, color }: { status: string | null; dotCls: string; color?: string }): ReactElement => {
-  const Glyph = status ? STATUS_GLYPHS[status] : undefined
   const style = color ? { color } : undefined
+  // An icon chosen in Settings › Statuses, from the shared task icon folder.
+  const asset = taskIconSvg(statusIconName(status ?? 'open'))
+  if (asset) return <span className={`todo-status-menu-svg todo-status-asset ${dotCls}`} style={style} aria-hidden="true" dangerouslySetInnerHTML={{ __html: asset }} />
+  const Glyph = status ? STATUS_GLYPHS[status] : undefined
   if (Glyph) return <Glyph className={`todo-status-menu-svg ${dotCls}`} style={style} />
   return <span className={`todo-status-menu-dot ${dotCls}`} style={style} />
 }

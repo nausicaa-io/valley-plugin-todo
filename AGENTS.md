@@ -12,3 +12,5 @@
 - Reminder dataset version changes include explicit additive migrations and an existing-database preservation check; fresh-realm tests alone do not validate rollout.
 
 - Visual checks of To-Do dialogs and tiles include hover and focus states: hover every card, tile and row with a hover-only control (remove ×, actions) and confirm the control sits fully inside its container and the dialog never clips it.
+- A new key in a saved settings object needs a matching property in `config.json` → `settingsSchema` (the `statuses` schema has `additionalProperties: false`): the host rejects the whole save otherwise, and `void api.settings.set(...)` hides the rejection. `tests/statusSchema.test.ts` checks the statuses keys; verify a changed setting by reading `.valley/plugins/data/todo/config.json` after the live click, not only by the screen.
+- Status icons come only from To-Do's own folder `.valley/assets/icons/todo-icon/` (bundled outline set in `assets/todo-icon/`, seeded without overwriting); never borrow another owner's icon folder such as the Markdown `task-icon`.

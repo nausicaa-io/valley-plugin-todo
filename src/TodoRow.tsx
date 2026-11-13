@@ -1,4 +1,5 @@
 import { React, api, registerTodoRow } from './runtime'
+import { InlineCalendar } from './DatePanel'
 import { renderInlineMarkdown } from './markdown'
 import type { ReactElement } from 'react'
 import type { TodoRecord } from './types'
@@ -207,13 +208,11 @@ export const TodoRow = ({
     () => ({
       reschedule: (date) => void c.patchTodo(todo.id, { dueDate: date }),
       pickDate: (anchor) => {
-        const { DateField } = api.ui.settings
         void api.ui.openPopover(
           (ctx) => (
             <div className="todo-swipe-datepick">
-              <DateField
-                value={todo.dueDate}
-                ariaLabel={uiText('todo.swipe.date')}
+              <InlineCalendar
+                value={todo.dueDate?.slice(0, 10) ?? ''}
                 onChange={(next) => {
                   void c.patchTodo(todo.id, { dueDate: next })
                   ctx.close()

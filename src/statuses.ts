@@ -45,6 +45,14 @@ export const CUSTOM_STATUS_LABEL_MAX = 40
 export interface TodoStatusSettings {
   active: ShowableStatus[]
   custom: CustomStatusDef[]
+  /** Names given to built-in statuses (To do and Completed keep theirs). */
+  labels: Partial<Record<TodoStatus, string>>
+  /** A task icon (file name in .valley/assets/icons/task-icon) per status. */
+  icons: Partial<Record<TodoStatus, string>>
+  /** Whether a built-in status counts as done, where it differs from the default. */
+  done: Partial<Record<TodoStatus, boolean>>
+  /** Built-in statuses removed in Settings; they no longer appear anywhere. */
+  removed: OptionalTodoStatus[]
   colors: Record<TodoStatus, string>
   textColors: Record<TodoStatus, StatusTextColor>
   /** Whether a task in this status shows its title struck through. */
@@ -141,8 +149,14 @@ export function normalizeStatusSettings(value: unknown): TodoStatusSettings {
     id,
     typeof rawStrike[id] === 'boolean' ? rawStrike[id] : DEFAULT_STRIKETHROUGH.includes(id) || custom.some((status) => status.id === id && status.done)
   ])) as Record<TodoStatus, boolean>
-  const style: StatusStyle = raw.style === 'text' ? 'text' : 'filled'
-  return { active, custom, colors, textColors, strikethrough, style }
+  // Statuses are always drawn as coloured text; the filled badge style is retired.
+  const style: StatusStyle = 'text'
+  const text = (value: unknown, max: number): string => typeof value === 'string' ? value.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max) : ''
+  const removed = (Array.isArray(raw.removed) ? raw.removed : []).filter((id): id is OptionalTodoStatus => typeof id === 'string' && OPTIONAL_SET.has(id as TodoStatus))
+  const labels = Object.fromEntries(ids.map((id) => [id, text(record(raw.labels)[id], CUSTOM_STATUS_LABEL_MAX)]).filter(([, label]) => label)) as Partial<Record<TodoStatus, string>>
+  const icons = Object.fromEntries(ids.map((id) => [id, text(record(raw.icons)[id], 80)]).filter(([, icon]) => icon && /^[^/\\]+$/.test(icon))) as Partial<Record<TodoStatus, string>>
+  const done = Object.fromEntries(OPTIONAL_STATUSES.map((id) => [id, record(raw.done)[id]]).filter(([id, value]) => typeof value === 'boolean' && value !== BY_ID.get(id as TodoStatus)?.done)) as Partial<Record<TodoStatus, boolean>>
+  return { active: active.filter((id) => !removed.includes(id as OptionalTodoStatus)), custom, colors, textColors, strikethrough, style, labels, icons, done, removed: [...new Set(removed)] }
 }
 
 export function getStatusSettings(): TodoStatusSettings {
@@ -153,15 +167,15 @@ export function setStatusSettings(settings: TodoStatusSettings): void {
   void api.settings.set(STATUS_SETTINGS_KEY, normalizeStatusSettings(settings))
 }
 
-setCustomStatusLabels((status) => getStatusSettings().custom.find((custom) => custom.id === status)?.label)
+setCustomStatusLabels((status) => { const settings = getStatusSettings(); return settings.labels[status] ?? settings.custom.find((custom) => custom.id === status)?.label })
 
 /** Every status a stored task may carry: the built-ins plus the custom ones, archived included. */
 export function allStatuses(settings: TodoStatusSettings = getStatusSettings()): TodoStatus[] {
   return [...STATUSES, ...settings.custom.map((status) => status.id)]
 }
 
-export function isDoneStatus(status: TodoStatus, settings: Pick<TodoStatusSettings, 'custom'> = getStatusSettings()): boolean {
-  if (BY_ID.has(status)) return BY_ID.get(status)!.done
+export function isDoneStatus(status: TodoStatus, settings: Pick<TodoStatusSettings, 'custom'> & Partial<Pick<TodoStatusSettings, 'done'>> = getStatusSettings()): boolean {
+  if (BY_ID.has(status)) return settings.done?.[status] ?? BY_ID.get(status)!.done
   return settings.custom.some((custom) => custom.id === status && custom.done)
 }
 
@@ -202,7 +216,7 @@ export function statusDef(status: TodoStatus | null | undefined, settings: TodoS
     }
   }
   const base = (status && BY_ID.get(status)) || BASE_STATUS_DEFS[0]
-  return { ...base, label: todoStatusLabel(base.id), color: settings.colors[base.id], custom: false }
+  return { ...base, label: settings.labels[base.id] ?? todoStatusLabel(base.id), done: settings.done[base.id] ?? base.done, color: settings.colors[base.id], custom: false }
 }
 
 export function activeStatusDefs(settings: TodoStatusSettings = getStatusSettings()): StatusDef[] {
@@ -266,7 +280,7 @@ export function effectiveStatus(todo: { status?: TodoStatus; completed: boolean 
   return todo.status ?? (todo.completed ? 'completed' : 'open')
 }
 
-export function patchForStatus(status: TodoStatus | null, settings?: Pick<TodoStatusSettings, 'custom'>): { completed: boolean; status: TodoStatus | undefined } {
+export function patchForStatus(status: TodoStatus | null, settings?: Pick<TodoStatusSettings, 'custom'> & Partial<Pick<TodoStatusSettings, 'done'>>): { completed: boolean; status: TodoStatus | undefined } {
   if (status === null || status === 'open') return { completed: false, status: undefined }
   return { completed: isDoneStatus(status, settings), status }
 }
