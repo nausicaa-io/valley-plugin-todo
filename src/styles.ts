@@ -1486,6 +1486,7 @@ button.todo-date:hover .todo-date-day {
   border-bottom: 1px solid var(--border-light);
   background: var(--surface-color-alt);
 }
+.todo-page-appbar-spacer { flex: 1 1 auto; min-width: 0; }
 .todo-page-appbar-title {
   flex: 0 0 auto;
   min-width: 0;
@@ -4294,6 +4295,9 @@ button.todo-settings-handle:active { cursor: grabbing; }
 .todo-table-row:hover td.todo-table-actions { background: linear-gradient(var(--hover-bg), var(--hover-bg)), var(--surface-color-alt); }
 .todo-table-row.selected td.todo-table-actions { background: linear-gradient(var(--accent-tint-bg), var(--accent-tint-bg)), var(--surface-color-alt); }
 .todo-table-section td.todo-table-actions { background: var(--surface-color-alt); }
+/* The editing blue reaches the right edge: the sticky column layers it over its own opaque surface. */
+.todo-table-new-row:not(.is-idle) td.todo-table-actions,
+.todo-table-row.is-editing td.todo-table-actions { background: linear-gradient(color-mix(in srgb, var(--accent-color) 6%, transparent), color-mix(in srgb, var(--accent-color) 6%, transparent)), var(--surface-color-alt); }
 .todo-status-plain { color: var(--text-tertiary); font-size: var(--smaller-font-size); }
 .todo-table-row:not(:hover) .todo-status-plain { opacity: 0; }
 

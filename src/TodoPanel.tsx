@@ -56,7 +56,7 @@ import {
   useStatusFilter,
   useTodoSearch
 } from './viewStore'
-import { opensInNewTab, showView, useShownView } from './tabs'
+import { openViewTab, opensInNewTab, showView, useShownView } from './tabs'
 import { PRIORITIES, SORT_LABEL_KEYS, formatDate, formatDueLabel, isoDay, type SortDir, type SortField } from './sort'
 import { uiText } from './localization'
 import { DONE_STATUSES, matchesStatusFilter, useStatusVocabulary } from './statuses'
@@ -699,7 +699,9 @@ export const TodoPanel = (): ReactElement => {
             type="button"
             aria-label={uiText('auto.25097a85052b')}
             title={uiText('auto.25097a85052b')}
-            onClick={() => api.workspace.openMainTab()}
+            // ⌘-click (or middle click) opens the shown list in a new tab of its own.
+            onClick={(event) => (opensInNewTab(event) ? openViewTab(view, true) : api.workspace.openMainTab())}
+            onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); openViewTab(view, true) } }}
           />
         </div>
       </header>

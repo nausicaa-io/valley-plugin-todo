@@ -42,6 +42,16 @@ describe('To-Do list tabs', () => {
     expect(store.mock.api.settings.get().panelChip).toBeUndefined()
   })
 
+  it('opens the shown list in a new tab on ⌘-click of the open-page button', async () => {
+    focus()
+    render(<TodoPanel />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Flagged/ })).toHaveTextContent('1'))
+    fireEvent.click(screen.getByRole('button', { name: 'Open To-Do page' }), { metaKey: true, ctrlKey: true })
+    expect(store.mock.api.workspace.openMainTab).toHaveBeenLastCalledWith({ instanceId: 'list:all', title: 'All', newTab: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Open To-Do page' }))
+    expect(store.mock.api.workspace.openMainTab).toHaveBeenLastCalledWith()
+  })
+
   it('keeps a plain click on the shared view', async () => {
     focus()
     render(<TodoPanel />)
@@ -55,9 +65,9 @@ describe('To-Do list tabs', () => {
     const shared = render(<Page navigation={navigation()} />)
     const pinned = render(<Page navigation={navigation()} instanceId={FUNGI} />)
     await waitFor(() => expect(within(pinned.container).getAllByText('Fungi Survey sheet')).toHaveLength(1))
-    expect(pinned.container.querySelector('.todo-page-appbar-title')).toHaveTextContent('Fungi')
+    expect(store.mock.api.workspace.setMainTabTitle).toHaveBeenCalledWith('Fungi', FUNGI)
     expect(within(pinned.container).queryByText('Record moss growth')).toBeNull()
-    expect(shared.container.querySelector('.todo-page-appbar-title')).toHaveTextContent('All')
+    expect(store.mock.api.workspace.setMainTabTitle).toHaveBeenCalledWith('All', undefined)
     expect(within(shared.container).getByText('Record moss growth')).toBeInTheDocument()
     expect(mainSurface().getSnapshot(FUNGI).view.view).toBe('groups:%7B%22names%22%3A%5B%22Fungi%22%5D%2C%22includeUngrouped%22%3Afalse%7D')
     await mainSurface().restore({ ...mainSurface().getSnapshot(FUNGI).view }, FUNGI)

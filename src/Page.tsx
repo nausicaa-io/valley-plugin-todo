@@ -107,17 +107,11 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
 
   const title = viewTitle(view)
 
-  // Always a `var(…)`, never a resolved hex — see `paletteCssValue`.
-  const titleColor =
-    view.kind === 'groups'
-      ? view.names.length === 1 && !view.includeUngrouped
-        ? paletteCssValue(groupColorFor(view.names[0], groups))
-        : 'var(--accent-color)'
-      : view.kind === 'tag'
-        ? 'var(--accent-color)'
-      : view.kind === 'nogroup'
-        ? 'var(--text-color)'
-        : paletteCssValue(listDef!.color) || 'var(--text-color)'
+  // The tab names the open list (Today, Scheduled, a group…); the header below carries no second title.
+  React.useEffect(() => {
+    api.workspace.setMainTabTitle(title, instanceId)
+  }, [title, instanceId])
+  React.useEffect(() => () => api.workspace.setMainTabTitle(null, instanceId), [instanceId])
 
   const filtered = React.useMemo(() => {
     let list = c.todos.filter((todo) => matchesVisibleView(todo, view, showCompleted, today))
@@ -253,7 +247,7 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
             />
           </div>
         ) : (
-          <h1 className="todo-page-appbar-title" style={{ color: titleColor }}>{title}</h1>
+          <span className="todo-page-appbar-spacer" aria-hidden="true" />
         )}
         {(selectedDateRange || selectedDate) && (
           <button

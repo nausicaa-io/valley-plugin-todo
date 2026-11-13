@@ -70,7 +70,7 @@ describe('the To-Do page', () => {
   it('opens on All, so an undated todo is never invisible on a fresh realm', async () => {
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('All')
+    await waitFor(() => expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('All'))
     expect(titles()).toHaveLength(3)
   })
 
@@ -96,18 +96,18 @@ describe('the To-Do page', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('keeps the 38px header to the title and icons, with search opening in the title\'s place', async () => {
+  it('keeps the 38px header to icons only (the tab names the list), with search opening on the left', async () => {
     const { container } = render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
 
     const bar = container.querySelector('.todo-page-appbar')!
     const shape = (): unknown => [...bar.children].map((element) => {
-      if (element.matches('h1')) return 'title'
+      if (element.matches('.todo-page-appbar-spacer')) return 'spacer'
       if (element.matches('.todo-page-search')) return 'search-field'
       if (element.matches('.todo-page-appbar-actions')) return [...element.children].map((child) => child.getAttribute('aria-label')).join('+')
       return 'other'
     })
-    expect(shape()).toEqual(['title', 'Search todos+Priority+Toggle columns+New todo'])
+    expect(shape()).toEqual(['spacer', 'Search todos+Priority+Toggle columns+New todo'])
     expect(screen.queryByRole('textbox', { name: 'Search todos' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Search todos' }))
@@ -115,7 +115,7 @@ describe('the To-Do page', () => {
     expect(input).toHaveAttribute('placeholder', 'Filter tasks…')
     expect(shape()).toEqual(['search-field', 'Clear search+Priority+Toggle columns+New todo'])
     fireEvent.keyDown(input, { key: 'Escape' })
-    expect(shape()).toEqual(['title', 'Search todos+Priority+Toggle columns+New todo'])
+    expect(shape()).toEqual(['spacer', 'Search todos+Priority+Toggle columns+New todo'])
 
     // The status filter sits on the header cell above the status checks.
     expect(container.querySelector('thead th.todo-table-select button[aria-label="Statuses"]')).toBeInTheDocument()
@@ -178,7 +178,7 @@ describe('the To-Do page', () => {
 
     const bar = container.querySelector('.todo-page-appbar')
     expect(bar).not.toBeNull()
-    expect(bar?.querySelector('.todo-page-appbar-title')).toHaveTextContent('All')
+    expect(bar?.querySelector('.todo-page-appbar-title')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Forward' })).not.toBeInTheDocument()
 
@@ -197,32 +197,28 @@ describe('the To-Do page', () => {
     render(<Page navigation={navigation} />)
 
     act(() => setView({ kind: 'smart', id: 'today' }))
-    await screen.findByRole('heading', { level: 1, name: 'Today' })
+    await waitFor(() => expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('Today'))
     await waitFor(() => expect(controller?.canGoBack).toBe(true))
 
     await act(async () => { await controller?.goBack() })
-    await screen.findByRole('heading', { level: 1, name: 'All' })
+    await waitFor(() => expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('All'))
     expect((controller as MainWorkspaceNavigationController | null)?.canGoForward).toBe(true)
   })
 
-  it('titles itself after the selected view, in that view’s colour', async () => {
+  it('names its tab after the open list, with no second title in the header', async () => {
     store = installTodoNotes(RECORDS, { groups: CONFIGURED, panelChip: 'scheduled' })
-    render(<Page navigation={{ setController: vi.fn() }} />)
-
-    const title = await screen.findByRole('heading', { level: 1 })
-    expect(title.textContent).toBe('Scheduled')
-    // The variable, not a resolved colour — that is what keeps the title
-    // following the theme and any `--color-red` the user overrode.
-    expect(title.getAttribute('style')).toContain('var(--color-red)')
+    const { container, unmount } = render(<Page navigation={{ setController: vi.fn() }} />)
+    await waitFor(() => expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('Scheduled'))
+    expect(container.querySelector('.todo-page-appbar-title')).toBeNull()
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    unmount()
+    expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBeNull()
   })
 
-  it('takes a group’s own colour for a group view', async () => {
+  it('names a group view’s tab after the group', async () => {
     store = installTodoNotes(RECORDS, { groups: CONFIGURED, panelChip: 'group:Fungi' })
     render(<Page navigation={{ setController: vi.fn() }} />)
-
-    const title = await screen.findByRole('heading', { level: 1 })
-    expect(title.textContent).toBe('Fungi')
-    expect(title.getAttribute('style')).toContain('rgb(59, 130, 246)')
+    await waitFor(() => expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('Fungi'))
     await waitFor(() => expect(titles()).toEqual(['Fungi Survey sheet']))
   })
 
@@ -240,7 +236,7 @@ describe('the To-Do page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
     fireEvent.click(await screen.findByRole('button', { name: /^Fungi/ }))
 
-    await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Fungi'))
+    await waitFor(() => expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('Fungi'))
   })
 
   it('keeps sidebar and page search synchronized', async () => {
