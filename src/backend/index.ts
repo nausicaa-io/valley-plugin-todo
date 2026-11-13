@@ -1,4 +1,5 @@
 import { startReminderOwner } from '../reminderOwner'
+import { readReminderCandidates } from './reminderQuery'
 import { DEFAULT_TODO_ICONS } from '../todoIconDefaults'
 import type { PluginBackendApi } from '@valley/plugin-sdk'
 import { registerWorkflowContribution, type WorkflowContributionContract } from '@valley/plugin-sdk/workflow'
@@ -47,7 +48,7 @@ export function register(api: PluginBackendApi): () => Promise<void> {
     try { await api.services.emit('workflow.provider', event, JSON.parse(JSON.stringify(payload))) }
     catch (error) { api.rpc.emit('records.eventDeliveryFailed', { event, recordId: payload.record.id, message: error instanceof Error ? error.message : String(error) }) }
   })
-  const offReminders = startReminderOwner(api, () => domain.list(), id => domain.patch(id, patchForStatus('completed')), ids => domain.getMany(ids))
+  const offReminders = startReminderOwner(api, () => readReminderCandidates(api), id => domain.patch(id, patchForStatus('completed')), ids => readReminderCandidates(api, ids))
   const offs = [
     // The shared task icons (Settings › Markdown task markers) as SVG source by
     // name, so a status can wear one. Read-only: the host seeds and owns the folder.

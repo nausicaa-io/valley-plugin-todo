@@ -136,13 +136,14 @@ describe('incremental reminder reconcile (8.10)', () => {
 })
 
 describe('reminder reconcile triggers', () => {
-  it('reconciles on start, settings, resume and the local day boundary instead of every minute', async () => {
+  it('reconciles on start, changed reminder offsets, resume and the local day boundary instead of every minute', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'], now: new Date(2026, 10, 3, 23, 50) })
     try {
       const listeners: Record<string, () => void> = {}
       const list = vi.fn(async (): Promise<TodoRecord[]> => [])
+      let settings: Record<string, unknown> = {}
       const api = {
-        settings: { get: () => ({}), subscribe: (listener: () => void) => { listeners.settings = listener; return () => {} } },
+        settings: { get: () => settings, subscribe: (listener: () => void) => { listeners.settings = listener; return () => {} } },
         lifecycle: { onResume: (listener: () => void) => { listeners.resume = listener; return () => {} } },
         data: {
           dataset: () => ({ subscribe: () => () => {} }),
@@ -164,6 +165,15 @@ describe('reminder reconcile triggers', () => {
       expect(list).toHaveBeenCalledTimes(2)
       listeners.settings()
       await settle()
+      expect(list).toHaveBeenCalledTimes(2)
+      settings = { showCompleted: true }
+      listeners.settings()
+      await settle()
+      expect(list).toHaveBeenCalledTimes(2)
+      settings = { reminderOffsets: [5, 30] }
+      listeners.settings()
+      await settle()
+      expect(list).toHaveBeenCalledTimes(3)
       listeners.resume()
       await settle()
       expect(list).toHaveBeenCalledTimes(4)

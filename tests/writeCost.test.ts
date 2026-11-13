@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { PluginBackendApi } from '@valley/plugin-sdk'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes } from './mockTodoNotes'
 import { keyDatasetChanges } from './keyedChanges'
 import { countIo } from './ioCost'
 import { loadTodoList, updateTodo } from '../src/data'
+import { readReminderCandidates } from '../src/backend/reminderQuery'
 import { createTodoDomain } from '../src/domain'
 import { startReminderOwner } from '../src/reminderOwner'
 import { patchForStatus } from '../src/statuses'
@@ -71,7 +72,6 @@ describe('write and read cost (todo-optimize; before/after in Work/lanes/todo-op
     const { mock } = installTodoNotes(seed(2000))
     keyDatasetChanges(mock)
     const io = countIo(mock)
-    const domain = createTodoDomain(mock.api)
     const api = {
       ...mock.api,
       lifecycle: { onResume: () => () => {} },
@@ -79,14 +79,53 @@ describe('write and read cost (todo-optimize; before/after in Work/lanes/todo-op
       i18n: { t: (key: string) => key },
       rpc: { handle: () => () => {}, emit: () => {} }
     } as unknown as PluginBackendApi
-    const stop = startReminderOwner(api, () => domain.list(), undefined, (ids) => domain.getMany(ids))
+    const stop = startReminderOwner(api, () => readReminderCandidates(api), undefined, (ids) => readReminderCandidates(api, ids))
     await flush()
     io.reset()
     await mock.api.settings.set('showCompleted', true)
     await flush()
     report('settings change (showCompleted) at 2,000 tasks', io)
-    expect(io.totals().calls).toBeLessThanOrEqual(9)
-    expect(io.totals().rowsRead).toBeLessThanOrEqual(3833)
+    expect(io.counts.calls).toEqual({ 'settings.set': 1 })
+    expect(io.totals()).toEqual({ calls: 1, rowsRead: 0, rowsWritten: 0 })
+    io.reset()
+    await mock.api.settings.set('reminderOffsets', [5])
+    await flush()
+    report('reminder offsets change at 2,000 tasks', io)
+    expect(io.counts.calls).toEqual({ 'settings.set': 1, 'dataset.query': 1 })
+    expect(io.totals()).toEqual({ calls: 2, rowsRead: 0, rowsWritten: 0 })
     await stop()
+  }, 60_000)
+
+  it('the reminder owner reads one narrow query for an edited task and schedules nothing for an unrelated edit', async () => {
+    const run = async (withOwner: boolean, values: Partial<TodoRecord>) => {
+      const dated = Array.from({ length: 20 }, (_, index) => task(`due-${index}`, { dueDate: '2099-01-01', startTime: '09:00' }))
+      const { mock } = installTodoNotes([...dated, ...seed(2000)] as unknown as DataRecord[])
+      keyDatasetChanges(mock)
+      const domain = createTodoDomain(mock.api)
+      const schedule = vi.fn(async () => {})
+      const api = {
+        ...mock.api,
+        lifecycle: { onResume: () => () => {} },
+        notifications: { schedule, cancel: async () => {}, onOccurrence: () => () => {} },
+        i18n: { t: (key: string) => key },
+        rpc: { handle: () => () => {}, emit: () => {} }
+      } as unknown as PluginBackendApi
+      const stop = withOwner ? startReminderOwner(api, () => readReminderCandidates(api), undefined, (ids) => readReminderCandidates(api, ids)) : async () => {}
+      await flush()
+      const io = countIo(mock)
+      schedule.mockClear()
+      await domain.patch('due-3', values)
+      await flush()
+      await stop()
+      return { io, scheduled: schedule.mock.calls.length }
+    }
+    for (const [name, values, scheduled] of [['priority', { priority: 'high' as const }, 0], ['title', { title: 'Renamed' }, 1]] as const) {
+      const bare = await run(false, values)
+      const owned = await run(true, values)
+      const extra = { calls: owned.io.totals().calls - bare.io.totals().calls, rowsRead: owned.io.totals().rowsRead - bare.io.totals().rowsRead }
+      console.info(`[todo-optimize] reminder owner after a ${name} edit at 2,020 tasks: ${JSON.stringify({ ...extra, scheduled: owned.scheduled })}`)
+      expect(extra).toEqual({ calls: 1, rowsRead: 1 })
+      expect(owned.scheduled).toBe(scheduled)
+    }
   }, 60_000)
 })
