@@ -11,7 +11,7 @@ import { ClockTimeField, InlineCalendar } from './DatePanel'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { PriorityIcon } from './TodoTable'
 import { openStatusMenu } from './SwipeRow'
-import { formatDueLabel } from './sort'
+import { formatDueLabel, isoDay } from './sort'
 import { LocationField } from './LocationField'
 import { TagChipsField } from './TagChipsField'
 import { allGroups, groupColorFor } from './groups'
@@ -250,7 +250,7 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
     close()
   }
   const status = effectiveStatus(todo)
-  const today = todayIso()
+  const today = isoDay()
   const dueLabel = todo.dueDate
     ? `${formatDueLabel(todo.dueDate.slice(0, 10), today, { today: uiText('todo.due.today'), tomorrow: uiText('todo.due.tomorrow'), yesterday: uiText('todo.due.yesterday') }, api.ui.language(), api.getState().dateFormat)}${todo.startTime ? ` · ${todo.startTime}${todo.endTime ? `–${todo.endTime}` : ''}` : ''}`
     : ''
@@ -528,13 +528,6 @@ function shortUrl(url: string): string {
   } catch {
     return url
   }
-}
-
-function todayIso(): string {
-  const now = new Date()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
-  return `${now.getFullYear()}-${m}-${d}`
 }
 
 /**

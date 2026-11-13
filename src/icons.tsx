@@ -121,10 +121,6 @@ export const TodoStatusGlyph = ({ status, dotCls, color }: { status: string | nu
   return <span className={`todo-status-menu-dot ${dotCls}`} style={style} />
 }
 
-export const Eye = (p: IconProps): ReactElement => (
-  <Svg {...p}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></Svg>
-)
-
 export const Plus = (p: IconProps): ReactElement => (
   <Svg {...p}><path d="M12 5v14M5 12h14" /></Svg>
 )
@@ -410,10 +406,6 @@ export const ChevronsLeft = (p: IconProps): ReactElement => (
 
 export const ChevronsRight = (p: IconProps): ReactElement => (
   <Svg {...p}><path d="m6 17 5-5-5-5M13 17l5-5-5-5" /></Svg>
-)
-
-export const CirclePlus = (p: IconProps): ReactElement => (
-  <Svg {...p}><circle cx="12" cy="12" r="9" /><path d="M8 12h8M12 8v8" /></Svg>
 )
 
 export const SlidersHorizontal = (p: IconProps): ReactElement => (

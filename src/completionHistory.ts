@@ -1,6 +1,7 @@
 import type { ValleyPluginApi, DatasetRecord } from '@valley/plugin-sdk'
 import type { TodoRecord } from './types'
-import { allStatuses, normalizeCustomStatuses, STATUSES } from './statuses'
+import { normalizeCustomStatuses, STATUSES } from './model/statusModel'
+import { STATUS_HISTORY_DATASET } from './domain/datasets'
 
 export interface TodoListRecord extends TodoRecord {
   historyLoaded: false
@@ -44,10 +45,12 @@ export function recordCompletion(history: TodoRecord['statusHistory'], sources: 
 export async function readCompletionSummaries(
   source: ValleyPluginApi,
   ids: string[],
-  assertActive: () => void
+  assertActive: () => void,
+  /** The statuses a completion may come from, read again for every query as `allStatuses()` was. */
+  sources: () => readonly string[]
 ): Promise<Map<string, { changedAt: string }>> {
   const result = new Map<string, { changedAt: string }>()
-  const dataset = source.data.dataset('todo.status_history')
+  const dataset = source.data.dataset(STATUS_HISTORY_DATASET)
   for (let offset = 0; offset < ids.length; offset += 20) {
     let pending = ids.slice(offset, offset + 20)
     const ceilings = new Map<string, number>()
@@ -58,7 +61,7 @@ export async function readCompletionSummaries(
           taskId: { in: pending },
           or: ['completed', 'canceled'].map((to) => ({
             to,
-            from: { in: allStatuses().filter((status) => status !== to) }
+            from: { in: sources().filter((status) => status !== to) }
           })),
           ...(ceilings.size ? { and: [{ or: pending.map((taskId) => ({ taskId, position: { lt: ceilings.get(taskId)! } })) }] } : {})
         },

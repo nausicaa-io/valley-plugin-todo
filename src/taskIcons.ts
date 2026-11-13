@@ -1,4 +1,5 @@
 import { React, api } from './runtime'
+import type { TaskIconsResult } from './domain/rpc'
 
 /** To-Do's own status icon folder; add an SVG there to offer it. */
 export const TASK_ICON_FOLDER = '.valley/assets/icons/todo-icon'
@@ -53,7 +54,7 @@ function registry(): Registry {
 export function refreshTaskIcons(): Promise<void> {
   const current = registry()
   if (current.pending) return current.pending
-  current.pending = api.backend.call<{ icons: Record<string, string> }>('taskIcons', {}).then((result) => {
+  current.pending = api.backend.call<TaskIconsResult>('taskIcons', {}).then((result) => {
     const icons: Record<string, string> = {}
     for (const [name, source] of Object.entries(result?.icons ?? {})) {
       const svg = sanitizeTaskIcon(source)

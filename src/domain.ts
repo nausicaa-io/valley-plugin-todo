@@ -1,20 +1,22 @@
 import type { DatasetRecord, DatasetWhere, ValleyPluginApi } from '@valley/plugin-sdk'
-import type { DataRecord } from '@valley/plugin-sdk/types'
 import { normalizeGroups } from '@valley/plugin-sdk/groups'
-import { effectiveStatus, STATUS_SETTINGS_KEY } from './statuses'
+import { effectiveStatus, STATUS_SETTINGS_KEY } from './model/statusModel'
 import { completionSources, recordCompletion } from './completionHistory'
 import { forWrite, hydrateTodos, normalizeTodoRecord, relationChanges, relationWrites, taskRow, type TodoRelations } from './records'
 import type { TodoRecord } from './types'
+import { ATTACHMENTS_DATASET, LINKS_DATASET, queryAll, SESSIONS_DATASET, STATUS_HISTORY_DATASET, TAGS_DATASET, TASKS_DATASET } from './domain/datasets'
+import { isClockTime, validReminderOffsets } from './domain/validation'
+import type { DocumentRevision } from './domain/rpc'
 
 type OwnerApi = Pick<ValleyPluginApi, 'data' | 'pluginId'> & { settings?: Pick<ValleyPluginApi['settings'], 'get'> } & { documents: Pick<ValleyPluginApi['documents'], 'read' | 'update'> }
-type Revision = { expectedRevision: number; realmGeneration: number }
+type Revision = DocumentRevision
 export type TodoUpdateOptions = { exactStatusHistory?: boolean }
 export type TodoEventSink = (event: string, payload: { record: TodoRecord; previous?: TodoRecord }) => Promise<void>
 
 function validateReminders(record: { reminderOffsets?: number[]; reminderTime?: string }): void {
   const offsets = record.reminderOffsets
-  if (offsets !== undefined && (!Array.isArray(offsets) || offsets.length > 16 || offsets.some(value => !Number.isInteger(value) || value < 0 || value > 10080) || new Set(offsets).size !== offsets.length)) throw new Error('Invalid reminder offsets')
-  if (record.reminderTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(record.reminderTime)) throw new Error('Invalid reminder time')
+  if (offsets !== undefined && !validReminderOffsets(offsets)) throw new Error('Invalid reminder offsets')
+  if (record.reminderTime && !isClockTime(record.reminderTime)) throw new Error('Invalid reminder time')
 }
 
 export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async () => {}) {
@@ -32,29 +34,18 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     pending = result
     return result
   }
-  const rows = async (api: OwnerApi, dataset: string, where?: DatasetWhere): Promise<DatasetRecord[]> => {
-    const records: DatasetRecord[] = []
-    let cursor: string | undefined
-    do {
-      assertActive()
-      const page = await api.data.dataset(dataset).query({ where, limit: 1000, cursor })
-      records.push(...page.rows)
-      cursor = page.cursor
-    } while (cursor)
-    assertActive()
-    return records
-  }
+  const rows = (api: OwnerApi, dataset: string, where?: DatasetWhere): Promise<DatasetRecord[]> => queryAll(api, dataset, { where }, assertActive)
   const relations = async (api: OwnerApi, id?: string | string[]): Promise<TodoRelations> => {
     const where = id === undefined ? undefined : { taskId: typeof id === 'string' ? id : { in: id } }
     const [tagRows, links, attachments, sessions, statusHistory] = await Promise.all([
-      rows(api, 'todo.task_tags', where), rows(api, 'todo.task_links', where),
-      rows(api, 'todo.task_attachments', where), rows(api, 'todo.focus_sessions', where), rows(api, 'todo.status_history', where)
+      rows(api, TAGS_DATASET, where), rows(api, LINKS_DATASET, where),
+      rows(api, ATTACHMENTS_DATASET, where), rows(api, SESSIONS_DATASET, where), rows(api, STATUS_HISTORY_DATASET, where)
     ])
     return { tags: tagRows, links, attachments, sessions, statusHistory }
   }
   const readRows = async (api: OwnerApi, id?: string | string[]) => {
     const where = id === undefined ? undefined : { id: typeof id === 'string' ? id : { in: id } }
-    const [records, related] = await Promise.all([rows(api, 'todo.tasks', where), relations(api, id)])
+    const [records, related] = await Promise.all([rows(api, TASKS_DATASET, where), relations(api, id)])
     return { todos: hydrateTodos(records, related, normalizeGroups([])), related }
   }
   const read = async (api: OwnerApi, id?: string | string[]): Promise<TodoRecord[]> => (await readRows(api, id)).todos
@@ -78,7 +69,7 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     if (!baseline || !current || (expectedUpdatedAt !== undefined && current.updatedAt !== expectedUpdatedAt)) return { ok: false }
     if (!record.title?.trim()) throw new Error('A task title cannot be empty.')
     const from = effectiveStatus(current)
-    const next = normalizeTodoRecord({ ...record, id, history: record.history === undefined ? current.history : record.history } as unknown as DataRecord)
+    const next = normalizeTodoRecord({ ...record, id, history: record.history === undefined ? current.history : record.history })
     const to = effectiveStatus(next)
     const statusHistory = options.exactStatusHistory ? [...(next.statusHistory ?? [])] : [...(current.statusHistory ?? [])]
     if (!options.exactStatusHistory && from !== to) statusHistory.push({ from, to, changedAt: new Date().toISOString() })
@@ -93,7 +84,7 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
       realmGeneration: documentRevision?.realmGeneration ?? baseline.realmGeneration,
       body: persisted.note, explicitTags: persisted.tags ?? [],
       operations: [
-        { dataset: 'todo.tasks', operation: 'update', key: { id }, values: row },
+        { dataset: TASKS_DATASET, operation: 'update', key: { id }, values: row },
         ...relationChanges(persisted, related)
       ]
     })
@@ -110,10 +101,10 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     append: (record: TodoRecord, api = owner, emit = publish) => serialize(async () => {
       validateReminders(record)
       if (!record.id || !record.title?.trim()) throw new Error('Expected a task id and title.')
-      const next = forWrite(normalizeTodoRecord(record as unknown as DataRecord))
+      const next = forWrite(normalizeTodoRecord(record))
       if (next.startTime && next.reminderOffsets === undefined && !next.remindAt) next.reminderOffsets = Array.isArray(owner.settings?.get().reminderOffsets) ? [...owner.settings!.get().reminderOffsets as number[]] : [10]
       assertActive()
-      await api.data.transaction([{ dataset: 'todo.tasks', operation: 'insert', values: { ...taskRow(next), completedAt: completedAt(next) } }, ...relationWrites(next)])
+      await api.data.transaction([{ dataset: TASKS_DATASET, operation: 'insert', values: { ...taskRow(next), completedAt: completedAt(next) } }, ...relationWrites(next)])
       await committedEvent(emit, 'task.created', { record: next })
       return true
     }),
@@ -129,11 +120,11 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
       return result.record
     }),
     remove: (id: string, api = owner, expectedUpdatedAt?: string) => serialize(async () => {
-      const dataset = api.data.dataset('todo.tasks')
+      const dataset = api.data.dataset(TASKS_DATASET)
       const current = await dataset.read({ id })
       if (!current.value || (expectedUpdatedAt !== undefined && current.value.updatedAt !== expectedUpdatedAt)) return false
       try {
-        return (await dataset.delete({ id }, { expected: [{ dataset: 'todo.tasks', key: { id }, revision: current.revision }] })).affected > 0
+        return (await dataset.delete({ id }, { expected: [{ dataset: TASKS_DATASET, key: { id }, revision: current.revision }] })).affected > 0
       } catch (error) {
         if (error && typeof error === 'object' && 'code' in error && error.code === 'conflict' && !('outcomeUnknown' in error && error.outcomeUnknown === true)) return false
         throw error

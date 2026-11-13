@@ -2,6 +2,7 @@ import type { DatasetRecord, DatasetWhere, PluginBackendApi } from '@valley/plug
 import type { normalizeGroups } from '@valley/plugin-sdk/groups'
 import { hydrateTodos, type TodoRelations } from './records'
 import type { TodoRecord } from './types'
+import { ATTACHMENTS_DATASET, LINKS_DATASET, queryAll, SESSIONS_DATASET, STATUS_HISTORY_DATASET, TAGS_DATASET, TASKS_DATASET } from './domain/datasets'
 
 /** Reads that find tasks by a few columns first and load whole records only for the ones that matter. */
 export type TaskReader = Pick<PluginBackendApi, 'data'>
@@ -12,17 +13,8 @@ export interface TaskReadOptions {
 
 const IDS_PER_READ = 100
 
-async function rows(reader: TaskReader, dataset: string, select: string[] | undefined, where: DatasetWhere | undefined, assertActive?: () => void): Promise<DatasetRecord[]> {
-  const all: DatasetRecord[] = []
-  let cursor: string | undefined
-  do {
-    assertActive?.()
-    const page = await reader.data.dataset(dataset).query({ select, where, limit: 1000, cursor })
-    assertActive?.()
-    all.push(...page.rows)
-    cursor = page.cursor
-  } while (cursor)
-  return all
+function rows(reader: TaskReader, dataset: string, select: string[] | undefined, where: DatasetWhere | undefined, assertActive?: () => void): Promise<DatasetRecord[]> {
+  return queryAll(reader, dataset, { select, where }, assertActive)
 }
 
 const noRelations: TodoRelations = { tags: [], links: [], attachments: [], sessions: [], statusHistory: [] }
@@ -34,8 +26,8 @@ const noRelations: TodoRelations = { tags: [], links: [], attachments: [], sessi
  */
 export async function readLightTodos(reader: TaskReader, columns: string[], options: TaskReadOptions & { withTags?: boolean; where?: DatasetWhere }): Promise<TodoRecord[]> {
   const [tasks, tags] = await Promise.all([
-    rows(reader, 'todo.tasks', columns, options.where, options.assertActive),
-    options.withTags ? rows(reader, 'todo.task_tags', ['taskId', 'tag'], undefined, options.assertActive) : []
+    rows(reader, TASKS_DATASET, columns, options.where, options.assertActive),
+    options.withTags ? rows(reader, TAGS_DATASET, ['taskId', 'tag'], undefined, options.assertActive) : []
   ])
   return hydrateTodos(tasks, { ...noRelations, tags }, options.groups)
 }
@@ -48,12 +40,12 @@ export async function readTodosByIds(reader: TaskReader, ids: string[], options:
     const chunk = unique.slice(offset, offset + IDS_PER_READ)
     const byTask: DatasetWhere = { taskId: { in: chunk } }
     const [tasks, tags, links, attachments, sessions, statusHistory] = await Promise.all([
-      rows(reader, 'todo.tasks', undefined, { id: { in: chunk } }, options.assertActive),
-      rows(reader, 'todo.task_tags', undefined, byTask, options.assertActive),
-      rows(reader, 'todo.task_links', undefined, byTask, options.assertActive),
-      rows(reader, 'todo.task_attachments', undefined, byTask, options.assertActive),
-      rows(reader, 'todo.focus_sessions', undefined, byTask, options.assertActive),
-      rows(reader, 'todo.status_history', undefined, byTask, options.assertActive)
+      rows(reader, TASKS_DATASET, undefined, { id: { in: chunk } }, options.assertActive),
+      rows(reader, TAGS_DATASET, undefined, byTask, options.assertActive),
+      rows(reader, LINKS_DATASET, undefined, byTask, options.assertActive),
+      rows(reader, ATTACHMENTS_DATASET, undefined, byTask, options.assertActive),
+      rows(reader, SESSIONS_DATASET, undefined, byTask, options.assertActive),
+      rows(reader, STATUS_HISTORY_DATASET, undefined, byTask, options.assertActive)
     ])
     for (const todo of hydrateTodos(tasks, { tags, links, attachments, sessions, statusHistory }, options.groups)) found.set(todo.id, todo)
   }

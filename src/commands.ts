@@ -19,6 +19,7 @@ import { activeStatuses, isStatusActive, patchForStatus } from './statuses'
 import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { captureTodoScope, revealRequestStore } from './runtime'
 import { isoDay as todayISO } from './dates'
+import { isClockTime, TODO_PRIORITIES as PRIORITIES } from './domain/validation'
 
 const todoResult = {
   "type": "object",
@@ -56,10 +57,6 @@ const todoResult = {
       "maxLength": 65536
     },
     "color": {
-      "type": "string",
-      "maxLength": 65536
-    },
-    "parentId": {
       "type": "string",
       "maxLength": 65536
     },
@@ -254,7 +251,6 @@ export const todoResults: Record<string, Record<string, unknown>> = {
 
 const asStr = (v: unknown): string => (typeof v === 'string' ? v : '')
 const asQuery = (raw: unknown): string => asStr((raw as Record<string, unknown> | undefined)?.query).trim()
-const PRIORITIES: TodoPriority[] = ['normal', 'low', 'medium', 'high']
 
 function nowISO(): string {
   return new Date().toISOString()
@@ -404,7 +400,7 @@ export function parseTodoValues(raw: unknown): Partial<TodoRecord> {
   if (typeof values.title === 'string' && !values.title.trim()) throw new Error('A task title cannot be empty.')
   if (values.priority !== undefined && !PRIORITIES.includes(values.priority as TodoPriority)) throw new Error('Invalid priority.')
   if (values.status !== undefined && !activeStatuses().includes(values.status as TodoStatus)) throw new Error('This task status is disabled.')
-  for (const key of ['startTime', 'endTime']) if (values[key] && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(values[key]))) throw new Error('Invalid task time.')
+  for (const key of ['startTime', 'endTime']) if (values[key] && !isClockTime(String(values[key]))) throw new Error('Invalid task time.')
   if (values.remindAt && !/^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d)?$/.test(String(values.remindAt))) throw new Error('Invalid reminder date.')
   return values as Partial<TodoRecord>
 }
@@ -414,7 +410,7 @@ export async function editTodoValues(id: string, values: Partial<TodoRecord>, ex
   if (!previous) throw new Error('The task no longer exists.')
   if (expectedUpdatedAt !== undefined && previous.updatedAt !== expectedUpdatedAt) throw new Error('This task changed elsewhere. Reload it before saving; your draft is preserved.')
   if (values.group && values.group !== previous.group && !allGroups(getGroups()).includes(values.group)) throw new Error('Unknown task group. Create it in shared group settings first.')
-  const next = normalizeTodoRecord({ ...previous, ...values, ...(values.status ? patchForStatus(values.status) : values.completed !== undefined ? patchForStatus(values.completed ? 'completed' : 'open') : {}), ...(values.remindAt !== undefined ? { reminderFiredAt: undefined } : {}), updatedAt: nowISO() } as unknown as DataRecord)
+  const next = normalizeTodoRecord({ ...previous, ...values, ...(values.status ? patchForStatus(values.status) : values.completed !== undefined ? patchForStatus(values.completed ? 'completed' : 'open') : {}), ...(values.remindAt !== undefined ? { reminderFiredAt: undefined } : {}), updatedAt: nowISO() })
   if (values.filePath && next.filePath !== values.filePath) throw new Error('Invalid task file path.')
   for (const key of ['urls', 'attachments'] as const) if (values[key]?.some((value) => !next[key]?.includes(value))) throw new Error(`Invalid task ${key}.`)
   const committed = await rawUpdateCommitted(id, next, previous.updatedAt)

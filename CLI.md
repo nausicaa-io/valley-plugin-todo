@@ -28,13 +28,6 @@ the change event so open panels reload, and is **undoable with ⌘Z in the app**
 | `valley todo edit "<id or title>" [--title --priority --due --note --tag]` | Patch fields (only the flags you pass change). |
 | `valley todo delete "<id or title>" --confirm` | Delete. Without `--confirm` it just prints what would be deleted. |
 
-## Focus
-
-| Command | What it does |
-|---|---|
-| `valley todo focus "<id or title>"` | Start a focus session on a todo (drives the footer focus chip). |
-| `valley todo focus-clear` | Stop the active focus session. |
-
 ## Examples
 
 ```bash

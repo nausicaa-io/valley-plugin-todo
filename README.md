@@ -2,7 +2,7 @@
 
 Structured task manager with smart lists, multi-group filters, statuses, swipe actions, attachment-linked panels, and timestamped activity.
 
-This repository owns the plugin’s interface, behavior, dependencies, schemas, tests, translations, and compiled releases. It uses Valley manifest API 5 and the injected SDK 6.
+This repository owns the plugin’s interface, behavior, dependencies, schemas, tests, translations, and compiled releases. It uses Valley manifest API 5 and the injected SDK 8.1.0.
 
 This is an external plugin and is not bundled with Valley. An installed copy lives in the realm's `.valley/plugins/packages/github/todo/` (installed from GitHub) or `.valley/plugins/packages/local/todo/` (installed from a local package). Core and external installations run with the same sandbox, permissions, and SDK/IPC contract. Ordinary realm documents and saved plugin data (`.valley/plugins/data/todo/`) keep their existing locations.
 

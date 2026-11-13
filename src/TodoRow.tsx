@@ -227,7 +227,6 @@ export const TodoRow = memoRow(function TodoRow({
   compact,
   actions,
   pending,
-  menuOpen,
   env,
   hideDate = false,
   onMoveFocus
@@ -238,8 +237,6 @@ export const TodoRow = memoRow(function TodoRow({
   actions: TodoRowActions
   /** A write for this todo is in flight. */
   pending: boolean
-  /** This todo's ⋯ menu is the open one. */
-  menuOpen: boolean
   env: RowEnv
   /** Suppress the inline due date — a date section header already says it. */
   hideDate?: boolean
@@ -522,7 +519,6 @@ export const TodoRow = memoRow(function TodoRow({
           <TodoMenu
             todo={todo}
             groupNames={groupNames}
-            openId={menuOpen ? todo.id : null}
             setOpenId={actions.setMenuId}
             onEdit={() => actions.openDetail(todo.id)}
             onPatch={patch}

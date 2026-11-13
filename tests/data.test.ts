@@ -6,7 +6,6 @@ import {
   deleteTodo,
   loadTodo,
   loadTodos,
-  logTodoSession,
   normalizeTodoUrl,
   setTodoStatus,
   updateTodo
@@ -302,51 +301,6 @@ describe('todo data layer', () => {
     expect(store.records.map((record) => record.id).sort()).toEqual(['child', 'grandchild', 'parent'])
   })
 
-})
-
-describe('logTodoSession', () => {
-  const session: TodoSession = {
-    startedAt: '2026-06-03T08:00:00.000Z',
-    endedAt: '2026-06-03T10:15:00.000Z',
-    activeMinutes: 135,
-    pauseMinutes: 5
-  }
-
-  it('pushes the session into history and banks only active time', async () => {
-    installTodoNotes([{ id: 't1', title: 'First task', completed: false, actualMinutes: 30 } as unknown as DataRecord])
-    expect(await logTodoSession('t1', session)).toBe(true)
-
-    const t1 = (await loadTodos()).find((t) => t.id === 't1')!
-    expect(t1.history).toHaveLength(1)
-    expect(t1.history?.[0]).toEqual(session)
-    expect(t1.actualMinutes).toBe(165) // 30 existing + 135 active (pause not banked)
-    expect(t1.completed).toBe(false)
-    // Banking time is bookkeeping, not a state change — it used to stamp the
-    // retired `suspended`, overwriting whatever the user had chosen.
-    expect(t1.status).toBeUndefined()
-  })
-
-  it('leaves an explicit status alone when it banks time', async () => {
-    installTodoNotes([
-      { id: 't3', title: 'Third task', completed: false, status: 'waiting' } as unknown as DataRecord
-    ])
-    await logTodoSession('t3', session)
-    expect((await loadTodos()).find((t) => t.id === 't3')?.status).toBe('waiting')
-  })
-
-  it('flips completed when opts.complete is set', async () => {
-    installTodoNotes([{ id: 't2', title: 'Second task', completed: false } as unknown as DataRecord])
-    await logTodoSession('t2', session, { complete: true })
-    const t2 = (await loadTodos()).find((t) => t.id === 't2')!
-    expect(t2.completed).toBe(true)
-    expect(t2.actualMinutes).toBe(135)
-    expect(t2.status).toBe('completed')
-  })
-
-  it('returns false for an unknown todo id', async () => {
-    installTodoNotes()
-    expect(await logTodoSession('nope', session)).toBe(false)
-  })
 })
 
 describe('setTodoStatus', () => {

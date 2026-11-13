@@ -9,7 +9,6 @@ import {
   DEFAULT_VIEW,
   SMART_LISTS,
   configuredSmartLists,
-  completedForView,
   endOfWeek,
   groupCount,
   matchesVisibleView,
@@ -238,27 +237,6 @@ describe('groupCount', () => {
 
   it('counts the ungrouped for the No group row', () => {
     expect(groupCount(todos, null)).toBe(1)
-  })
-})
-
-describe('completedForView', () => {
-  const todos = [
-    todo({ completed: true, dueDate: '2020-01-01' }),
-    todo({ completed: true, flagged: true }),
-    todo({ completed: true, group: 'Fungi' }),
-    todo({ dueDate: TODAY })
-  ]
-
-  it('drops the completion clause and applies the rest of each list', () => {
-    expect(completedForView(todos, { kind: 'smart', id: 'all' }, TODAY)).toBe(3)
-    expect(completedForView(todos, { kind: 'smart', id: 'scheduled' }, TODAY)).toBe(1)
-    expect(completedForView(todos, { kind: 'smart', id: 'today' }, TODAY)).toBe(1)
-    expect(completedForView(todos, { kind: 'smart', id: 'flagged' }, TODAY)).toBe(1)
-    expect(completedForView(todos, { kind: 'groups', names: ['fungi'] }, TODAY)).toBe(1)
-  })
-
-  it('never counts an open todo', () => {
-    expect(completedForView([todo({ dueDate: TODAY })], { kind: 'smart', id: 'all' }, TODAY)).toBe(0)
   })
 })
 

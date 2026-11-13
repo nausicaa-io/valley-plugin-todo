@@ -1,20 +1,16 @@
 import type { DataRecord } from '@valley/plugin-sdk/types'
-import type { DatasetRecord, DatasetWhere, NoteInputProps } from '@valley/plugin-sdk'
+import type { DatasetRecord, DatasetWhere } from '@valley/plugin-sdk'
+import type { DocumentRevision, RecordsAppendPayload, RecordsDeletePayload, RecordsUpdatePayload, RecordsUpdateResult } from './domain/rpc'
 import { canonicalGroupName, normalizeGroups } from '@valley/plugin-sdk/groups'
 import { React, api, captureTodoScope, type TodoRuntimeScope } from './runtime'
 import { isTodoListRecord, readCompletionSummaries, type TodoListRecord } from './completionHistory'
 import { uiText } from './localization'
-import { patchForStatus } from './statuses'
-import type { TodoRecord, TodoSession, TodoStatus, TodoStatusChange } from './types'
-import { hydrateTodos, normalizeHistory, normalizeStatusHistory, type TodoRelations } from './records'
+import { allStatuses, patchForStatus } from './statuses'
+import type { TodoRecord, TodoStatus, TodoStatusChange } from './types'
+import { hydrateTodos, normalizeStatusHistory, type TodoRelations } from './records'
 export { normalizeTodoRecord, normalizeTodoUrl } from './records'
 
-const TASKS_DATASET = 'todo.tasks'
-const TAGS_DATASET = 'todo.task_tags'
-const LINKS_DATASET = 'todo.task_links'
-const ATTACHMENTS_DATASET = 'todo.task_attachments'
-const SESSIONS_DATASET = 'todo.focus_sessions'
-const STATUS_HISTORY_DATASET = 'todo.status_history'
+import { ATTACHMENTS_DATASET, changedTaskIds, LINKS_DATASET, queryAll, SESSIONS_DATASET, STATUS_HISTORY_DATASET, TAGS_DATASET, TASKS_DATASET } from './domain/datasets'
 const CALENDAR_DATASETS = [TASKS_DATASET, TAGS_DATASET, LINKS_DATASET, ATTACHMENTS_DATASET]
 const ALL_DATASETS = [...CALENDAR_DATASETS, SESSIONS_DATASET, STATUS_HISTORY_DATASET]
 // The list reads its completion time from the task row; every status-history write updates that row in the same transaction.
@@ -45,17 +41,8 @@ export function onCalendarItemsChanged(listener: () => void): () => void {
   return () => disposers.forEach((dispose) => dispose())
 }
 
-async function allRows(dataset: string, where?: DatasetWhere, scope = captureTodoScope(), from?: string): Promise<DatasetRecord[]> {
-  const rows: DatasetRecord[] = []
-  let cursor = from
-  do {
-    scope.assertActive()
-    const page = await scope.api.data.dataset(dataset).query({ where, limit: 1000, cursor })
-    scope.assertActive()
-    rows.push(...page.rows)
-    cursor = page.cursor
-  } while (cursor)
-  return rows
+function allRows(dataset: string, where?: DatasetWhere, scope = captureTodoScope(), from?: string): Promise<DatasetRecord[]> {
+  return queryAll(scope.api, dataset, { where, cursor: from }, scope.assertActive)
 }
 
 const isLimitExceeded = (error: unknown): boolean => !!error && typeof error === 'object' && 'code' in error && error.code === 'limit-exceeded'
@@ -154,20 +141,6 @@ function loadTodoProjection(includeHistory: boolean, taskId?: string): Promise<T
 
 const LIST_PARTIAL_LIMIT = 200
 
-/** Task ids a To-Do dataset change names, or null when it names none (the list must be read again in full). */
-export function changedTodoIds(event: { dataset?: string; keys?: unknown }, dataset: string): string[] | null {
-  const keys = event.keys
-  if (!Array.isArray(keys) || !keys.length || keys.length > LIST_PARTIAL_LIMIT) return null
-  const field = dataset === TASKS_DATASET ? 'id' : 'taskId'
-  const ids: string[] = []
-  for (const key of keys) {
-    const id = (key as Record<string, unknown> | null)?.[field]
-    if (typeof id !== 'string' || !id) return null
-    ids.push(id)
-  }
-  return ids
-}
-
 interface TodoListCache {
   value?: TodoListRecord[]
   groups?: string
@@ -183,7 +156,7 @@ function todoListCache(scope: TodoRuntimeScope): TodoListCache {
   const created: TodoListCache = { dirty: new Set(), full: true }
   const offs = LIST_DATASETS.map((dataset) => scope.api.data.dataset(dataset).subscribe((event) => {
     if (created.full) return
-    const ids = event ? changedTodoIds(event, dataset) : null
+    const ids = changedTaskIds(event, dataset)
     if (!ids) { created.full = true; created.dirty.clear(); return }
     for (const id of ids) created.dirty.add(id)
     if (created.dirty.size > LIST_PARTIAL_LIMIT) { created.full = true; created.dirty.clear() }
@@ -224,7 +197,7 @@ async function readListRecords(scope: TodoRuntimeScope, backfilled: boolean, ids
     todos.push(...hydrateTodos(tasks, relations, groups))
   }
   const missing = backfilled ? [] : todos.filter((todo) => !completions.has(todo.id)).map((todo) => todo.id)
-  const summaries = missing.length ? await readCompletionSummaries(scope.api, missing, scope.assertActive) : new Map<string, { changedAt: string }>()
+  const summaries = missing.length ? await readCompletionSummaries(scope.api, missing, scope.assertActive, () => allStatuses()) : new Map<string, { changedAt: string }>()
   return todos.map((todo) => {
     const changedAt = completions.get(todo.id)
     return { ...todo, historyLoaded: false, completionSummary: changedAt ? { changedAt } : summaries.get(todo.id) ?? null }
@@ -390,17 +363,15 @@ export function loadCalendarTodoPage(startDate: string, endDate: string, limit: 
   })
 }
 
-export type DocumentRevision = Parameters<NonNullable<NoteInputProps['onRevisionChange']>>[0]
+export type { DocumentRevision } from './domain/rpc'
 
 export async function rawAppend(record: TodoRecord): Promise<boolean> {
-  try { return await api.backend.call<boolean>('records.append', { record }) } catch { return false }
+  try { return await api.backend.call<boolean>('records.append', { record } satisfies RecordsAppendPayload) } catch { return false }
 }
 
-type UpdateResult = { ok: boolean; record?: TodoRecord; previous?: TodoRecord; documentRevision?: DocumentRevision }
-
-async function callUpdateResult(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision, exactStatusHistory = false): Promise<UpdateResult | null> {
+async function callUpdateResult(id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: DocumentRevision, exactStatusHistory = false): Promise<RecordsUpdateResult | null> {
   try {
-    const result = await api.backend.call<UpdateResult>('records.update', { id, record, expectedUpdatedAt, documentRevision, ...(exactStatusHistory ? { exactStatusHistory } : {}) })
+    const result = await api.backend.call<RecordsUpdateResult>('records.update', { id, record, expectedUpdatedAt, documentRevision, ...(exactStatusHistory ? { exactStatusHistory } : {}) } satisfies RecordsUpdatePayload)
     if (result.ok && documentRevision && result.documentRevision) Object.assign(documentRevision, result.documentRevision)
     return result.ok ? result : null
   } catch { return null }
@@ -426,7 +397,7 @@ export async function rawRestore(id: string, record: TodoRecord): Promise<boolea
 }
 
 export async function rawDelete(id: string): Promise<boolean> {
-  try { return await api.backend.call<boolean>('records.delete', { id }) } catch { return false }
+  try { return await api.backend.call<boolean>('records.delete', { id } satisfies RecordsDeletePayload) } catch { return false }
 }
 
 export async function appendTodo(record: TodoRecord): Promise<boolean> {
@@ -512,60 +483,9 @@ export async function confirmDeleteTodo(
   return true
 }
 
-/**
- * Bank a finished focus session onto a todo: push the session into `history`,
- * add its active time (not pause/idle) onto `actualMinutes`, optionally mark the
- * todo complete, then rewrite only that todo's record. Every other record —
- * including malformed lines the app didn't author — is preserved by the host's
- * serialized atomic update path.
- */
-export async function logTodoSession(
-  id: string,
-  session: TodoSession,
-  opts?: { complete?: boolean }
-): Promise<boolean> {
-  const current = await loadTodo(id)
-  if (!current) return false
-  const banked = normalizeHistory([session])
-  if (!banked.length) return false
-  const next: TodoRecord = {
-    ...current,
-    history: [...(current.history ?? []), banked[0]],
-    actualMinutes: (current.actualMinutes ?? 0) + banked[0].activeMinutes,
-    completed: opts?.complete ? true : current.completed,
-    // Banking time is bookkeeping, not a state change: only an explicit
-    // `complete` moves the status. (It used to stamp the retired `suspended`,
-    // which silently overwrote whatever the user had chosen.)
-    status: opts?.complete ? 'completed' : current.status,
-    updatedAt: new Date().toISOString()
-  }
-  return updateTodo(id, next)
-}
-
-/**
- * Stamp a reminder as delivered. Goes through the *raw* path on purpose: a
- * reminder firing is the app's own bookkeeping, not a user edit, so it must not
- * land on the ⌘Z stack — undoing it would silently re-arm the alarm. Returns
- * false when the todo is gone or was already stamped, which is what makes the
- * caller's "stamp, then notify" order fire exactly once.
- */
-export async function setReminderFired(id: string): Promise<boolean> {
-  const current = await loadTodo(id)
-  if (!current || current.reminderFiredAt) return false
-  const now = new Date().toISOString()
-  return rawUpdate(id, { ...current, reminderFiredAt: now, updatedAt: now })
-}
-
 /** Set a todo's focus-lifecycle status, rewriting only its record. */
 export async function setTodoStatus(id: string, status: TodoStatus): Promise<boolean> {
   const current = await loadTodo(id)
   if (!current) return false
   return updateTodo(id, { ...current, ...patchForStatus(status), updatedAt: new Date().toISOString() })
-}
-
-/** Move a todo into a group (or out of every group), rewriting only its record. */
-export async function setTodoGroup(id: string, group: string | undefined): Promise<boolean> {
-  const current = await loadTodo(id)
-  if (!current) return false
-  return updateTodo(id, { ...current, group, updatedAt: new Date().toISOString() })
 }

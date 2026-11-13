@@ -4,13 +4,8 @@ import {
   bucketTodos,
   completionTimelineSections,
   completionTimestamp,
-  groupByDay,
-  groupByTimeOfDay,
   panelDateSections,
-  pageStats,
-  parseQuickAdd,
-  rollUpFutureDays,
-  timeOfDay
+  parseQuickAdd
 } from '../src/sections'
 
 const TODAY = '2026-06-13'
@@ -73,21 +68,6 @@ describe('bucketTodos', () => {
   })
 })
 
-describe('pageStats', () => {
-  it('counts open / due-today / overdue and sums tracked minutes', () => {
-    const stats = pageStats(
-      [
-        todo({ completed: true, actualMinutes: 30 }),
-        todo({ dueDate: TODAY, actualMinutes: 15 }),
-        todo({ dueDate: '2026-06-01' }),
-        todo({ dueDate: '' })
-      ],
-      TODAY
-    )
-    expect(stats).toEqual({ open: 3, dueToday: 1, overdue: 1, trackedMinutes: 45 })
-  })
-})
-
 describe('parseQuickAdd', () => {
   it('extracts @today, @tomorrow, explicit dates and ! priority', () => {
     expect(parseQuickAdd('Catalog fern @today !!', TODAY)).toEqual({
@@ -116,39 +96,6 @@ describe('parseQuickAdd', () => {
   })
 })
 
-
-describe('groupByTimeOfDay', () => {
-  it('cuts the day at noon and at the hour work stops', () => {
-    expect(timeOfDay(undefined)).toBe('untimed')
-    expect(timeOfDay('00:00')).toBe('morning')
-    expect(timeOfDay('11:59')).toBe('morning')
-    expect(timeOfDay('12:00')).toBe('afternoon')
-    expect(timeOfDay('17:59')).toBe('afternoon')
-    expect(timeOfDay('18:00')).toBe('tonight')
-    // A malformed time is untimed, not midnight — guessing puts a task under a
-    // heading it never claimed.
-    expect(timeOfDay('nonsense')).toBe('untimed')
-  })
-
-  it('leads with the untimed bucket and drops the empty ones', () => {
-    const sections = groupByTimeOfDay([
-      todo({ id: 'c', startTime: '21:00' }),
-      todo({ id: 'a' }),
-      todo({ id: 'b', startTime: '09:30' })
-    ])
-    expect(sections.map((s) => s.id)).toEqual(['untimed', 'morning', 'tonight'])
-    expect(sections.map((s) => s.todos.map((t) => t.id))).toEqual([['a'], ['b'], ['c']])
-  })
-
-  it('groups every task by its own time', () => {
-    const sections = groupByTimeOfDay([
-      todo({ id: 'parent', startTime: '09:00' }),
-      todo({ id: 'child', parentId: 'parent', startTime: '20:00' })
-    ])
-    expect(sections.map((s) => s.id)).toEqual(['morning', 'tonight'])
-    expect(sections.map(s => s.todos.map(t => t.id))).toEqual([['parent'], ['child']])
-  })
-})
 
 describe('panelDateSections', () => {
   const ids = (mode: 'monthly' | 'weekly' | 'daily', weekStart = 1) =>
@@ -245,49 +192,5 @@ describe('completion timeline', () => {
       ['2026-06-12', ['canceled']],
       ['2026-06-11', ['legacy']]
     ])
-  })
-})
-
-describe('rollUpFutureDays', () => {
-  const days = (...keys: string[]) => groupByDay(keys.map((k, i) => todo({ id: `t${i}`, dueDate: k })), TODAY)
-
-  it('keeps a day header inside the horizon and rolls the rest up per month', () => {
-    const { near, months } = rollUpFutureDays(
-      days('2026-06-20', '2026-06-30', '2026-08-04', '2026-09-01'),
-      TODAY
-    )
-    expect(near.map((d) => d.key)).toEqual(['2026-06-20'])
-    expect(months.map((m) => m.key)).toEqual(['2026-06', '2026-08', '2026-09'])
-    // The current month is partial: its earlier days are already above, under
-    // Overdue and Today, so it reads "Rest of June" rather than "June".
-    expect(months.map((m) => m.partial)).toEqual([true, false, false])
-  })
-
-  it('keeps the undated bucket out of the roll-up — it has no month to join', () => {
-    const { near, months } = rollUpFutureDays(days('2099-01-01', ''), TODAY)
-    expect(near.map((d) => d.key)).toEqual([''])
-    expect(months.map((m) => m.key)).toEqual(['2099-01'])
-  })
-
-  it('measures the horizon across a month end', () => {
-    const { near } = rollUpFutureDays(days('2026-06-27'), TODAY, 14)
-    expect(near.map((d) => d.key)).toEqual(['2026-06-27'])
-    const { near: past } = rollUpFutureDays(days('2026-06-28'), TODAY, 14)
-    expect(past).toEqual([])
-  })
-
-  it('keeps the fourteenth day itself, and rolls up the one after it', () => {
-    // The horizon day is inclusive on purpose: a todo due exactly two weeks out
-    // is the last one a day header still says something useful about.
-    const { near, months } = rollUpFutureDays(days('2026-06-26', '2026-06-27', '2026-06-28'), TODAY, 14)
-    expect(near.map((d) => d.key)).toEqual(['2026-06-26', '2026-06-27'])
-    expect(months.flatMap((m) => m.days.map((d) => d.key))).toEqual(['2026-06-28'])
-  })
-
-  it('rolls up across a year boundary in calendar order', () => {
-    const { months } = rollUpFutureDays(days('2026-12-31', '2027-01-01'), TODAY, 14)
-    expect(months.map((m) => m.key)).toEqual(['2026-12', '2027-01'])
-    expect(months.map((m) => m.partial)).toEqual([false, false])
-    expect(months.map((m) => m.days.map((d) => d.key))).toEqual([['2026-12-31'], ['2027-01-01']])
   })
 })

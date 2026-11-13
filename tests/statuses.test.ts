@@ -10,7 +10,6 @@ import {
   effectiveStatus,
   normalizeStatusFilter,
   normalizeStatusSettings,
-  parseTodoStatus,
   patchForStatus,
   statusDef,
   statusMenuOptions
@@ -52,18 +51,6 @@ describe('the status vocabulary', () => {
   it('falls back to "open" for an unknown status rather than throwing', () => {
     expect(statusDef(undefined).id).toBe('open')
     expect(statusDef('nonsense' as TodoStatus).id).toBe('open')
-  })
-})
-
-describe('parseTodoStatus', () => {
-  it('passes every current status through unchanged', () => {
-    for (const status of STATUSES) expect(parseTodoStatus(status)).toBe(status)
-  })
-
-  it('ignores retired, unknown, and malformed values at runtime', () => {
-    for (const raw of ['active', 'paused', 'blocked', 'suspended', 'done', 'finished', 'moved', ' completed ', 'nonsense', '', 42, null, undefined, {}]) {
-      expect(parseTodoStatus(raw)).toBeUndefined()
-    }
   })
 })
 

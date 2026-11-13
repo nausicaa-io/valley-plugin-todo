@@ -42,7 +42,6 @@ export const TodoList = ({ todos, groups, compact, hideDate = false, c }: {
         compact={compact}
         actions={c.actions}
         pending={c.pendingIds.has(todos[index].id)}
-        menuOpen={c.menuId === todos[index].id}
         env={env}
         hideDate={hideDate}
         onMoveFocus={moveFocus}

@@ -1,6 +1,7 @@
 import type { DatasetRecord, DatasetTransactionOperation, PluginBackendApi } from '@valley/plugin-sdk'
 import { completionHistoryWhere, completionSources, latestCompletion } from '../completionHistory'
-import { STATUS_SETTINGS_KEY } from '../statuses'
+import { STATUS_SETTINGS_KEY } from '../model/statusModel'
+import { STATUS_HISTORY_DATASET, TASKS_DATASET } from '../domain/datasets'
 
 /** Written to plugin data once every saved task has its `completedAt`. */
 export const COMPLETION_BACKFILL_MARKER = 'completed-at-v4.json'
@@ -33,7 +34,7 @@ export async function backfillCompletedAt(api: BackfillApi, exclusive: Exclusive
     const ids: string[] = []
     let cursor: string | undefined
     do {
-      const page = await api.data.dataset('todo.tasks').query({ select: ['id'], where: { completedAt: { isNull: true } }, limit: 1000, cursor })
+      const page = await api.data.dataset(TASKS_DATASET).query({ select: ['id'], where: { completedAt: { isNull: true } }, limit: 1000, cursor })
       live()
       ids.push(...page.rows.map((row) => String(row.id)))
       cursor = page.cursor
@@ -64,7 +65,7 @@ export async function backfillCompletedAt(api: BackfillApi, exclusive: Exclusive
 
 /** One step over at most {@link PAGE} listed tasks, read again inside the step; resolves how many rows it filled. */
 async function backfillStep(api: BackfillApi, listed: string[], live: () => void): Promise<number> {
-  const tasks = await api.data.dataset('todo.tasks').query({
+  const tasks = await api.data.dataset(TASKS_DATASET).query({
     select: ['id'],
     where: { id: { in: listed }, completedAt: { isNull: true } },
     limit: PAGE,
@@ -77,7 +78,7 @@ async function backfillStep(api: BackfillApi, listed: string[], live: () => void
   const history: DatasetRecord[] = []
   let cursor: string | undefined
   do {
-    const page = await api.data.dataset('todo.status_history').query({
+    const page = await api.data.dataset(STATUS_HISTORY_DATASET).query({
       select: ['taskId', 'position', 'from', 'to', 'changedAt'],
       where: { taskId: { in: ids }, ...completionHistoryWhere(sources) },
       limit: 1000,
@@ -99,9 +100,9 @@ async function backfillStep(api: BackfillApi, listed: string[], live: () => void
   ids.forEach((id, index) => {
     const completedAt = latestCompletion(byTask.get(id) ?? [], sources)
     if (!completedAt) return
-    operations.push({ dataset: 'todo.tasks', operation: 'update', key: { id }, values: { completedAt } })
+    operations.push({ dataset: TASKS_DATASET, operation: 'update', key: { id }, values: { completedAt } })
     const revision = tasks.revisions?.[index]
-    if (typeof revision === 'number') expected.push({ dataset: 'todo.tasks', key: { id }, revision })
+    if (typeof revision === 'number') expected.push({ dataset: TASKS_DATASET, key: { id }, revision })
   })
   if (operations.length) {
     live()

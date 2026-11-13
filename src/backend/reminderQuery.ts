@@ -2,8 +2,8 @@ import type { DatasetRecord, DatasetWhere, PluginBackendApi } from '@valley/plug
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { normalizeTodoRecord } from '../records'
 import type { TodoRecord } from '../types'
+import { queryAll, TASKS_DATASET } from '../domain/datasets'
 
-const TASKS = 'todo.tasks'
 const ID_CHUNK = 100
 /** The columns `reminderTimes`, the notification text and `normalizeTodoRecord` read; no relation dataset is needed. */
 const COLUMNS = ['id', 'title', 'note', 'completed', 'status', 'customStatus', 'dueDate', 'startTime', 'reminderTime', 'reminderOffsets', 'remindAt', 'reminderFiredAt']
@@ -18,15 +18,8 @@ const CANDIDATE: DatasetWhere = {
   or: [{ remindAt: { isNull: false } }, { and: [{ dueDate: { neq: '' } }, { or: [{ startTime: { isNull: false } }, { reminderTime: { isNull: false } }] }] }]
 }
 
-async function page(api: Pick<PluginBackendApi, 'data'>, where: DatasetWhere): Promise<DatasetRecord[]> {
-  const rows: DatasetRecord[] = []
-  let cursor: string | undefined
-  do {
-    const result = await api.data.dataset(TASKS).query({ select: COLUMNS, where, limit: 1000, cursor })
-    rows.push(...result.rows)
-    cursor = result.cursor
-  } while (cursor)
-  return rows
+function page(api: Pick<PluginBackendApi, 'data'>, where: DatasetWhere): Promise<DatasetRecord[]> {
+  return queryAll(api, TASKS_DATASET, { select: COLUMNS, where })
 }
 
 /** Reminder candidates as the records a full read yields for them, read in one filtered, column-selected query. */

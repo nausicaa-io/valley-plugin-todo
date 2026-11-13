@@ -18,11 +18,6 @@ export const PRIORITIES: PriorityDef[] = [
   { id: 'high', labelKey: 'todo.priority.high', symbol: '!!!' }
 ]
 
-/** Priority dropdown options, ordered none → high. */
-export function priorityOptions(): { value: TodoPriority; label: string }[] {
-  return PRIORITIES.map((p) => ({ value: p.id, label: uiText(p.labelKey) }))
-}
-
 export type SortField = 'due' | 'priority' | 'flagged' | 'updated' | 'created' | 'name'
 export type SortDir = 'desc' | 'asc'
 /** Keys, resolved at render — a module-level `uiText` would freeze the language. */
@@ -115,10 +110,6 @@ export function sortTodosByKey(todos: TodoRecord[], key: (todo: TodoRecord) => s
   })
 }
 
-export function sortTodosByGroup(todos: TodoRecord[], dir: SortDir): TodoRecord[] {
-  return sortTodosByKey(todos, (todo) => todo.group ?? undefined, dir)
-}
-
 export function sortTodos(todos: TodoRecord[], field: SortField, dir: SortDir): TodoRecord[] {
   return [...todos].sort((a, b) => {
     if (field === 'due' && dir === 'desc') {
@@ -148,25 +139,6 @@ export function formatDate(value: string, pattern = 'dd-mm-yyyy'): string {
  */
 export function formatDayHeader(value: string, locale?: string, pattern = 'ddd d mmm'): string {
   return formatIsoDateByShortPattern(value.slice(0, 10), pattern, locale)
-}
-
-/**
- * A month header for the Scheduled roll-up: "September", or "September 2027"
- * once the year stops being obvious. `partial` is the rest of the current
- * month, which reads "Rest of September" — the days before today are already
- * above it under Overdue.
- */
-export function formatMonthHeader(
-  key: string,
-  locale: string | undefined,
-  opts: { partial?: boolean; restOfLabel?: string; now?: Date } = {}
-): string {
-  const date = parseLocalDate(`${key}-01`)
-  if (!date) return key
-  const now = opts.now ?? new Date()
-  const sameYear = date.getFullYear() === now.getFullYear()
-  const name = date.toLocaleDateString(locale, sameYear ? { month: 'long' } : { month: 'long', year: 'numeric' })
-  return opts.partial && opts.restOfLabel ? opts.restOfLabel.replace('{{p0}}', name) : name
 }
 
 /** Relative day names the row shows instead of a date, supplied translated. */

@@ -199,39 +199,6 @@ export function matchesVisibleView(
   return showCompleted || !todo.completed
 }
 
-/**
- * How many *done* todos this view covers.
- *
- * Every list except Completed filters completion out, so `matchesView` can't
- * answer this — but the page header has to, because it is the number the
- * Hide/Show toggle beside it is talking about. So the completion clause is
- * dropped and the rest of each list's criteria applied to the done pile.
- */
-export function completedForView(
-  todos: TodoRecord[],
-  view: TodoView,
-  today: string = isoDay(new Date())
-): number {
-  return todos.filter((todo) => {
-    if (!todo.completed) return false
-    if (view.kind === 'groups') return matchesViewScope(todo, view, today)
-    if (view.kind === 'tag') return (todo.tags ?? []).some((tag) => tag.replace(/^#/, '').toLowerCase() === view.name.toLowerCase())
-    if (view.kind === 'nogroup') return !todo.group
-    switch (view.id) {
-      case 'scheduled':
-        return !!todo.dueDate
-      case 'today':
-        return !!todo.dueDate && todo.dueDate.slice(0, 10) <= today
-      case 'week':
-        return !!todo.dueDate && todo.dueDate.slice(0, 10) <= endOfWeek(today)
-      case 'flagged':
-        return !!todo.flagged
-      default:
-        return true
-    }
-  }).length
-}
-
 export type ViewCounts = Record<SmartListId, number>
 
 /** One pass for every badge — a `filter` per list over the same todos is waste. */

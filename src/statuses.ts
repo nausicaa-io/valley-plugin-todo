@@ -1,102 +1,54 @@
-import type { BuiltinTodoStatus, CustomStatusId, TodoStatus } from './types'
+import type { TodoStatus } from './types'
 import {
   isPaletteRef,
   paletteCssContrast,
   paletteCssValue,
-  paletteRef,
   paletteRefId,
   runtimePaletteSnapshot
 } from '@valley/plugin-sdk/palette'
 import { React, api } from './runtime'
 import { setCustomStatusLabels, todoStatusLabel } from './localization'
+import {
+  CUSTOM_STATUS_DEFAULT_COLOR as CUSTOM_DEFAULT_COLOR,
+  CUSTOM_STATUS_LABEL_MAX,
+  DEFAULT_STRIKETHROUGH,
+  OPTIONAL_STATUSES,
+  OPTIONAL_STATUS_SET as OPTIONAL_SET,
+  STATUS_DEF_BY_ID as BY_ID,
+  STATUS_DEFS as BASE_STATUS_DEFS,
+  STATUS_SETTINGS_KEY,
+  STATUS_TEXT_COLORS,
+  STATUSES,
+  isCustomStatusId,
+  isDoneStatus as isDoneStatusFor,
+  normalizeCustomStatuses,
+  patchForStatus as patchForStatusFor,
+  effectiveStatus,
+  type OptionalTodoStatus,
+  type ShowableStatus,
+  type StatusDef,
+  type StatusDoneSettings,
+  type StatusStyle,
+  type StatusTextColor,
+  type TodoStatusSettings
+} from './model/statusModel'
 
-export interface StatusDef {
-  id: TodoStatus
-  labelKey: string
-  /** The words to show: the translated built-in label, or the name the user gave a custom status. */
-  label: string
-  color: string
-  done: boolean
-  cls: string
-  locked: boolean
-  custom: boolean
-}
-
-export type OptionalTodoStatus = Exclude<BuiltinTodoStatus, 'open' | 'completed'>
-/** A status that can be switched off, reordered and (custom only) deleted. */
-export type ShowableStatus = OptionalTodoStatus | CustomStatusId
-
-/** A status the user created. It is archived while it is not in `active`. */
-export interface CustomStatusDef {
-  id: CustomStatusId
-  label: string
-  done: boolean
-}
-
-/** The label colour on a filled status badge: the palette's paired contrast, or a fixed white/black. */
-export type StatusTextColor = 'auto' | 'white' | 'black'
-/** How a status label is drawn on rows and in the table. */
-export type StatusStyle = 'filled' | 'text'
-
-export const STATUS_TEXT_COLORS: StatusTextColor[] = ['auto', 'white', 'black']
-export const CUSTOM_STATUS_LIMIT = 40
-export const CUSTOM_STATUS_LABEL_MAX = 40
-
-export interface TodoStatusSettings {
-  active: ShowableStatus[]
-  custom: CustomStatusDef[]
-  /** Names given to built-in statuses (To do and Completed keep theirs). */
-  labels: Partial<Record<TodoStatus, string>>
-  /** A task icon (file name in .valley/assets/icons/task-icon) per status. */
-  icons: Partial<Record<TodoStatus, string>>
-  /** Whether a built-in status counts as done, where it differs from the default. */
-  done: Partial<Record<TodoStatus, boolean>>
-  /** Built-in statuses removed in Settings; they no longer appear anywhere. */
-  removed: OptionalTodoStatus[]
-  colors: Record<TodoStatus, string>
-  textColors: Record<TodoStatus, StatusTextColor>
-  /** Whether a task in this status shows its title struck through. */
-  strikethrough: Record<TodoStatus, boolean>
-  style: StatusStyle
-}
-
-/** Done and Canceled read as finished, so they strike through unless switched off. */
-const DEFAULT_STRIKETHROUGH: TodoStatus[] = ['completed', 'canceled']
-
-export const STATUS_SETTINGS_KEY = 'statuses'
-
-const BASE_STATUS_DEFS: Omit<StatusDef, 'label' | 'custom'>[] = [
-  { id: 'open', labelKey: 'todo.status.todo', color: paletteRef('gray'), done: false, cls: 'todo-st-open', locked: true },
-  { id: 'completed', labelKey: 'todo.status.completed', color: paletteRef('green'), done: true, cls: 'todo-st-completed', locked: true },
-  { id: 'inprogress', labelKey: 'todo.status.inProgress', color: paletteRef('primary-blue'), done: false, cls: 'todo-st-inprogress', locked: false },
-  { id: 'waiting', labelKey: 'todo.status.waiting', color: paletteRef('yellow'), done: false, cls: 'todo-st-waiting', locked: false },
-  { id: 'onhold', labelKey: 'todo.status.onHold', color: paletteRef('orange'), done: false, cls: 'todo-st-onhold', locked: false },
-  { id: 'delegated', labelKey: 'todo.status.delegated', color: paletteRef('mint'), done: false, cls: 'todo-st-delegated', locked: false },
-  { id: 'deferred', labelKey: 'todo.status.deferred', color: paletteRef('violet'), done: false, cls: 'todo-st-deferred', locked: false },
-  { id: 'canceled', labelKey: 'todo.status.canceled', color: paletteRef('red'), done: true, cls: 'todo-st-canceled', locked: false }
-]
-const CUSTOM_DEFAULT_COLOR = paletteRef('teal')
-
-/** The built-in definitions (default colours, no labels). */
-export const STATUS_DEFS: readonly Omit<StatusDef, 'label' | 'custom'>[] = BASE_STATUS_DEFS
-
-/** The SDK's built-in statuses. Custom ones come from settings; see {@link allStatuses}. */
-export const STATUSES: BuiltinTodoStatus[] = BASE_STATUS_DEFS.map((status) => status.id as BuiltinTodoStatus)
-export const OPTIONAL_STATUSES: OptionalTodoStatus[] = BASE_STATUS_DEFS
-  .filter((status) => !status.locked)
-  .map((status) => status.id as OptionalTodoStatus)
-export const DONE_STATUSES: BuiltinTodoStatus[] = BASE_STATUS_DEFS.filter((status) => status.done).map((status) => status.id as BuiltinTodoStatus)
-
-const BY_ID = new Map<TodoStatus, Omit<StatusDef, 'label' | 'custom'>>(BASE_STATUS_DEFS.map((status) => [status.id, status]))
-const OPTIONAL_SET = new Set<TodoStatus>(OPTIONAL_STATUSES)
-
-export function isCustomStatusId(value: unknown): value is CustomStatusId {
-  return typeof value === 'string' && /^custom-[a-z0-9]{1,32}$/.test(value)
-}
-
-export function newCustomStatusId(): CustomStatusId {
-  return `custom-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`
-}
+export {
+  CUSTOM_STATUS_LABEL_MAX,
+  CUSTOM_STATUS_LIMIT,
+  DONE_STATUSES,
+  OPTIONAL_STATUSES,
+  STATUS_DEFS,
+  STATUS_SETTINGS_KEY,
+  STATUS_TEXT_COLORS,
+  STATUSES,
+  effectiveStatus,
+  isCustomStatusId,
+  newCustomStatusId,
+  normalizeCustomStatuses,
+  parseStoredStatus
+} from './model/statusModel'
+export type { CustomStatusDef, OptionalTodoStatus, ShowableStatus, StatusDef, StatusStyle, StatusTextColor, TodoStatusSettings } from './model/statusModel'
 
 function paletteReferenceExists(value: unknown): value is string {
   if (typeof value !== 'string' || !isPaletteRef(value)) return false
@@ -104,22 +56,6 @@ function paletteReferenceExists(value: unknown): value is string {
   if (!id) return false
   const palette = runtimePaletteSnapshot()
   return palette.colors.some((color) => color.id === id) || palette.archived.some((color) => color.id === id)
-}
-
-export function normalizeCustomStatuses(value: unknown): CustomStatusDef[] {
-  if (!Array.isArray(value)) return []
-  const seen = new Set<string>()
-  const out: CustomStatusDef[] = []
-  for (const entry of value) {
-    if (!entry || typeof entry !== 'object') continue
-    const raw = entry as Record<string, unknown>
-    const label = typeof raw.label === 'string' ? raw.label.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, CUSTOM_STATUS_LABEL_MAX) : ''
-    if (!isCustomStatusId(raw.id) || seen.has(raw.id) || !label) continue
-    seen.add(raw.id)
-    out.push({ id: raw.id, label, done: raw.done === true })
-    if (out.length >= CUSTOM_STATUS_LIMIT) break
-  }
-  return out
 }
 
 export function normalizeStatusSettings(value: unknown): TodoStatusSettings {
@@ -186,18 +122,12 @@ export function allStatuses(settings: TodoStatusSettings = getStatusSettings()):
   return [...STATUSES, ...settings.custom.map((status) => status.id)]
 }
 
-export function isDoneStatus(status: TodoStatus, settings: Pick<TodoStatusSettings, 'custom'> & Partial<Pick<TodoStatusSettings, 'done'>> = getStatusSettings()): boolean {
-  if (BY_ID.has(status)) return settings.done?.[status] ?? BY_ID.get(status)!.done
-  return settings.custom.some((custom) => custom.id === status && custom.done)
+export function isDoneStatus(status: TodoStatus, settings: StatusDoneSettings = getStatusSettings()): boolean {
+  return isDoneStatusFor(status, settings)
 }
 
-/**
- * The built-in a custom status is stored as in the tasks dataset's `status`
- * column, which only holds SDK values: Completed for a done status, To do otherwise.
- */
-export function builtinStatusFor(status: TodoStatus | undefined, settings: TodoStatusSettings = getStatusSettings()): BuiltinTodoStatus | undefined {
-  if (status === undefined || !isCustomStatusId(status)) return status as BuiltinTodoStatus | undefined
-  return isDoneStatus(status, settings) ? 'completed' : undefined
+export function patchForStatus(status: TodoStatus | null, settings?: StatusDoneSettings): { completed: boolean; status: TodoStatus | undefined } {
+  return patchForStatusFor(status, settings ?? getStatusSettings())
 }
 
 /** A CSS class name for a status (custom ids are already class-safe). */
@@ -267,34 +197,6 @@ export function matchesStatusFilter(
   filter: TodoStatusFilter
 ): boolean {
   return filter === 'all' || filter.includes(effectiveStatus(todo))
-}
-
-/**
- * A stored status as read from the datasets: a built-in or any well-formed
- * custom id. The backend has no access to the renderer's settings, so this
- * never checks that a custom status still exists — a deleted one reads back as
- * an unknown id and displays as To do (see {@link statusDef}).
- */
-export function parseStoredStatus(value: unknown): TodoStatus | undefined {
-  if (typeof value !== 'string') return undefined
-  if ((STATUSES as string[]).includes(value)) return value as TodoStatus
-  return isCustomStatusId(value) ? value : undefined
-}
-
-/** A built-in status, or a custom status that exists (archived ones included). */
-export function parseTodoStatus(value: unknown): TodoStatus | undefined {
-  if (typeof value !== 'string') return undefined
-  if ((STATUSES as string[]).includes(value)) return value as TodoStatus
-  return isCustomStatusId(value) && getStatusSettings().custom.some((custom) => custom.id === value) ? value : undefined
-}
-
-export function effectiveStatus(todo: { status?: TodoStatus; completed: boolean }): TodoStatus {
-  return todo.status ?? (todo.completed ? 'completed' : 'open')
-}
-
-export function patchForStatus(status: TodoStatus | null, settings?: Pick<TodoStatusSettings, 'custom'> & Partial<Pick<TodoStatusSettings, 'done'>>): { completed: boolean; status: TodoStatus | undefined } {
-  if (status === null || status === 'open') return { completed: false, status: undefined }
-  return { completed: isDoneStatus(status, settings), status }
 }
 
 export interface StatusMenuOption {

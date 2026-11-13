@@ -4,15 +4,16 @@ import { startCompletionBackfill } from './backfill'
 import { DEFAULT_TODO_ICONS } from '../todoIconDefaults'
 import type { PluginBackendApi } from '@valley/plugin-sdk'
 import { registerWorkflowContribution, type WorkflowContributionContract } from '@valley/plugin-sdk/workflow'
-import type { DataRecord } from '@valley/plugin-sdk/types'
 import { createTodoDomain } from '../domain'
 import { readLightTodos, TARGETED_READ_LIMIT } from '../taskReads'
 import { normalizeGroups } from '@valley/plugin-sdk/groups'
 import { generateId } from '../lib'
 import { normalizeTodoRecord } from '../records'
-import { normalizeCustomStatuses, patchForStatus, STATUSES, OPTIONAL_STATUSES } from '../statuses'
+import { DEFAULT_STATUS_DONE, normalizeCustomStatuses, patchForStatus, STATUSES, OPTIONAL_STATUSES } from '../model/statusModel'
 import type { TodoRecord, TodoStatus } from '../types'
 import config from '../../config.json'
+import { isClockTime, isTodoPriority } from '../domain/validation'
+import type { RecordsAppendPayload, RecordsDeletePayload, RecordsUpdatePayload, TaskIconsResult } from '../domain/rpc'
 
 const text = (value: unknown, name: string): string => {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`Expected ${name}.`)
@@ -30,9 +31,9 @@ export function todoWorkflowValues(raw: Record<string, unknown>, settings: Recor
   }
   if (values.title !== undefined) values.title = text(values.title, 'a task title')
   if (values.dueDate && !validDate(String(values.dueDate))) throw new Error('Expected a valid task date (YYYY-MM-DD).')
-  for (const key of ['startTime', 'endTime']) if (values[key] && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(values[key]))) throw new Error('Expected a valid task time (HH:mm).')
+  for (const key of ['startTime', 'endTime']) if (values[key] && !isClockTime(String(values[key]))) throw new Error('Expected a valid task time (HH:mm).')
   if (values.endTime && (!values.startTime || String(values.endTime) <= String(values.startTime))) throw new Error('Task end time must follow its start time.')
-  if (values.priority !== undefined && !['normal', 'low', 'medium', 'high'].includes(String(values.priority))) throw new Error('Unknown task priority.')
+  if (values.priority !== undefined && !isTodoPriority(values.priority)) throw new Error('Unknown task priority.')
   const enabled = (settings.statuses as { active?: unknown } | undefined)?.active
   const active = ['open', 'completed', ...(Array.isArray(enabled) ? enabled : OPTIONAL_STATUSES)]
   const customStatuses = normalizeCustomStatuses((settings.statuses as { custom?: unknown } | undefined)?.custom)
@@ -52,12 +53,10 @@ export function register(api: PluginBackendApi): () => Promise<void> {
     catch (error) { api.rpc.emit('records.eventDeliveryFailed', { event, recordId: payload.record.id, message: error instanceof Error ? error.message : String(error) }) }
   })
   const backfill = startCompletionBackfill(api, domain.exclusive)
-  const offReminders = startReminderOwner(api, () => readReminderCandidates(api), id => domain.patch(id, patchForStatus('completed')), ids => readReminderCandidates(api, ids))
+  const offReminders = startReminderOwner(api, () => readReminderCandidates(api), id => domain.patch(id, patchForStatus('completed', DEFAULT_STATUS_DONE)), ids => readReminderCandidates(api, ids))
   const offs = [
-    // The shared task icons (Settings › Markdown task markers) as SVG source by
-    // name, so a status can wear one. Read-only: the host seeds and owns the folder.
-    api.rpc.handle('taskIcons', async () => {
-      // To-Do's own status icons: the bundled set is seeded once, files the user adds or edits are kept.
+    // To-Do's own status icons as SVG source by name: the bundled set is seeded once, files the user adds or edits are kept.
+    api.rpc.handle('taskIcons', async (): Promise<TaskIconsResult> => {
       const grant = await api.storage.open({ area: 'metadata', path: 'assets/icons/todo-icon', kind: 'directory', mode: 'write' })
       const location = (path: string) => ({ handle: grant.handle, path })
       try {
@@ -75,12 +74,12 @@ export function register(api: PluginBackendApi): () => Promise<void> {
       } finally { await api.storage.close(grant.handle).catch(() => {}) }
     }),
     api.rpc.handle('records.completionReady', () => backfill.ready()),
-    api.rpc.handle('records.append', payload => domain.append((payload as { record: TodoRecord }).record)),
+    api.rpc.handle('records.append', payload => domain.append((payload as RecordsAppendPayload).record)),
     api.rpc.handle('records.update', payload => {
-      const input = payload as { id: string; record: TodoRecord; expectedUpdatedAt?: string; documentRevision?: { expectedRevision: number; realmGeneration: number }; exactStatusHistory?: boolean }
+      const input = payload as RecordsUpdatePayload
       return domain.update(text(input.id, 'a task id'), input.record, input.expectedUpdatedAt, input.documentRevision, undefined, undefined, { exactStatusHistory: input.exactStatusHistory === true })
     }),
-    api.rpc.handle('records.delete', payload => domain.remove(text((payload as { id: string }).id, 'a task id'))),
+    api.rpc.handle('records.delete', payload => domain.remove(text((payload as RecordsDeletePayload).id, 'a task id'))),
     api.rpc.handleOperation('command.task.delete', async (raw, context) => {
       const input = raw as { id: unknown; expectedUpdatedAt: unknown }
       const id = text(input.id, 'a task id'), expected = text(input.expectedUpdatedAt, 'a reviewed modification timestamp')
@@ -115,7 +114,7 @@ export function register(api: PluginBackendApi): () => Promise<void> {
     if (nodeTypeId === 'task.create') {
       const values = todoWorkflowValues(parameters, scoped.settings.get())
       const now = new Date().toISOString()
-      record = normalizeTodoRecord({ ...values, id: generateId('todo'), title: text(values.title, 'a task title'), createdAt: now, updatedAt: now } as unknown as DataRecord)
+      record = normalizeTodoRecord({ ...values, id: generateId('todo'), title: text(values.title, 'a task title'), createdAt: now, updatedAt: now })
       await domain.append(record, scoped, emit)
     } else {
       const id = text(parameters.id, 'a task id')
@@ -124,7 +123,7 @@ export function register(api: PluginBackendApi): () => Promise<void> {
         if (!found) throw new Error('The task no longer exists.')
         record = found
       } else if (nodeTypeId === 'task.update' || nodeTypeId === 'task.complete') {
-        const values = nodeTypeId === 'task.complete' ? patchForStatus('completed') : (current: TodoRecord) => todoWorkflowValues({ ...current, ...(parameters.completed === undefined ? {} : { status: undefined }), ...parameters }, scoped.settings.get())
+        const values = nodeTypeId === 'task.complete' ? patchForStatus('completed', DEFAULT_STATUS_DONE) : (current: TodoRecord) => todoWorkflowValues({ ...current, ...(parameters.completed === undefined ? {} : { status: undefined }), ...parameters }, scoped.settings.get())
         record = await domain.patch(id, values, scoped, emit)
       } else throw new Error('Unknown To-Do workflow action.')
     }

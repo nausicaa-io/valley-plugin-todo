@@ -58,8 +58,9 @@ export function register(api: ValleyPluginApi): () => void {
   // Offer our dated tasks to any calendar surface. Nothing here names Calendar;
   // if no consumer is installed the registration simply goes unread.
   const offCalendarSource = registerCalendarSource()
+  // In the sandbox the first `providers()` or `subscribe()` starts the provider watch; started here so
+  // `openTodoCalendar` finds this plugin's own source id synchronously.
   const offCalendarSources = api.interop.services.subscribe(CALENDAR_ITEM_SOURCE_V2, () => {})
-  const offCalendarProviders = api.interop.services.subscribe(CALENDAR_ITEM_SOURCE_V2, () => {})
   // We own how our hits look and behave in realm-wide search.
   const offSearchCard = registerSearchCard(api)
   // Module-managed timeouts, so a reminder still fires with every panel closed.
@@ -77,7 +78,6 @@ export function register(api: ValleyPluginApi): () => void {
     offFence()
     offCalendarSource()
     offCalendarSources()
-    offCalendarProviders()
     offSearchCard()
     offReminders()
     offGroupUsage()

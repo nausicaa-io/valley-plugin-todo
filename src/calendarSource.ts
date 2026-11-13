@@ -19,6 +19,7 @@ import { groupColorFor, type TodoGroup } from './groups'
 import { getGroups, onGroupsChanged } from './groupStore'
 import { DEFAULT_VIEW, setView } from './viewStore'
 import { generateId } from './lib'
+import { isTodoPriority } from './domain/validation'
 
 export function openTodoCalendar(todo: TodoRecord): boolean {
   const date = todo.dueDate?.slice(0, 10)
@@ -29,10 +30,8 @@ export function openTodoCalendar(todo: TodoRecord): boolean {
   return true
 }
 
-const PRIORITIES: readonly string[] = ['normal', 'low', 'medium', 'high']
-
 function asPriority(value: string | undefined, fallback: TodoPriority): TodoPriority {
-  return value && PRIORITIES.includes(value) ? (value as TodoPriority) : fallback
+  return isTodoPriority(value) ? value : fallback
 }
 
 /**

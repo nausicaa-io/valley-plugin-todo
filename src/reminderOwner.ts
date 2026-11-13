@@ -1,5 +1,7 @@
 import type { PluginBackendApi } from '@valley/plugin-sdk'
 import type { TodoRecord } from './types'
+import { changedTaskIds, TASKS_DATASET } from './domain/datasets'
+import { validReminderOffsets } from './domain/validation'
 
 export function reminderTimes(record: TodoRecord, defaults: number[] = [10]): { id: string; at: number }[] {
   if (record.completed) return []
@@ -10,7 +12,7 @@ export function reminderTimes(record: TodoRecord, defaults: number[] = [10]): { 
   const at = new Date(`${record.dueDate}T${time}`).getTime()
   if (!Number.isFinite(at)) return []
   const offsets = record.reminderOffsets ?? defaults
-  if (offsets.length > 16 || offsets.some(value => !Number.isInteger(value) || value < 0 || value > 10080) || new Set(offsets).size !== offsets.length) throw new Error('Invalid reminder offsets')
+  if (!validReminderOffsets(offsets)) throw new Error('Invalid reminder offsets')
   return offsets.map(minutes => ({ id: String(minutes), at: at - minutes * 60000 }))
 }
 
@@ -40,19 +42,6 @@ const stringMap = (value: unknown): Record<string, string> => value && typeof va
 /** The task id of a `reminder:<id>:<occurrence>` key; occurrence ids never contain a colon. */
 function reminderTaskId(key: string): string {
   return key.slice(REMINDER_PREFIX.length, key.lastIndexOf(':'))
-}
-
-/** Task ids a `todo.tasks` change names, or null when it names none (a full reconcile is needed). */
-export function changedTaskIds(event: unknown): string[] | null {
-  const keys = (event as { keys?: unknown } | undefined)?.keys
-  if (!Array.isArray(keys) || !keys.length || keys.length > PARTIAL_LIMIT) return null
-  const ids: string[] = []
-  for (const key of keys) {
-    const id = (key as { id?: unknown } | null)?.id
-    if (typeof id !== 'string' || !id) return null
-    ids.push(id)
-  }
-  return ids
 }
 
 /**
@@ -173,7 +162,7 @@ export function startReminderOwner(api: PluginBackendApi, list: () => Promise<To
     })
   }
   const reconcile = () => request(null)
-  const offData = api.data.dataset('todo.tasks').subscribe(event => request(changedTaskIds(event)))
+  const offData = api.data.dataset(TASKS_DATASET).subscribe(event => request(changedTaskIds(event)))
   const offSettings = api.settings.subscribe(() => { if (JSON.stringify(defaults()) !== appliedOffsets) reconcile() })
   const offResume = api.lifecycle.onResume(reconcile)
   const offOccurrence = api.notifications.onOccurrence(event => {

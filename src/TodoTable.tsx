@@ -571,15 +571,13 @@ export function notePreview(note: string): string {
   return note.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
 }
 
-const TableRow = memoRow(function TableRow({ todo, groups, columns, actions, pending, menuOpen, env, selected, onPick }: {
+const TableRow = memoRow(function TableRow({ todo, groups, columns, actions, pending, env, selected, onPick }: {
   todo: TodoRecord
   groups: TodoGroup[]
   columns: TableColumn[]
   actions: TodoRowActions
   /** A write for this todo is in flight. */
   pending: boolean
-  /** This todo's ⋯ menu is the open one. */
-  menuOpen: boolean
   env: RowEnv
   selected: boolean
   /** Toggles this row, or with `range` selects from the last picked row to it. */
@@ -856,7 +854,6 @@ const TableRow = memoRow(function TableRow({ todo, groups, columns, actions, pen
         <TodoMenu
           todo={todo}
           groupNames={allGroups(groups)}
-          openId={menuOpen ? todo.id : null}
           setOpenId={actions.setMenuId}
           onEdit={() => actions.openDetail(todo.id)}
           onPatch={patch}
@@ -1407,7 +1404,6 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
         columns={order}
         actions={c.actions}
         pending={c.pendingIds.has(todo.id)}
-        menuOpen={c.menuId === todo.id}
         env={env}
         selected={selection.has(todo.id)}
         onPick={pick}

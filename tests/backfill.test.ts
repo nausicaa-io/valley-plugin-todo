@@ -5,6 +5,7 @@ import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes } from './mockTodoNotes'
 import { backfillCompletedAt, COMPLETION_BACKFILL_MARKER } from '../src/backend/backfill'
 import { readCompletionSummaries } from '../src/completionHistory'
+import { allStatuses } from '../src/statuses'
 import { loadTodoList } from '../src/data'
 import { createTodoDomain } from '../src/domain'
 import { completionTimestamp } from '../src/sections'
@@ -51,7 +52,7 @@ function setup(extra = 0) {
   const withoutCompletedAt = (rows: DatasetRecord[]) => rows.map(({ completedAt: _completedAt, ...rest }) => rest)
   const oldCompletions = async (): Promise<Map<string, string | null>> => {
     const ids = (notes.mock.datasets.get('todo.tasks') ?? []).map((row) => String(row.id))
-    const summaries = await readCompletionSummaries(notes.mock.api, ids, () => {})
+    const summaries = await readCompletionSummaries(notes.mock.api, ids, () => {}, () => allStatuses())
     return new Map(ids.map((id) => [id, summaries.get(id)?.changedAt ?? null]))
   }
   const stored = (): Map<string, unknown> => new Map((notes.mock.datasets.get('todo.tasks') ?? []).map((row) => [String(row.id), row.completedAt ?? null]))

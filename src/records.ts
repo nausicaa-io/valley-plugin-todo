@@ -4,26 +4,18 @@ import { asColor, asString, asTime, isRecord } from '@valley/plugin-sdk/normaliz
 import { isAllowedExternalUrl, normalizeRelPathOpt, parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { canonicalGroupName, normalizeGroups } from '@valley/plugin-sdk/groups'
 import { generateId } from './lib'
-import { isCustomStatusId, parseStoredStatus } from './statuses'
+import { isCustomStatusId, parseStoredStatus } from './model/statusModel'
 import type { TodoPriority, TodoRecord, TodoSession, TodoStatusChange } from './types'
 
-const TASKS_DATASET = 'todo.tasks'
-const TAGS_DATASET = 'todo.task_tags'
-const LINKS_DATASET = 'todo.task_links'
-const ATTACHMENTS_DATASET = 'todo.task_attachments'
-const SESSIONS_DATASET = 'todo.focus_sessions'
-const STATUS_HISTORY_DATASET = 'todo.status_history'
+import { ATTACHMENTS_DATASET, LINKS_DATASET, SESSIONS_DATASET, STATUS_HISTORY_DATASET, TAGS_DATASET, TASKS_DATASET } from './domain/datasets'
+import { isTodoPriority } from './domain/validation'
 // ── value coercion ──────────────────────────────────────────────────────────
-
-const PRIORITIES: TodoPriority[] = ['normal', 'low', 'medium', 'high']
 
 function asBool(value: unknown): boolean {
   return value === true
 }
 function asPriority(value: unknown): TodoPriority {
-  return typeof value === 'string' && (PRIORITIES as string[]).includes(value)
-    ? (value as TodoPriority)
-    : 'normal'
+  return isTodoPriority(value) ? value : 'normal'
 }
 function asMinutes(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return Math.round(value)
@@ -112,7 +104,8 @@ function normalizeLocation(value: unknown): TodoRecord['location'] {
   return fixed ? { name, lng, lat } : { name }
 }
 
-export function normalizeTodoRecord(record: DataRecord): TodoRecord {
+export function normalizeTodoRecord(input: DataRecord | Partial<TodoRecord>): TodoRecord {
+  const record = input as DataRecord
   const now = new Date().toISOString()
   const id = asString(record.id, generateId('todo'))
   const createdAt = asString(record.createdAt, now)

@@ -141,7 +141,7 @@ export const TodoMenu = ({
   onPatch,
   onRequestDelete,
   disabled = false
-}: TodoMenuOptions & { openId: string | null }): ReactElement => (
+}: TodoMenuOptions): ReactElement => (
   <div className="todo-menu-wrap">
     <button
       className="todo-menu-btn"
