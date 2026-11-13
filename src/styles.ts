@@ -1716,8 +1716,9 @@ button.todo-date:hover .todo-date-day {
 }
 .todo-table-cell-btn > span { overflow: hidden; text-overflow: ellipsis; }
 /* The row and cell an open editor belongs to, so it is clear what the popover edits. */
-.todo-table-row.is-editing td { background: var(--hover-bg); }
-.todo-table td.is-editing { box-shadow: inset 0 0 0 1px var(--accent-color); border-radius: var(--radius-sm); }
+/* Editing an existing row uses the new row's blue, so a row being edited always looks the same. */
+.todo-table-row.is-editing td { background: color-mix(in srgb, var(--accent-color) 6%, transparent); }
+.todo-table td.is-editing { box-shadow: inset 0 0 0 1px var(--accent-color); border-radius: 0; }
 .todo-table-placeholder { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-tertiary); font-size: var(--smaller-font-size); }
 .todo-table-placeholder svg { flex: 0 0 auto; width: 13px; height: 13px; }
 .todo-table-placeholder > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -765,7 +765,7 @@ function TableRow({ todo, groups, columns, c, selected, onPick }: {
   return (
     <tr
       ref={rowRef}
-      className={`todo-table-row${todo.completed ? ' completed' : ''}${selected ? ' selected' : ''}${editing ? ' is-editing' : ''}`}
+      className={`todo-table-row${todo.completed ? ' completed' : ''}${selected ? ' selected' : ''}${editing || editingTitle ? ' is-editing' : ''}`}
       data-todo-id={todo.id}
       data-status={status}
       aria-selected={selected}
@@ -876,96 +876,35 @@ export function pastedTaskLines(text: string): string[] {
 
 interface NewRowFields { dueDate?: string; priority?: TodoPriority; group?: string; flagged?: boolean; note?: string; location?: TodoRecord['location']; tags?: string[]; status?: TodoStatus | null }
 
-export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sectionOf, composeSignal = 0, newTaskPatch }: {
-  todos: TodoRecord[]
-  /** Bumped by the page's +: opens the empty row at the top of the table. */
-  composeSignal?: number
-  /** Fields a new task needs to belong to the current view (group, date, flag). */
-  newTaskPatch?: () => Partial<TodoRecord>
-  /** With the view's own order, the Overdue · Today · Upcoming band each row belongs to; rows then sit under band headers. */
-  sectionOf?: (todo: TodoRecord) => TodoSectionId
+/** One new row at the top of the table: a draft task until Enter adds it. */
+function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate, onRemove }: {
+  order: TableColumn[]
   groups: TodoGroup[]
   c: TodoListController
-  sort: PageSort
-  onSort: (sort: PageSort) => void
-  /** Changes whenever the filters or order change, which returns to page one. */
-  resetKey: string
-  empty: string
+  newTaskPatch?: () => Partial<TodoRecord>
+  /** The one row that may be highlighted. */
+  active: boolean
+  onActivate: () => void
+  onRemove: () => void
 }): ReactElement {
-  const [order, setOrder] = useTableColumns()
-  const columns = order.filter((id): id is TodoColumn => id !== 'title')
-  const [headDrag, setHeadDrag] = React.useState<TableColumn | null>(null)
-  const [headDrop, setHeadDrop] = React.useState<{ id: TableColumn; after: boolean } | null>(null)
-  /** Drag a header and drop it before or after another to reorder the table. */
-  const headerDrag = (id: TableColumn): { props: HTMLAttributes<HTMLTableCellElement>; className: string } => ({
-    className: `${headDrag === id ? ' is-dragging' : ''}${headDrop?.id === id ? (headDrop.after ? ' col-drop-after' : ' col-drop-before') : ''}`,
-    props: {
-      draggable: true,
-      onDragStart: (event) => {
-        if ((event.target as Element).closest('.todo-col-resize')) { event.preventDefault(); return }
-        event.dataTransfer.effectAllowed = 'move'
-        event.dataTransfer.setData('text/plain', id)
-        // A small chip with the column's name follows the pointer instead of
-        // the browser's grey snapshot of the header cell.
-        const doc = event.currentTarget.ownerDocument
-        const chip = doc.createElement('div')
-        chip.className = 'todo-col-drag-chip'
-        chip.textContent = uiText(columnLabelKey(id))
-        doc.body.appendChild(chip)
-        event.dataTransfer.setDragImage?.(chip, Math.round(chip.offsetWidth / 2), Math.round(chip.offsetHeight / 2))
-        window.setTimeout(() => chip.remove(), 0)
-        setHeadDrag(id)
-      },
-      onDragOver: (event) => {
-        if (!headDrag || headDrag === id) return
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'move'
-        const rect = event.currentTarget.getBoundingClientRect()
-        setHeadDrop({ id, after: event.clientX > rect.left + rect.width / 2 })
-      },
-      onDrop: (event) => {
-        event.preventDefault()
-        if (headDrag && headDrop && headDrag !== headDrop.id) {
-          const next = order.filter((candidate) => candidate !== headDrag)
-          next.splice(next.indexOf(headDrop.id) + (headDrop.after ? 1 : 0), 0, headDrag)
-          setOrder(next)
-        }
-        setHeadDrag(null)
-        setHeadDrop(null)
-      },
-      onDragEnd: () => {
-        setHeadDrag(null)
-        setHeadDrop(null)
-      }
-    }
-  })
-  const tableRef = React.useRef<HTMLTableElement>(null)
-  const measured = useMeasuredWidths(tableRef)
-  const [columnWidths, setColumnWidths] = useSetting('pageColumnWidths', normalizeColumnWidths)
-  const [liveWidths, setLiveWidths] = React.useState<Partial<Record<ResizableColumn, number>>>({})
-  const tagsFit = useTagsWidth(tableRef, todos)
-  const widths = Object.fromEntries(Object.entries({ tags: tagsFit, ...columnWidths, ...liveWidths })
-    .map(([id, width]) => [id, Math.max(width as number, measured.mins[id as ResizableColumn])])) as Partial<Record<ResizableColumn, number>>
-  const columnWidth = (id: TodoColumn): number => (id === 'due'
-    ? measured.due
-    : id === 'priority' ? measured.priority
-      : id === 'flagged' ? measured.flagged : widths[id as ResizableColumn] ?? COLUMN_MIN_WIDTH[id])
-  const [pageSize, setPageSize] = useSetting('pageRowsPerPage', normalizePageSize)
-  const [composing, setComposing] = React.useState(false)
   const [draft, setDraft] = React.useState('')
   const [draftFields, setDraftFields] = React.useState<NewRowFields>({})
   const draftRef = React.useRef<HTMLInputElement>(null)
   const newRowRef = React.useRef<HTMLTableRowElement>(null)
   const newRowMenu = React.useRef(false)
   const [newRowActive, setNewRowActive] = React.useState(true)
-  const scrollRef = React.useRef<HTMLDivElement>(null)
+  // A new row takes the keyboard at once: the frame first (the + sits in the host header), then the title.
   React.useEffect(() => {
-    if (!composeSignal) return
-    setComposing(true)
-    setPage(0)
-    scrollRef.current?.scrollTo?.({ top: 0 })
-    window.setTimeout(() => draftRef.current?.focus(), 0)
-  }, [composeSignal])
+    const focus = (): void => {
+      const input = draftRef.current
+      if (!input) return
+      if (!input.ownerDocument.hasFocus() && !/jsdom/i.test(navigator.userAgent)) input.ownerDocument.defaultView?.focus()
+      input.focus()
+    }
+    focus()
+    const timer = window.setTimeout(focus, 60)
+    return () => window.clearTimeout(timer)
+  }, [])
   const addTasks = async (lines: string[]): Promise<void> => {
     const today = isoDay(new Date())
     for (const line of lines) {
@@ -989,14 +928,10 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
     setDraft('')
     draftRef.current?.focus()
   }
-  const closeComposer = (): void => {
-    setDraft('')
-    setDraftFields({})
-    setNewRowActive(true)
-    setComposing(false)
-  }
-  const newRowPristine = !draft.trim() && !Object.values(draftFields).some((value) => Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== '')
-  // The row closes when focus moves elsewhere in the table while it is empty.
+  const closeComposer = onRemove
+  // A row without a title is not a task yet: it goes away when you leave it.
+  const newRowPristine = !draft.trim()
+  // The row closes when focus moves elsewhere in the table while its title is empty.
   const onNewRowBlur = (): void => {
     window.setTimeout(() => {
       // Focus outside this document is a host widget (the date panel, a menu): keep the row.
@@ -1009,7 +944,6 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
   }
   // Any click outside the row (and outside its own menus, which draw in the host) turns it plain.
   React.useEffect(() => {
-    if (!composing) return
     const onDown = (event: PointerEvent): void => {
       if (newRowMenu.current || newRowRef.current?.contains(event.target as Node)) return
       if (newRowPristine) closeComposer()
@@ -1018,6 +952,14 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
     const doc = newRowRef.current?.ownerDocument
     doc?.addEventListener('pointerdown', onDown, true)
     return () => doc?.removeEventListener('pointerdown', onDown, true)
+  })
+  const wasActive = React.useRef(active)
+  React.useEffect(() => {
+    if (wasActive.current && !active) {
+      if (newRowPristine) closeComposer()
+      else setNewRowActive(false)
+    }
+    wasActive.current = active
   })
   const newRowOpen = (open: Promise<unknown>): void => {
     newRowMenu.current = true
@@ -1187,6 +1129,139 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
     checked: option.status === null ? !draftFields.status : option.status === draftFields.status,
     onSelect: () => setDraftFields((fields) => ({ ...fields, status: option.status }))
   })), { anchor }))
+  return (
+              <tr className={'todo-table-new-row' + (newRowActive && active ? '' : ' is-idle')} ref={newRowRef} onBlur={onNewRowBlur} onFocus={() => { setNewRowActive(true); onActivate() }}>
+                <td className="todo-table-select">
+                  <button type="button" className="todo-table-new-status" disabled={c.creating} aria-label={uiText('todo.table.status')} title={newRowStatus?.label ?? uiText('todo.table.status')} onClick={(event) => pickNewRowStatus(event.currentTarget)}>
+                    {newRowStatus ? <TodoStatusGlyph status={newRowStatus.status} dotCls={newRowStatus.cls} /> : <span className="todo-table-new-circle" aria-hidden="true" />}
+                  </button>
+                </td>
+                {order.map((id) => id === 'title' ? (
+                  <td key={id} className="todo-table-title">
+                    <input
+                      ref={draftRef}
+                      className="todo-table-new-input"
+                      value={draft}
+                      disabled={c.creating}
+                      placeholder={uiText('todo.table.newRow')}
+                      aria-label={uiText('auto.184c39d1837f')}
+                      onChange={(event) => setDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.nativeEvent.isComposing) return
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          if (draft.trim()) void addTasks([draft])
+                          else closeComposer()
+                        } else if (event.key === 'Escape') {
+                          event.preventDefault()
+                          closeComposer()
+                        }
+                      }}
+                      onPaste={(event) => {
+                        const text = event.clipboardData.getData('text/plain')
+                        if (!/\r?\n/.test(text.trim())) return
+                        // Several lines become several tasks at once.
+                        event.preventDefault()
+                        void addTasks(pastedTaskLines(`${draft}${text}`))
+                      }}
+                    />
+                  </td>
+                ) : newRowCell(id))}
+                <td className="todo-table-actions" />
+              </tr>
+  )
+}
+
+export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sectionOf, composeSignal = 0, newTaskPatch }: {
+  todos: TodoRecord[]
+  /** Bumped by the page's +: opens the empty row at the top of the table. */
+  composeSignal?: number
+  /** Fields a new task needs to belong to the current view (group, date, flag). */
+  newTaskPatch?: () => Partial<TodoRecord>
+  /** With the view's own order, the Overdue · Today · Upcoming band each row belongs to; rows then sit under band headers. */
+  sectionOf?: (todo: TodoRecord) => TodoSectionId
+  groups: TodoGroup[]
+  c: TodoListController
+  sort: PageSort
+  onSort: (sort: PageSort) => void
+  /** Changes whenever the filters or order change, which returns to page one. */
+  resetKey: string
+  empty: string
+}): ReactElement {
+  const [order, setOrder] = useTableColumns()
+  const columns = order.filter((id): id is TodoColumn => id !== 'title')
+  const [headDrag, setHeadDrag] = React.useState<TableColumn | null>(null)
+  const [headDrop, setHeadDrop] = React.useState<{ id: TableColumn; after: boolean } | null>(null)
+  /** Drag a header and drop it before or after another to reorder the table. */
+  const headerDrag = (id: TableColumn): { props: HTMLAttributes<HTMLTableCellElement>; className: string } => ({
+    className: `${headDrag === id ? ' is-dragging' : ''}${headDrop?.id === id ? (headDrop.after ? ' col-drop-after' : ' col-drop-before') : ''}`,
+    props: {
+      draggable: true,
+      onDragStart: (event) => {
+        if ((event.target as Element).closest('.todo-col-resize')) { event.preventDefault(); return }
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('text/plain', id)
+        // A small chip with the column's name follows the pointer instead of
+        // the browser's grey snapshot of the header cell.
+        const doc = event.currentTarget.ownerDocument
+        const chip = doc.createElement('div')
+        chip.className = 'todo-col-drag-chip'
+        chip.textContent = uiText(columnLabelKey(id))
+        doc.body.appendChild(chip)
+        event.dataTransfer.setDragImage?.(chip, Math.round(chip.offsetWidth / 2), Math.round(chip.offsetHeight / 2))
+        window.setTimeout(() => chip.remove(), 0)
+        setHeadDrag(id)
+      },
+      onDragOver: (event) => {
+        if (!headDrag || headDrag === id) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+        const rect = event.currentTarget.getBoundingClientRect()
+        setHeadDrop({ id, after: event.clientX > rect.left + rect.width / 2 })
+      },
+      onDrop: (event) => {
+        event.preventDefault()
+        if (headDrag && headDrop && headDrag !== headDrop.id) {
+          const next = order.filter((candidate) => candidate !== headDrag)
+          next.splice(next.indexOf(headDrop.id) + (headDrop.after ? 1 : 0), 0, headDrag)
+          setOrder(next)
+        }
+        setHeadDrag(null)
+        setHeadDrop(null)
+      },
+      onDragEnd: () => {
+        setHeadDrag(null)
+        setHeadDrop(null)
+      }
+    }
+  })
+  const tableRef = React.useRef<HTMLTableElement>(null)
+  const measured = useMeasuredWidths(tableRef)
+  const [columnWidths, setColumnWidths] = useSetting('pageColumnWidths', normalizeColumnWidths)
+  const [liveWidths, setLiveWidths] = React.useState<Partial<Record<ResizableColumn, number>>>({})
+  const tagsFit = useTagsWidth(tableRef, todos)
+  const widths = Object.fromEntries(Object.entries({ tags: tagsFit, ...columnWidths, ...liveWidths })
+    .map(([id, width]) => [id, Math.max(width as number, measured.mins[id as ResizableColumn])])) as Partial<Record<ResizableColumn, number>>
+  const columnWidth = (id: TodoColumn): number => (id === 'due'
+    ? measured.due
+    : id === 'priority' ? measured.priority
+      : id === 'flagged' ? measured.flagged : widths[id as ResizableColumn] ?? COLUMN_MIN_WIDTH[id])
+  const [pageSize, setPageSize] = useSetting('pageRowsPerPage', normalizePageSize)
+  // Every + adds one more new row; each row is its own draft.
+  const [drafts, setDrafts] = React.useState<number[]>([])
+  // Only the row being typed in is highlighted; the newest row starts out as that row.
+  const [activeDraft, setActiveDraft] = React.useState<number | null>(null)
+  const nextDraft = React.useRef(1)
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (!composeSignal) return
+    const key = nextDraft.current++
+    setDrafts((current) => [key, ...current])
+    setActiveDraft(key)
+    setPage(0)
+    scrollRef.current?.scrollTo?.({ top: 0 })
+  }, [composeSignal])
+  const removeDraft = (key: number): void => setDrafts((current) => current.filter((candidate) => candidate !== key))
   const [page, setPage] = React.useState(0)
   const [lastResetKey, setLastResetKey] = React.useState(resetKey)
   if (lastResetKey !== resetKey) {
@@ -1355,53 +1430,15 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
             </tr>
           </thead>
           <tbody>
-            {composing && (
-              <tr className={'todo-table-new-row' + (newRowActive ? '' : ' is-idle')} ref={newRowRef} onBlur={onNewRowBlur} onFocus={() => setNewRowActive(true)}>
-                <td className="todo-table-select">
-                  <button type="button" className="todo-table-new-status" disabled={c.creating} aria-label={uiText('todo.table.status')} title={newRowStatus?.label ?? uiText('todo.table.status')} onClick={(event) => pickNewRowStatus(event.currentTarget)}>
-                    {newRowStatus ? <TodoStatusGlyph status={newRowStatus.status} dotCls={newRowStatus.cls} /> : <span className="todo-table-new-circle" aria-hidden="true" />}
-                  </button>
-                </td>
-                {order.map((id) => id === 'title' ? (
-                  <td key={id} className="todo-table-title">
-                    <input
-                      ref={draftRef}
-                      className="todo-table-new-input"
-                      value={draft}
-                      disabled={c.creating}
-                      placeholder={uiText('todo.table.newRow')}
-                      aria-label={uiText('auto.184c39d1837f')}
-                      onChange={(event) => setDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.nativeEvent.isComposing) return
-                        if (event.key === 'Enter') {
-                          event.preventDefault()
-                          if (draft.trim()) void addTasks([draft])
-                          else closeComposer()
-                        } else if (event.key === 'Escape') {
-                          event.preventDefault()
-                          closeComposer()
-                        }
-                      }}
-                      onPaste={(event) => {
-                        const text = event.clipboardData.getData('text/plain')
-                        if (!/\r?\n/.test(text.trim())) return
-                        // Several lines become several tasks at once.
-                        event.preventDefault()
-                        void addTasks(pastedTaskLines(`${draft}${text}`))
-                      }}
-                    />
-                  </td>
-                ) : newRowCell(id))}
-                <td className="todo-table-actions" />
-              </tr>
-            )}
+            {drafts.map((key) => (
+              <NewTaskRow key={key} order={order} groups={groups} c={c} newTaskPatch={newTaskPatch} active={activeDraft === key} onActivate={() => setActiveDraft(key)} onRemove={() => removeDraft(key)} />
+            ))}
             {bodyRows}
           </tbody>
         </table>
         {/* Outside the table: an empty row would have to span columns the narrow
             layout hides, and that adds a phantom column to the header. */}
-        {!rows.length && !composing && <div className="todo-table-empty-state">{empty}</div>}
+        {!rows.length && !drafts.length && <div className="todo-table-empty-state">{empty}</div>}
       </div>
 
       <div className="todo-table-footer">

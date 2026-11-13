@@ -294,6 +294,32 @@ describe('the To-Do page', () => {
     expect(screen.queryByLabelText('New todo title')).not.toBeInTheDocument()
   })
 
+  it('adds one more new row per +, focuses it, and drops a row left without a title', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED, panelChip: 'group:Fungi' })
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    const add = document.querySelector<HTMLButtonElement>('.todo-page-add')!
+    await act(async () => fireEvent.click(add))
+    const first = await screen.findByLabelText('New todo title')
+    await waitFor(() => expect(first).toHaveFocus())
+    await act(async () => fireEvent.change(first, { target: { value: 'Keep this draft' } }))
+
+    await act(async () => fireEvent.click(add))
+    await waitFor(() => expect(screen.getAllByLabelText('New todo title')).toHaveLength(2))
+    // The newest row sits on top and is the only highlighted one.
+    const [second, older] = screen.getAllByLabelText('New todo title')
+    expect(older).toHaveValue('Keep this draft')
+    await waitFor(() => expect(second).toHaveFocus())
+    expect(second.closest('tr')).not.toHaveClass('is-idle')
+    expect(older.closest('tr')).toHaveClass('is-idle')
+
+    // Leaving the empty new row removes it; the titled row stays, plain.
+    await act(async () => fireEvent.pointerDown(document.body))
+    await waitFor(() => expect(screen.getAllByLabelText('New todo title')).toHaveLength(1))
+    expect(screen.getByLabelText('New todo title')).toHaveValue('Keep this draft')
+    expect(screen.getByLabelText('New todo title').closest('tr')).toHaveClass('is-idle')
+  })
+
   it('hides done tasks until the Status filter includes them', async () => {
     store = installTodoNotes([
       { id: 'a', title: 'Open one', completed: false } as DataRecord,
