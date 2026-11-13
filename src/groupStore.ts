@@ -4,12 +4,22 @@ import {
   countGroupUsage,
   groupKey,
   normalizeTodoGroups,
+  setGroupColorFallback,
   type TodoGroup
 } from './groups'
 import { LOCAL_GROUPS_KEY, mergedGroups, normalizeLocalGroups, type LocalGroup } from './localGroups'
 
+export const USE_SHARED_GROUPS_KEY = 'useSharedGroups'
+export const USE_LOCAL_GROUPS_KEY = 'useLocalGroups'
+
+/** Whether shared groups (`useSharedGroups`) and To-Do-only groups (`useLocalGroups`) are offered; both default on. */
+export function getGroupKinds(): { shared: boolean; local: boolean } {
+  const settings = api?.settings.get() ?? {}
+  return { shared: settings[USE_SHARED_GROUPS_KEY] !== false, local: settings[USE_LOCAL_GROUPS_KEY] !== false }
+}
+
 export function getGlobalGroups(): TodoGroup[] {
-  return normalizeTodoGroups(api.getState().groups)
+  return normalizeTodoGroups(api?.getState().groups)
 }
 
 export function getLocalGroups(): LocalGroup[] {
@@ -20,10 +30,19 @@ export async function setLocalGroups(groups: LocalGroup[]): Promise<void> {
   await api.settings.set(LOCAL_GROUPS_KEY, normalizeLocalGroups(groups, getGlobalGroups()))
 }
 
-/** Shared groups and To-Do's individual groups together. */
-export function getGroups(): TodoGroup[] {
+/** Every shared and To-Do-only group, whatever the switches say: for name checks and a task's saved group colour. */
+export function getAllGroups(): TodoGroup[] {
   return mergedGroups(getGlobalGroups(), getLocalGroups())
 }
+
+/** The groups To-Do offers and lists: shared and To-Do-only groups, each only while its switch is on. */
+export function getGroups(): TodoGroup[] {
+  const kinds = getGroupKinds()
+  return mergedGroups(kinds.shared ? getGlobalGroups() : [], kinds.local ? getLocalGroups() : [])
+}
+
+// A task in a switched-off group keeps its group's own colour.
+setGroupColorFallback(getAllGroups)
 
 export function onGroupsChanged(cb: () => void): () => void {
   const offState = api.subscribe(cb)
@@ -35,6 +54,18 @@ export function useGroups(): TodoGroup[] {
   const [groups, setGroups] = React.useState<TodoGroup[]>(getGroups)
   React.useEffect(() => onGroupsChanged(() => setGroups(getGroups())), [])
   return groups
+}
+
+export function useAllGroups(): TodoGroup[] {
+  const [groups, setGroups] = React.useState<TodoGroup[]>(getAllGroups)
+  React.useEffect(() => onGroupsChanged(() => setGroups(getAllGroups())), [])
+  return groups
+}
+
+export function useGroupKinds(): { shared: boolean; local: boolean } {
+  const [kinds, setKinds] = React.useState(getGroupKinds)
+  React.useEffect(() => api.settings.subscribe(() => setKinds(getGroupKinds())), [])
+  return kinds
 }
 
 export function useLocalGroups(): LocalGroup[] {

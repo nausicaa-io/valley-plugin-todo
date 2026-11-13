@@ -71,7 +71,7 @@ describe('the sidebar tree', () => {
     expect(screen.getByRole('switch', { name: 'Wildlife' })).toBeChecked()
     await waitFor(() => expect(titles()).toEqual(['Review species list']))
     fireEvent.click(screen.getByRole('button', { name: 'Manage groups' }))
-    expect(store.mock.api.workspace.openOwnSettings).toHaveBeenCalledWith()
+    expect(store.mock.api.workspace.openOwnSettings).toHaveBeenCalledWith('groups')
     expect(store.mock.api.workspace.setGroups).not.toHaveBeenCalled()
   })
 
@@ -162,7 +162,7 @@ describe('the sidebar tree', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Group' }))
 
-    expect(store.mock.api.workspace.openOwnSettings).toHaveBeenCalledWith()
+    expect(store.mock.api.workspace.openOwnSettings).toHaveBeenCalledWith('groups')
   })
 
   it('selects and clears every group from the labeled bulk action', async () => {

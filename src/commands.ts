@@ -389,7 +389,7 @@ export async function editTodoValues(id: string, values: Partial<TodoRecord>, ex
   const previous = todos.find((todo) => todo.id === id)
   if (!previous) throw new Error('The task no longer exists.')
   if (expectedUpdatedAt !== undefined && previous.updatedAt !== expectedUpdatedAt) throw new Error('This task changed elsewhere. Reload it before saving; your draft is preserved.')
-  if (values.group && !allGroups(getGroups()).includes(values.group)) throw new Error('Unknown task group. Create it in shared group settings first.')
+  if (values.group && values.group !== previous.group && !allGroups(getGroups()).includes(values.group)) throw new Error('Unknown task group. Create it in shared group settings first.')
   const next = normalizeTodoRecord({ ...previous, ...values, ...(values.status ? patchForStatus(values.status) : values.completed !== undefined ? patchForStatus(values.completed ? 'completed' : 'open') : {}), ...(values.remindAt !== undefined ? { reminderFiredAt: undefined } : {}), updatedAt: nowISO() } as unknown as DataRecord)
   if (values.filePath && next.filePath !== values.filePath) throw new Error('Invalid task file path.')
   for (const key of ['urls', 'attachments'] as const) if (values[key]?.some((value) => !next[key]?.includes(value))) throw new Error(`Invalid task ${key}.`)

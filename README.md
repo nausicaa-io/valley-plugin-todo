@@ -33,7 +33,7 @@ Valley release maintainers explicitly import the compiled artifact into the appl
 
 Selected-task reads in version 3.1 query only that task and its relationships, retain complete paginated history, and coalesce concurrent reads. List ordering uses Set membership while preserving the existing stable display order. Ordinary completion timelines retain their existing status-history semantics.
 
-Groups settings edits the shared realm registry used by Calendar and other plugins. Single-click anywhere on a dated task opens Calendar; double-click opens the task editor. Undated tasks open the editor. Status controls and links retain their own actions.
+Settings has three pages under To-Do: Lists (smart lists), Groups and Statuses. Groups starts with two switches, Shared groups (`useSharedGroups`) and To-Do-only groups (`useLocalGroups`), both on by default. The shared editor edits the realm registry used by Calendar and other plugins; the To-Do-only editor edits the `localGroups` setting. Each editor shows only while its switch is on. A switched-off kind is not offered or listed anywhere in To-Do, while tasks keep their saved group, its name and its colour, and shared-group usage is still reported to the host. Single-click anywhere on a dated task opens Calendar; double-click opens the task editor. Undated tasks open the editor. Status controls and links retain their own actions.
 
 Tasks are independent. Add To-Do opens a compact inline editor in the left sidebar, including when the main page is active. Enter saves the task and keeps the editor ready for another; notes, tags, date, time, location, and flag are optional. Creation never opens the detail modal.
 

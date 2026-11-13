@@ -25,7 +25,7 @@ function setup(settings: Record<string, unknown> = {}) {
 }
 
 describe('todo settings', () => {
-  it('keeps the main page to display and reminders, with lists and statuses on their own pages', () => {
+  it('keeps the main page to display and reminders, with lists, groups and statuses on their own pages', () => {
     setup()
     const { unmount } = render(<Settings />)
     expect(screen.getByRole('combobox', { name: 'Date breakdown' })).toHaveValue('monthly')
@@ -36,7 +36,7 @@ describe('todo settings', () => {
 
     render(<Settings section="lists" />)
     expect(screen.getByText('Smart lists')).toBeInTheDocument()
-    expect(screen.getByTestId('shared-groups-editor')).toBeInTheDocument()
+    expect(screen.queryByTestId('shared-groups-editor')).not.toBeInTheDocument()
   })
 
   it('lists every status with a switch, keeping switched-off ones editable in place', async () => {
@@ -176,7 +176,7 @@ describe('todo settings', () => {
     })
     initLocalization(mock.api)
     initRuntime(mock.api)
-    await act(async () => { render(<Settings section="lists" />) })
+    await act(async () => { render(<Settings section="groups" />) })
 
     const list = document.querySelector('.todo-local-groups')!
     expect(list).toHaveClass('settings-colorrules', 'settings-groups')
@@ -213,7 +213,7 @@ describe('todo settings', () => {
     initLocalization(mock.api)
     initRuntime(mock.api)
     const confirm = vi.spyOn(mock.api.ui, 'confirm')
-    await act(async () => { render(<Settings section="lists" />) })
+    await act(async () => { render(<Settings section="groups" />) })
 
     const remove = screen.getByRole('button', { name: 'Delete Errands' })
     await vi.waitFor(() => expect(remove).toHaveAttribute('aria-disabled', 'true'))

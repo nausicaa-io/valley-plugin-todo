@@ -14,7 +14,7 @@
  */
 
 import type { ValleyGroup } from '@valley/plugin-sdk/types'
-import { canonicalGroupName } from '@valley/plugin-sdk/groups'
+import { canonicalGroupName, groupColorFor as sdkGroupColorFor, groupForName } from '@valley/plugin-sdk/groups'
 
 export type TodoGroup = ValleyGroup
 
@@ -24,10 +24,20 @@ export function allGroups(configured: readonly ValleyGroup[] = []): string[] {
   return configured.map((group) => canonicalGroupName(group.name, configured) ?? group.name)
 }
 
+let colorFallback: () => readonly ValleyGroup[] = () => []
+
+/** The groups a colour lookup falls back to when a name is not in the offered list (a switched-off kind). */
+export function setGroupColorFallback(read: () => readonly ValleyGroup[]): void {
+  colorFallback = read
+}
+
+export function groupColorFor(name: string | null | undefined, configured: readonly ValleyGroup[]): string {
+  return sdkGroupColorFor(name, groupForName(configured, name) ? configured : colorFallback())
+}
+
 export {
   countGroupUsage,
   deleteGroupByName,
-  groupColorFor,
   groupForName,
   groupUsageCount,
   isGroupInUse,

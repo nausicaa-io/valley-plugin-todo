@@ -47,7 +47,7 @@ import { smartListDef, smartListForeground, type SmartListId, type SmartListSett
 import { loadTodoList, onTodoListChanged, setTodoStatus } from './data'
 import { TASK_ICON_FOLDER, useTaskIcons } from './taskIcons'
 import { todoStatusLabelDefault } from './localization'
-import { setLocalGroups, useGroups, useLocalGroups } from './groupStore'
+import { USE_LOCAL_GROUPS_KEY, USE_SHARED_GROUPS_KEY, setLocalGroups, useAllGroups, useGroupKinds, useLocalGroups } from './groupStore'
 import { groupKey, nextGroupColor } from './groups'
 import { LOCAL_GROUP_LIMIT, LOCAL_GROUP_NAME_MAX, newLocalGroupId, renameLocalGroup, type LocalGroup } from './localGroups'
 
@@ -587,7 +587,8 @@ function GeneralSettings(): ReactElement {
 function LocalGroupsSettings(): ReactElement {
   const { Button, ColorField, IconButton, Section, useReorderDrag } = api.ui.settings
   const local = useLocalGroups()
-  const groups = useGroups()
+  // Names must stay unique across both kinds, including a switched-off one.
+  const groups = useAllGroups()
   const todos = useTodoGroupNames()
   const draft = React.useRef('')
   const [addKey, setAddKey] = React.useState(0)
@@ -710,6 +711,33 @@ function LocalGroupsSettings(): ReactElement {
   )
 }
 
+/**
+ * Shared groups and To-Do-only groups, each behind its own switch. A kind
+ * that is off is neither offered nor listed in To-Do; tasks keep their group.
+ */
+function GroupsSettings(): ReactElement {
+  const { GroupsEditor, Row, Section, Toggle } = api.ui.settings
+  const kinds = useGroupKinds()
+  return (
+    <>
+      <Section>
+        <Row title={uiText('todo.settings.useSharedGroups')} description={uiText('todo.settings.useSharedGroupsDesc')}>
+          <Toggle checked={kinds.shared} label={uiText('todo.settings.useSharedGroups')} onChange={(on) => { void api.settings.set(USE_SHARED_GROUPS_KEY, on) }} />
+        </Row>
+        <Row title={uiText('todo.settings.useLocalGroups')} description={uiText('todo.settings.useLocalGroupsDesc')}>
+          <Toggle checked={kinds.local} label={uiText('todo.settings.useLocalGroups')} onChange={(on) => { void api.settings.set(USE_LOCAL_GROUPS_KEY, on) }} />
+        </Row>
+      </Section>
+      {kinds.shared && (
+        <Section>
+          <GroupsEditor />
+        </Section>
+      )}
+      {kinds.local && <LocalGroupsSettings />}
+    </>
+  )
+}
+
 /** The group name each task carries, kept current, for the usage counts. */
 function useTodoGroupNames(): string[] {
   const [names, setNames] = React.useState<string[]>([])
@@ -726,16 +754,7 @@ function useTodoGroupNames(): string[] {
 /** `todo.settings` — rendered once per manifest `settingsSections` id, and once for the main page. */
 export function Settings({ section }: { section?: string }): ReactElement {
   if (section === 'statuses') return <StatusesSettings />
-  if (section === 'lists') {
-    return (
-      <>
-        <SmartListsSettings />
-        <api.ui.settings.Section>
-          <api.ui.settings.GroupsEditor />
-        </api.ui.settings.Section>
-        <LocalGroupsSettings />
-      </>
-    )
-  }
+  if (section === 'lists') return <SmartListsSettings />
+  if (section === 'groups') return <GroupsSettings />
   return <GeneralSettings />
 }
