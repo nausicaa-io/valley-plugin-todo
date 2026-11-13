@@ -753,8 +753,7 @@ function useTodoGroupNames(): string[] {
 
 /** `todo.settings` — rendered once per manifest `settingsSections` id, and once for the main page. */
 export function Settings({ section }: { section?: string }): ReactElement {
-  if (section === 'statuses') return <StatusesSettings />
-  if (section === 'lists') return <SmartListsSettings />
+  if (section === 'lists') return <><SmartListsSettings /><StatusesSettings /></>
   if (section === 'groups') return <GroupsSettings />
   return <GeneralSettings />
 }

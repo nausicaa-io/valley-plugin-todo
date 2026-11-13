@@ -113,7 +113,7 @@ describe('shared and To-Do-only group switches', () => {
   })
 
   it('registers Groups between Lists and Statuses with a host glyph', () => {
-    expect(config.settingsSections.map((section) => section.id)).toEqual(['lists', 'groups', 'statuses'])
+    expect(config.settingsSections.map((section) => section.id)).toEqual(['lists', 'groups'])
     expect(config.settingsSections[1].icon).toBe('group')
   })
 })

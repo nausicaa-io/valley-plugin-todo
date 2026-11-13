@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMockValleyApi } from './harness'
@@ -41,13 +41,13 @@ describe('todo settings', () => {
 
   it('lists every status with a switch, keeping switched-off ones editable in place', async () => {
     const mock = setup({ statuses: { active: [] } })
-    render(<><style>{'.hidden { visibility: hidden; }'}</style><Settings section="statuses" /></>)
+    render(<><style>{'.hidden { visibility: hidden; }'}</style><Settings section="lists" /></>)
 
     const rows = [...document.querySelectorAll('.todo-status-setting-row:not(.todo-status-add-row)')]
     expect(rows).toHaveLength(8)
     expect(rows.slice(0, 2).every((row) => row.classList.contains('locked'))).toBe(true)
-    expect(screen.queryByRole('switch', { name: 'Show To do' })).toBeNull()
-    expect(screen.queryByRole('switch', { name: 'Show Completed' })).toBeNull()
+    expect(within(document.querySelector('.todo-status-settings') as HTMLElement).queryByRole('switch', { name: 'Show To do' })).toBeNull()
+    expect(within(document.querySelector('.todo-status-settings') as HTMLElement).queryByRole('switch', { name: 'Show Completed' })).toBeNull()
     for (const name of ['In Progress', 'Waiting', 'On Hold', 'Delegated', 'Deferred', 'Canceled']) {
       expect(screen.getByRole('switch', { name: `Show ${name}` })).not.toBeChecked()
       expect(screen.getByLabelText(`Color of ${name}`)).toBeVisible()
@@ -67,11 +67,11 @@ describe('todo settings', () => {
 
   it('renames, deletes and restores built-in statuses, with no style or preview controls', async () => {
     const mock = setup({ statuses: { active: ['waiting'] } })
-    render(<Settings section="statuses" />)
+    render(<Settings section="lists" />)
 
     expect(screen.queryByRole('button', { name: 'Text' })).toBeNull()
     expect(document.querySelector('.todo-status-pill')).toBeNull()
-    expect(screen.queryByRole('combobox', { name: /Text color of/ })).toBeNull()
+    expect(within(document.querySelector('.todo-status-settings') as HTMLElement).queryByRole('combobox', { name: /Text color of/ })).toBeNull()
 
     const waitingName = screen.getAllByRole('textbox', { name: 'Status name' }).find((input) => (input as HTMLInputElement).value === 'Waiting')!
     await act(async () => {
@@ -92,7 +92,7 @@ describe('todo settings', () => {
 
   it('renames To do and Completed, whose done state is shown but locked, with no show or delete controls', async () => {
     const mock = setup()
-    render(<Settings section="statuses" />)
+    render(<Settings section="lists" />)
     const todoName = screen.getAllByRole('textbox', { name: 'Status name' }).find((input) => (input as HTMLInputElement).value === 'To do')!
     await act(async () => {
       fireEvent.change(todoName, { target: { value: 'Inbox' } })
@@ -109,7 +109,7 @@ describe('todo settings', () => {
 
   it('adds a status from the add row with its strikethrough, done and shown choices', async () => {
     const mock = setup({ statuses: { active: [] } })
-    render(<Settings section="statuses" />)
+    render(<Settings section="lists" />)
     const name = screen.getByRole('textbox', { name: 'New status name' })
     fireEvent.change(name, { target: { value: 'Review' } })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Strikethrough' })))
@@ -159,7 +159,7 @@ describe('todo settings', () => {
 
   it('toggles strikethrough per status, with Completed and Canceled on by default', async () => {
     const mock = setup()
-    render(<Settings section="statuses" />)
+    render(<Settings section="lists" />)
     expect(screen.getByRole('button', { name: 'Strike through Completed' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Strike through Canceled' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Strike through Waiting' })).toHaveAttribute('aria-pressed', 'false')
