@@ -484,7 +484,7 @@
   "todo.settings.statusIcon": "Icône du statut",
   "todo.settings.statusIconOf": "Icône de {{p0}}",
   "todo.settings.statusIconHint": "Cliquez à nouveau sur l’icône choisie pour revenir à l’icône propre au statut. Ajoutez des fichiers SVG dans {{p0}} ; le nom du fichier est le nom de l’icône.",
-  "todo.settings.statusesDescAll": "À faire et Accompli viennent toujours en premier et ne peuvent pas être supprimés. Chaque statut peut être renommé, recevoir une icône et changer de couleur ; les autres peuvent aussi compter comme terminés, être réordonnés, désactivés ou supprimés.",
+  "todo.settings.statusesDescAll": "À faire et Accompli viennent toujours en premier, gardent leurs propres icônes et ne peuvent pas être supprimés. Chaque statut peut être renommé et changer de couleur ; les autres peuvent aussi recevoir une icône, compter comme terminés, être réordonnés, désactivés ou supprimés.",
   "todo.settings.colIcon": "Icône",
   "todo.settings.colDone": "Compte comme terminé",
   "todo.settings.statusRestore": "Restaurer {{count}} statuts intégrés supprimés",
@@ -494,6 +494,5 @@
   "todo.calendar.clear": "Effacer",
   "todo.calendar.prev": "Mois précédent",
   "todo.calendar.next": "Mois suivant",
-  "todo.time.invalid": "Saisissez une heure comme 09:30 (00:00–23:59).",
-  "todo.settings.statusDoneFixed": "{{p0}} conserve toujours ce réglage"
+  "todo.time.invalid": "Saisissez une heure comme 09:30 (00:00–23:59)."
 }

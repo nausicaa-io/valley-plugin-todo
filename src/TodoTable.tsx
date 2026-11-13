@@ -1,6 +1,6 @@
 import { React, api, registerTodoRow, revealRequestStore } from './runtime'
 import type { CSSProperties, HTMLAttributes, ReactElement } from 'react'
-import type { TodoPriority, TodoRecord } from './types'
+import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { renderInlineMarkdown } from './markdown'
 import { allGroups, groupColorFor, type TodoGroup } from './groups'
@@ -19,6 +19,7 @@ import {
   MapPin,
   Minus,
   PriorityGlyph,
+  TodoStatusGlyph,
   SlidersHorizontal,
   X
 } from './icons'
@@ -29,7 +30,7 @@ import { ClockTimeField, InlineCalendar } from './DatePanel'
 import { TagChipsField } from './TagChipsField'
 import { openStatusMenu } from './SwipeRow'
 import { confirmDeleteTodo } from './data'
-import { effectiveStatus, patchForStatus, useStatusVocabulary } from './statuses'
+import { effectiveStatus, patchForStatus, statusMenuOptions, useStatusVocabulary } from './statuses'
 import { StatusBadge } from './StatusBadge'
 import { SECTION_LABEL_KEYS, parseQuickAdd, type TodoSectionId } from './sections'
 import { PRIORITIES, formatDate, formatDueLabel, isoDay } from './sort'
@@ -873,7 +874,7 @@ export function pastedTaskLines(text: string): string[] {
     .filter(Boolean)
 }
 
-interface NewRowFields { dueDate?: string; priority?: TodoPriority; group?: string; flagged?: boolean }
+interface NewRowFields { dueDate?: string; priority?: TodoPriority; group?: string; flagged?: boolean; note?: string; location?: TodoRecord['location']; tags?: string[]; status?: TodoStatus | null }
 
 export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sectionOf, composeSignal = 0, newTaskPatch }: {
   todos: TodoRecord[]
@@ -977,7 +978,11 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
           priority: parsed.priority !== 'normal' ? parsed.priority : draftFields.priority ?? parsed.priority,
           ...(dueDate ? { dueDate } : {}),
           ...(draftFields.group ? { group: draftFields.group } : {}),
-          ...(draftFields.flagged ? { flagged: true } : {})
+          ...(draftFields.flagged ? { flagged: true } : {}),
+          ...(draftFields.note?.trim() ? { note: draftFields.note } : {}),
+          ...(draftFields.location ? { location: draftFields.location } : {}),
+          ...(draftFields.tags?.length ? { tags: draftFields.tags } : {}),
+          ...(draftFields.status ? patchForStatus(draftFields.status) : {})
         }
       })
     }
@@ -990,16 +995,30 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
     setNewRowActive(true)
     setComposing(false)
   }
-  const newRowPristine = !draft.trim() && !draftFields.dueDate && !draftFields.priority && !draftFields.group && !draftFields.flagged
+  const newRowPristine = !draft.trim() && !Object.values(draftFields).some((value) => Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== '')
   // The row closes when focus moves elsewhere in the table while it is empty.
   const onNewRowBlur = (): void => {
     window.setTimeout(() => {
       // Focus outside this document is a host widget (the date panel, a menu): keep the row.
-      if (newRowMenu.current || !document.hasFocus() || newRowRef.current?.contains(document.activeElement)) return
+      // The table draws in its own surface document, not the plugin's controller document.
+      const doc = newRowRef.current?.ownerDocument
+      if (newRowMenu.current || !doc || !doc.hasFocus() || newRowRef.current?.contains(doc.activeElement)) return
       if (newRowPristine) closeComposer()
       else setNewRowActive(false)
     }, 0)
   }
+  // Any click outside the row (and outside its own menus, which draw in the host) turns it plain.
+  React.useEffect(() => {
+    if (!composing) return
+    const onDown = (event: PointerEvent): void => {
+      if (newRowMenu.current || newRowRef.current?.contains(event.target as Node)) return
+      if (newRowPristine) closeComposer()
+      else setNewRowActive(false)
+    }
+    const doc = newRowRef.current?.ownerDocument
+    doc?.addEventListener('pointerdown', onDown, true)
+    return () => doc?.removeEventListener('pointerdown', onDown, true)
+  })
   const newRowOpen = (open: Promise<unknown>): void => {
     newRowMenu.current = true
     void open.catch(() => {}).finally(() => {
@@ -1098,10 +1117,76 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
             </button>
           </td>
         )
+      case 'note':
+        return (
+          <td key={id} className="todo-table-note" title={draftFields.note || undefined}>
+            <button
+              type="button"
+              className="todo-table-edit-btn"
+              disabled={c.creating}
+              aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.note') })}
+              onClick={(event) => {
+                let value = draftFields.note ?? ''
+                const save = (): void => setDraftFields((fields) => ({ ...fields, note: value || undefined }))
+                newRowOpen(api.ui.openPopover(
+                  ({ close }) => <NotesEditor initial={draftFields.note ?? ''} onInput={(next) => { value = next }} onDone={() => { save(); close() }} />,
+                  { anchor: event.currentTarget, align: 'start', gap: 4 },
+                  { className: 'todo-cell-popover', ariaLabel: uiText('todo.edit.notes'), width: 360, beforeDismiss: () => { save(); return true } }
+                ))
+              }}
+            >
+              {draftFields.note ? <span className="todo-table-note-text">{notePreview(draftFields.note)}</span> : <span className="todo-table-new-hint">{uiText('todo.table.note')}</span>}
+            </button>
+          </td>
+        )
+      case 'location':
+        return (
+          <td key={id} className="todo-table-location">
+            <button
+              type="button"
+              className="todo-table-cell-btn todo-table-edit-btn"
+              disabled={c.creating}
+              aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.location') })}
+              onClick={(event) => newRowOpen(api.ui.openPopover(
+                () => <LocationEditor todo={{ location: draftFields.location } as TodoRecord} onPatch={(next) => setDraftFields((fields) => ({ ...fields, location: next.location }))} />,
+                { anchor: event.currentTarget, align: 'start', gap: 4 },
+                { className: 'todo-cell-popover', ariaLabel: uiText('todo.field.location'), width: 300 }
+              ))}
+            >
+              {draftFields.location ? <><MapPin /><span>{draftFields.location.name}</span></> : <span className="todo-table-new-hint">{uiText('todo.field.location')}</span>}
+            </button>
+          </td>
+        )
+      case 'tags':
+        return (
+          <td key={id} className="todo-table-tags">
+            <button
+              type="button"
+              className="todo-table-edit-btn"
+              disabled={c.creating}
+              aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.tags') })}
+              onClick={(event) => newRowOpen(api.ui.openPopover(
+                () => <TagsEditor todo={{ tags: draftFields.tags ?? [] } as unknown as TodoRecord} onPatch={(next) => setDraftFields((fields) => ({ ...fields, tags: next.tags }))} />,
+                { anchor: event.currentTarget, align: 'start', gap: 4 },
+                { className: 'todo-cell-popover', ariaLabel: uiText('todo.edit.tags'), width: 280 }
+              ))}
+            >
+              {draftFields.tags?.length ? draftFields.tags.map((tag) => <span key={tag} className="todo-table-tag">#{tag}</span>) : <span className="todo-table-new-hint">{uiText('todo.table.tags')}</span>}
+            </button>
+          </td>
+        )
       default:
         return <td key={id} className={`todo-table-${id}`} />
     }
   }
+  const newRowStatus = draftFields.status ? statusMenuOptions().find((option) => option.status === draftFields.status) : undefined
+  const pickNewRowStatus = (anchor: HTMLElement): void => newRowOpen(api.ui.openMenu(statusMenuOptions().map((option) => ({
+    label: option.label,
+    icon: <TodoStatusGlyph status={option.status} dotCls={option.cls} color={option.color} />,
+    type: 'radio' as const,
+    checked: option.status === null ? !draftFields.status : option.status === draftFields.status,
+    onSelect: () => setDraftFields((fields) => ({ ...fields, status: option.status }))
+  })), { anchor }))
   const [page, setPage] = React.useState(0)
   const [lastResetKey, setLastResetKey] = React.useState(resetKey)
   if (lastResetKey !== resetKey) {
@@ -1272,7 +1357,11 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
           <tbody>
             {composing && (
               <tr className={'todo-table-new-row' + (newRowActive ? '' : ' is-idle')} ref={newRowRef} onBlur={onNewRowBlur} onFocus={() => setNewRowActive(true)}>
-                <td className="todo-table-select"><span className="todo-table-new-circle" aria-hidden="true" /></td>
+                <td className="todo-table-select">
+                  <button type="button" className="todo-table-new-status" disabled={c.creating} aria-label={uiText('todo.table.status')} title={newRowStatus?.label ?? uiText('todo.table.status')} onClick={(event) => pickNewRowStatus(event.currentTarget)}>
+                    {newRowStatus ? <TodoStatusGlyph status={newRowStatus.status} dotCls={newRowStatus.cls} /> : <span className="todo-table-new-circle" aria-hidden="true" />}
+                  </button>
+                </td>
                 {order.map((id) => id === 'title' ? (
                   <td key={id} className="todo-table-title">
                     <input

@@ -24,6 +24,26 @@ export function sanitizeTaskIcon(source: string): string | null {
   return new XMLSerializer().serializeToString(root)
 }
 
+/**
+ * Draws a symbol the way the built-in status glyphs are drawn: a disc in the
+ * status colour (`currentColor`) with the symbol cut out of it. The symbol is
+ * scaled into the disc through a mask, so it shows whatever surface is behind.
+ */
+export function statusDiscIcon(name: string, svg: string): string {
+  const document = new DOMParser().parseFromString(svg, 'image/svg+xml')
+  const root = document.documentElement
+  for (const node of root.querySelectorAll('*')) {
+    for (const attribute of ['stroke', 'fill']) {
+      const value = node.getAttribute(attribute)
+      if (value && value !== 'none') node.setAttribute(attribute, '#000')
+    }
+  }
+  const fill = root.getAttribute('fill') === 'none' ? 'none' : '#000'
+  const inner = [...root.childNodes].map((node) => new XMLSerializer().serializeToString(node)).join('')
+  const id = `todo-icon-${name.toLowerCase().replace(/[^a-z0-9-]/g, '-')}`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%"><defs><mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24"><rect width="24" height="24" fill="#fff"/><g transform="translate(12 12) scale(0.56) translate(-12 -12)" fill="${fill}" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${inner}</g></mask></defs><circle cx="12" cy="12" r="10" fill="currentColor" mask="url(#${id})"/></svg>`
+}
+
 interface Registry { icons: Record<string, string>; revision: number; listeners: Set<() => void>; pending: Promise<void> | null; loaded?: boolean }
 
 function registry(): Registry {
@@ -37,7 +57,7 @@ export function refreshTaskIcons(): Promise<void> {
     const icons: Record<string, string> = {}
     for (const [name, source] of Object.entries(result?.icons ?? {})) {
       const svg = sanitizeTaskIcon(source)
-      if (svg) icons[name] = svg
+      if (svg) icons[name] = statusDiscIcon(name, svg)
     }
     current.icons = icons
     current.loaded = true

@@ -154,7 +154,8 @@ export function normalizeStatusSettings(value: unknown): TodoStatusSettings {
   const text = (value: unknown, max: number): string => typeof value === 'string' ? value.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max) : ''
   const removed = (Array.isArray(raw.removed) ? raw.removed : []).filter((id): id is OptionalTodoStatus => typeof id === 'string' && OPTIONAL_SET.has(id as TodoStatus))
   const labels = Object.fromEntries(ids.map((id) => [id, text(record(raw.labels)[id], CUSTOM_STATUS_LABEL_MAX)]).filter(([, label]) => label)) as Partial<Record<TodoStatus, string>>
-  const icons = Object.fromEntries(ids.map((id) => [id, text(record(raw.icons)[id], 80)]).filter(([, icon]) => icon && /^[^/\\]+$/.test(icon))) as Partial<Record<TodoStatus, string>>
+  // To do and Completed always use their own glyphs.
+  const icons = Object.fromEntries(ids.filter((id) => id !== 'open' && id !== 'completed').map((id) => [id, text(record(raw.icons)[id], 80)]).filter(([, icon]) => icon && /^[^/\\]+$/.test(icon))) as Partial<Record<TodoStatus, string>>
   const done = Object.fromEntries(OPTIONAL_STATUSES.map((id) => [id, record(raw.done)[id]]).filter(([id, value]) => typeof value === 'boolean' && value !== BY_ID.get(id as TodoStatus)?.done)) as Partial<Record<TodoStatus, boolean>>
   return { active: active.filter((id) => !removed.includes(id as OptionalTodoStatus)), custom, colors, textColors, strikethrough, style, labels, icons, done, removed: [...new Set(removed)] }
 }

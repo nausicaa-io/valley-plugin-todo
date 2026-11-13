@@ -484,7 +484,7 @@
   "todo.settings.statusIcon": "Statussymbol",
   "todo.settings.statusIconOf": "Symbol von {{p0}}",
   "todo.settings.statusIconHint": "Klicke das gewählte Symbol erneut an, um zum eigenen Symbol des Status zurückzukehren. Füge SVG-Dateien zu {{p0}} hinzu; der Dateiname ist der Symbolname.",
-  "todo.settings.statusesDescAll": "Zu erledigen und Abgeschlossen stehen immer zuerst und lassen sich nicht löschen. Jeder Status lässt sich umbenennen, mit einem Symbol versehen und umfärben; die übrigen lassen sich zudem als erledigt markieren, umsortieren, ausblenden oder löschen.",
+  "todo.settings.statusesDescAll": "Zu erledigen und Abgeschlossen stehen immer zuerst, behalten ihre eigenen Symbole und lassen sich nicht löschen. Jeder Status lässt sich umbenennen und umfärben; die übrigen erhalten zudem ein Symbol und lassen sich als erledigt markieren, umsortieren, ausblenden oder löschen.",
   "todo.settings.colIcon": "Symbol",
   "todo.settings.colDone": "Gilt als erledigt",
   "todo.settings.statusRestore": "{{count}} gelöschte Standardstatus wiederherstellen",
@@ -494,6 +494,5 @@
   "todo.calendar.clear": "Löschen",
   "todo.calendar.prev": "Vorheriger Monat",
   "todo.calendar.next": "Nächster Monat",
-  "todo.time.invalid": "Gib eine Uhrzeit wie 09:30 ein (00:00–23:59).",
-  "todo.settings.statusDoneFixed": "{{p0}} behält diese Einstellung immer"
+  "todo.time.invalid": "Gib eine Uhrzeit wie 09:30 ein (00:00–23:59)."
 }

@@ -34,11 +34,11 @@ describe('todo settings', () => {
     const mock = setup({ statuses: { active: [] } })
     render(<><style>{'.hidden { visibility: hidden; }'}</style><Settings section="statuses" /></>)
 
-    const rows = [...document.querySelectorAll('.todo-status-setting-row')]
+    const rows = [...document.querySelectorAll('.todo-status-setting-row:not(.todo-status-add-row)')]
     expect(rows).toHaveLength(8)
     expect(rows.slice(0, 2).every((row) => row.classList.contains('locked'))).toBe(true)
-    expect(screen.getByRole('switch', { name: 'Show To do' })).toBeDisabled()
-    expect(screen.getByRole('switch', { name: 'Show Completed' })).toBeChecked()
+    expect(screen.queryByRole('switch', { name: 'Show To do' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Show Completed' })).toBeNull()
     for (const name of ['In Progress', 'Waiting', 'On Hold', 'Delegated', 'Deferred', 'Canceled']) {
       expect(screen.getByRole('switch', { name: `Show ${name}` })).not.toBeChecked()
       expect(screen.getByLabelText(`Color of ${name}`)).toBeVisible()
@@ -81,7 +81,7 @@ describe('todo settings', () => {
     expect(screen.getByRole('switch', { name: 'Show Deferred' })).toBeInTheDocument()
   })
 
-  it('renames To do and Completed, with their done state shown but fixed', async () => {
+  it('renames To do and Completed, whose done state is shown but locked, with no show or delete controls', async () => {
     const mock = setup()
     render(<Settings section="statuses" />)
     const todoName = screen.getAllByRole('textbox', { name: 'Status name' }).find((input) => (input as HTMLInputElement).value === 'To do')!
@@ -90,10 +90,26 @@ describe('todo settings', () => {
       fireEvent.blur(todoName)
     })
     expect(mock.api.settings.get()).toMatchObject({ statuses: { labels: { open: 'Inbox' } } })
-    expect(screen.getByRole('button', { name: 'Icon of Completed' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Icon of Completed' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Icon of To do' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Completed counts as done' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Completed counts as done' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Inbox counts as done' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Delete Completed' })).toBeNull()
+  })
+
+  it('adds a status from the add row with its strikethrough, done and shown choices', async () => {
+    const mock = setup({ statuses: { active: [] } })
+    render(<Settings section="statuses" />)
+    const name = screen.getByRole('textbox', { name: 'New status name' })
+    fireEvent.change(name, { target: { value: 'Review' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Strikethrough' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Counts as done' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Add status' })))
+    const saved = mock.api.settings.get().statuses as { custom: Array<{ id: string; label: string; done: boolean }>; active: string[]; strikethrough: Record<string, boolean> }
+    expect(saved.custom).toEqual([expect.objectContaining({ label: 'Review', done: true })])
+    expect(saved.active).toEqual([saved.custom[0].id])
+    expect(saved.strikethrough[saved.custom[0].id]).toBe(true)
   })
 
   it('reorders, recolours and switches smart lists, always keeping one visible', async () => {

@@ -3619,10 +3619,11 @@ button.todo-date:hover .todo-date-day {
 }
 .todo-settings-head > span:nth-child(n + 5) { justify-self: center; }
 .todo-smart-list-settings .todo-settings-head > span:nth-child(n + 4) { justify-self: center; }
-.todo-settings-item.is-off .todo-settings-name,
 .todo-settings-item.is-off .todo-settings-glyph,
 .todo-settings-item.is-off .todo-settings-chip,
 .todo-settings-item.is-off .todo-settings-preview { opacity: 0.45; }
+/* A switched-off status keeps its name readable, so only the add row's field looks empty. */
+.todo-settings-item.is-off .todo-settings-name input { color: var(--text-secondary); }
 .todo-settings-handle {
   display: grid;
   place-items: center;
@@ -3846,6 +3847,8 @@ button.todo-settings-handle:active { cursor: grabbing; }
 .todo-table-new-row:not(.is-idle) .todo-table-cell-btn.muted,
 .todo-table-new-row:not(.is-idle) .todo-table-flag-btn:not(.on) { opacity: 1; }
 .todo-table-new-row.is-idle .todo-table-new-hint { visibility: hidden; }
+.todo-table-new-status { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%; background: transparent; cursor: pointer; }
+.todo-table-new-status:hover:not(:disabled) .todo-table-new-circle { border-color: var(--text-secondary); }
 .todo-table-new-row.is-idle .todo-table-new-circle { border-style: solid; }
 .todo-calendar { display: flex; flex-direction: column; gap: 4px; user-select: none; }
 .todo-calendar-head { display: flex; align-items: center; gap: 2px; padding: 0 2px 2px; }
