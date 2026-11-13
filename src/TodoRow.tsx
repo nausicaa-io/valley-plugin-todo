@@ -30,6 +30,7 @@ import { PRIORITIES, formatDate, formatDueLabel, isoDay } from './sort'
 import type { TodoListController } from './controller'
 import { todoPriorityMetaLabel, uiText } from './localization'
 import { StatusBadge } from './StatusBadge'
+import { setTodoSearch } from './viewStore'
 
 /**
  * How many file cards a row draws before the rest become one "+N more".
@@ -165,17 +166,9 @@ export const TodoRow = ({
   // you can only reach by opening the item.
   const urlCount = todo.urls?.length ?? 0
   const showFileCount = compact && files.length > 0
-  const hasMeta = !!(
-    (todo.dueDate && !hideDate) ||
-    todo.startTime ||
-    todo.remindAt ||
-    todo.location ||
-    todo.group ||
-    urlCount > 0 ||
-    showFileCount ||
-    (todo.status && todo.status !== 'open' && !statusDef(todo.status).done) ||
-    todo.priority !== 'normal'
-  )
+  const reminderPending = !!todo.remindAt && !todo.reminderFiredAt
+  const statusWord = !!todo.status && todo.status !== 'open' && !statusDef(todo.status).done
+  const tagCount = todo.tags?.length ?? 0
   const pending = c.pendingIds.has(todo.id)
   const today = isoDay(new Date())
   const dueLabel = todo.dueDate && !hideDate
@@ -193,6 +186,8 @@ export const TodoRow = ({
     : ''
   const dueDateFull = todo.dueDate ? formatDate(todo.dueDate, api.getState().dateFormat) : ''
   const overdue = !!todo.dueDate && !todo.completed && todo.dueDate.slice(0, 10) < today
+  const hasWhenLine = !!(dueLabel || todo.startTime || reminderPending || todo.group)
+  const hasDetailLine = !!(statusWord || todo.priority !== 'normal' || todo.location || urlCount > 0 || showFileCount)
 
   const rowRef = React.useRef<HTMLElement>(null)
   React.useEffect(() => rowRef.current ? registerTodoRow(todo.id, rowRef.current) : undefined, [todo.id])
@@ -303,93 +298,116 @@ export const TodoRow = ({
 
           {!compact && todo.note.trim() && <div className="todo-notes is-plain">{todo.note}</div>}
 
-          {/* `!!` matters: `tags.length` is a number, and `false || 0` renders a
-              literal "0" under every todo that has neither meta nor tags. */}
-          {(hasMeta || (!compact && !!todo.tags?.length)) && (
+          {/* The details are fixed lines, not one wrapping run: the date
+              first with the group after it, then status, priority and place,
+              then tags (dropped in compact). Every row starts its lines the
+              same way, so the eye finds the date without reading the line. */}
+          {(hasWhenLine || hasDetailLine || (!compact && tagCount > 0)) && (
             <div className="todo-view-meta">
-              {todo.group && (
-                <span className="todo-group-text" style={{ color: paletteCssValue(groupColorFor(todo.group, groups)) }}>
-                  <span className="todo-group-dot" aria-hidden="true" />
-                  {todo.group}
-                </span>
-              )}
-              {/* An in-flight status is the row's most actionable fact, so it
-                  reads as words on the meta line and not only as a glyph. */}
-              {todo.status && todo.status !== 'open' && !statusDef(todo.status).done && (
-                <StatusBadge status={todo.status} />
-              )}
-              {todo.priority !== 'normal' && (
-                <span className={`todo-priority-text todo-priority-${todo.priority}`}>
-                  <span className="todo-meta-icon"><PriorityGlyph /></span>
-                  {todoPriorityMetaLabel(todo.priority)}
-                </span>
-              )}
-              {dueLabel && (
-                // The date is the row's own link into the Calendar. It stops the
-                // click rather than letting the row handle it, so one press is
-                // one navigation and the row's double-click still opens details.
-                <button
-                  className={`todo-date${overdue ? ' is-overdue' : ''}`}
-                  type="button"
-                  title={uiText('todo.openInCalendar', { p0: dueDateFull || dueLabel })}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openCalendar()
-                  }}
-                >
-                  <span className="todo-meta-icon"><CalendarDays /></span>
-                  <span className="todo-date-day">{dueLabel}</span>
-                  {dueDateFull && dueDateFull !== dueLabel && (
-                    <span className="todo-date-full">{dueDateFull}</span>
+              {hasWhenLine && (
+                <div className="todo-meta-line todo-meta-when">
+                  <span className="todo-meta-cluster">
+                    {dueLabel && (
+                      // The date is the row's own link into the Calendar. It stops the
+                      // click rather than letting the row handle it, so one press is
+                      // one navigation and the row's double-click still opens details.
+                      <button
+                        className={`todo-date${overdue ? ' is-overdue' : ''}`}
+                        type="button"
+                        title={uiText('todo.openInCalendar', { p0: dueDateFull || dueLabel })}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openCalendar()
+                        }}
+                      >
+                        <span className="todo-meta-icon"><CalendarDays /></span>
+                        <span className="todo-date-day">{dueLabel}</span>
+                        {dueDateFull && dueDateFull !== dueLabel && (
+                          <span className="todo-date-full">{dueDateFull}</span>
+                        )}
+                      </button>
+                    )}
+                    {todo.startTime && (
+                      <span className="todo-clock-text">
+                        {/* Beside its date the time needs no glyph of its own:
+                            the two read as one "when". */}
+                        {!dueLabel && <span className="todo-meta-icon"><Clock /></span>}
+                        {todo.startTime}{todo.endTime ? `–${todo.endTime}` : ''}
+                      </span>
+                    )}
+                    {reminderPending && (
+                      <span className="todo-meta-glyph" title={uiText('todo.reminderSet')}>
+                        <Bell />
+                        {todo.remindAt!.slice(11, 16)}
+                      </span>
+                    )}
+                  </span>
+                  {todo.group && (
+                    <span className="todo-group-text" title={todo.group} style={{ color: paletteCssValue(groupColorFor(todo.group, groups)) }}>
+                      <span className="todo-group-dot" aria-hidden="true" />
+                      <span className="todo-meta-ellipsis">{todo.group}</span>
+                    </span>
                   )}
-                </button>
+                </div>
               )}
-              {todo.startTime && (
-                <span className="todo-clock-text">
-                  <span className="todo-meta-icon"><Clock /></span>
-                  {todo.startTime}{todo.endTime ? `–${todo.endTime}` : ''}
-                </span>
+              {hasDetailLine && (
+                <div className="todo-meta-line todo-meta-details">
+                  {statusWord && <StatusBadge status={todo.status!} />}
+                  {todo.priority !== 'normal' && (
+                    <span className={`todo-priority-text todo-priority-${todo.priority}`}>
+                      <span className="todo-meta-icon"><PriorityGlyph /></span>
+                      {todoPriorityMetaLabel(todo.priority)}
+                    </span>
+                  )}
+                  {todo.location && (
+                    <button
+                      className="todo-location-meta"
+                      type="button"
+                      title={uiText('todo.openLocationOf', { p0: todo.location.name })}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openLocation(todo.location!)
+                      }}
+                    >
+                      <span className="todo-meta-icon"><MapPin /></span>
+                      <span className="todo-meta-ellipsis">{todo.location.name}</span>
+                    </button>
+                  )}
+                  {showFileCount && (
+                    <span className="todo-attach-count" title={uiText('todo.attachments')}>
+                      <span className="todo-meta-icon"><Paperclip /></span>
+                      {files.length}
+                    </span>
+                  )}
+                  {urlCount > 0 && (
+                    <span className="todo-meta-glyph" title={uiText('todo.url')}>
+                      <Link />
+                      {urlCount > 1 && urlCount}
+                    </span>
+                  )}
+                </div>
               )}
-              {todo.location && (
-                <button
-                  className="todo-location-meta"
-                  type="button"
-                  title={uiText('todo.openLocationOf', { p0: todo.location.name })}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openLocation(todo.location!)
-                  }}
-                >
-                  <span className="todo-meta-icon"><MapPin /></span>
-                  {todo.location.name}
-                </button>
-              )}
-              {showFileCount && (
-                <span className="todo-attach-count" title={uiText('todo.attachments')}>
-                  <span className="todo-meta-icon"><Paperclip /></span>
-                  {files.length}
-                </span>
-              )}
-              {urlCount > 0 && (
-                <span className="todo-meta-glyph" title={uiText('todo.url')}>
-                  <Link />
-                  {urlCount > 1 && urlCount}
-                </span>
-              )}
-              {todo.remindAt && !todo.reminderFiredAt && (
-                // With the interpuncts gone, a lone bell sitting in front of the
-                // first tag reads as that tag's glyph. Its time is what makes it
-                // an item of its own — and it is the more useful half anyway.
-                <span className="todo-meta-glyph" title={uiText('todo.reminderSet')}>
-                  <Bell />
-                  {todo.remindAt.slice(11, 16)}
-                </span>
-              )}
-              {!compact && todo.tags?.slice(0, 3).map((tag) => (
-                <span key={tag} className="todo-tag-text">#{tag}</span>
-              ))}
-              {!compact && (todo.tags?.length ?? 0) > 3 && (
-                <span className="todo-tag-more" title={todo.tags!.slice(3).map((tag) => `#${tag}`).join(' ')}>+{todo.tags!.length - 3}</span>
+              {!compact && tagCount > 0 && (
+                <div className="todo-meta-line todo-meta-tags">
+                  {todo.tags!.slice(0, 3).map((tag) => (
+                    // A tag is a bubble that searches for itself: one press
+                    // puts `#tag` in the To-Do search the lists already share.
+                    <button
+                      key={tag}
+                      className="todo-tag-text"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setTodoSearch(`#${tag}`)
+                      }}
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                  {tagCount > 3 && (
+                    <span className="todo-tag-more" title={todo.tags!.slice(3).map((tag) => `#${tag}`).join(' ')}>+{tagCount - 3}</span>
+                  )}
+                </div>
               )}
             </div>
           )}

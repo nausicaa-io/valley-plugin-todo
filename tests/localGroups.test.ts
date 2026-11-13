@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupNamesWithChildren, mergedGroups, normalizeLocalGroups, renameLocalGroup } from '../src/localGroups'
+import { mergedGroups, normalizeLocalGroups, renameLocalGroup } from '../src/localGroups'
 
 const shared = [
   { id: 'copper-finch', name: 'Copper Finch', color: 'palette:teal' },
@@ -7,7 +7,7 @@ const shared = [
 ]
 
 describe('individual To-Do groups', () => {
-  it('drops invalid entries and names a shared group already uses', () => {
+  it('drops invalid entries, names a shared group already uses and any saved parent', () => {
     const local = normalizeLocalGroups([
       { id: 'local-a1', name: 'Groceries', color: 'palette:green', parent: 'nowhere' },
       { id: 'local-a2', name: 'copper finch', color: 'palette:red' },
@@ -18,7 +18,7 @@ describe('individual To-Do groups', () => {
     ], shared)
     expect(local).toEqual([
       { id: 'local-a1', name: 'Groceries', color: 'palette:green' },
-      { id: 'local-a5', name: 'Sprint backlog', color: 'palette:violet', parent: 'copper-finch' }
+      { id: 'local-a5', name: 'Sprint backlog', color: 'palette:violet' }
     ])
   })
 
@@ -31,15 +31,5 @@ describe('individual To-Do groups', () => {
   it('lists shared groups first, then the individual ones', () => {
     const merged = mergedGroups(shared, [{ id: 'local-a1', name: 'Groceries', color: 'palette:green' }])
     expect(merged.map((group) => group.name)).toEqual(['Copper Finch', 'Glass Harbor', 'Groceries'])
-  })
-
-  it('includes a shared group\'s subgroups (and their old names) when that group is selected', () => {
-    const local = [
-      { id: 'local-a5', name: 'Sprint backlog', color: 'palette:violet', parent: 'copper-finch', aliases: ['Backlog'] },
-      { id: 'local-a1', name: 'Groceries', color: 'palette:green' }
-    ]
-    expect(groupNamesWithChildren('Copper Finch', shared, local)).toEqual(['Copper Finch', 'Sprint backlog', 'Backlog'])
-    expect(groupNamesWithChildren('Groceries', shared, local)).toEqual(['Groceries'])
-    expect(groupNamesWithChildren('Old Harbor', shared, local)).toEqual(['Old Harbor'])
   })
 })

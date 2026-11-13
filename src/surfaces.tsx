@@ -10,7 +10,7 @@ import { loadTodo } from './data'
 import { uiText } from './localization'
 import { GroupFilterPopover } from './TodoPanel'
 import { getGroups, useGroups } from './groupStore'
-import { allGroups, groupColorFor, groupKey, selectedGroupKeys } from './groups'
+import { allGroups, groupColorFor, groupKey } from './groups'
 import { DEFAULT_VIEW, smartListDef } from './views'
 import { openManageGroups } from './GroupEditor'
 import { allStatuses, effectiveStatus, statusDef } from './statuses'
@@ -216,7 +216,7 @@ function Properties(): React.ReactElement {
     ].map(([label, value]) => <div className="props-info-row" key={label}><dt className="props-info-key">{label}</dt><dd className="props-info-value">{value}</dd></div>)}</dl>
     <div className="todo-status-groups">
       {[...allGroups(groups), ...(todos.some((todo) => !todo.group) ? [null] : [])].map((name) => {
-        const matching = todos.filter((todo) => name === null ? !todo.group : selectedGroupKeys([name]).has(groupKey(todo.group ?? '')))
+        const matching = todos.filter((todo) => name === null ? !todo.group : groupKey(todo.group ?? '') === groupKey(name))
         const label = name ?? uiText('todo.chip.noGroup')
         return <GroupStatusBreakdown key={name ?? 'ungrouped'} label={label} color={name ? paletteCssValue(groupColorFor(name, groups)) : 'var(--text-tertiary)'} todos={matching} />
       })}
@@ -246,7 +246,7 @@ export function registerTodoSurfaces(pluginApi: ValleyPluginApi): () => void {
   }))
   offs.push(pluginApi.interop.extensions.provide(METADATA_PANEL_SEGMENT_V1, {
     id: 'todo.groups', label: 'Groups', labelKey: 'todo.view.groups', icon: 'group', pluginSurfaces: ['main_workspace'],
-    inspect: () => getGroups().map((group) => ({ id: group.id, label: group.name, value: getSharedTodos().filter((todo) => selectedGroupKeys([group.name]).has(groupKey(todo.group ?? ''))).length, readOnly: true })),
+    inspect: () => getGroups().map((group) => ({ id: group.id, label: group.name, value: getSharedTodos().filter((todo) => groupKey(todo.group ?? '') === groupKey(group.name)).length, readOnly: true })),
     render: () => <GroupProperties />
   }))
   return () => offs.forEach((off) => off())

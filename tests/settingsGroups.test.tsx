@@ -6,7 +6,16 @@ import { initRuntime } from '../src/runtime'
 import { initLocalization } from '../src/localization'
 import { Settings } from '../src/Settings'
 
-afterEach(cleanup)
+const todoList = vi.hoisted(() => ({ current: null as Array<Record<string, unknown>> | null }))
+vi.mock('../src/data', async (original) => {
+  const actual = await original<typeof import('../src/data')>()
+  return { ...actual, loadTodoList: vi.fn((...args: Parameters<typeof actual.loadTodoList>) => todoList.current ? Promise.resolve(todoList.current as never) : actual.loadTodoList(...args)) }
+})
+
+afterEach(() => {
+  cleanup()
+  todoList.current = null
+})
 
 function setup(settings: Record<string, unknown> = {}) {
   const mock = createMockValleyApi({ manifest: { id: 'todo' }, settings })
@@ -157,5 +166,60 @@ describe('todo settings', () => {
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Strike through Waiting' })))
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Strike through Completed' })))
     expect(mock.api.settings.get()).toMatchObject({ statuses: { strikethrough: { waiting: true, completed: false, canceled: true } } })
+  })
+
+  it('edits To-Do groups exactly like the shared Groups list, without a parent column', async () => {
+    const mock = createMockValleyApi({
+      manifest: { id: 'todo' },
+      groups: [{ id: 'copper-finch', name: 'Copper Finch', color: 'palette:orange' }],
+      settings: { localGroups: [{ id: 'local-0f9e8d7c6b5a', name: 'Errands', color: 'palette:blue', parent: 'copper-finch' }] }
+    })
+    initLocalization(mock.api)
+    initRuntime(mock.api)
+    await act(async () => { render(<Settings section="lists" />) })
+
+    const list = document.querySelector('.todo-local-groups')!
+    expect(list).toHaveClass('settings-colorrules', 'settings-groups')
+    expect(list).not.toHaveClass('settings-groups--parent')
+    expect(list.querySelector('select, [role="combobox"]')).toBeNull()
+    const row = screen.getByDisplayValue('Errands').closest('.settings-colorrule-row')!
+    expect(row.querySelector('.settings-colorrule-grip')).not.toBeNull()
+    expect(row.querySelector('.settings-group-usage')).toHaveTextContent('0')
+    expect(screen.getByRole('button', { name: 'Delete Errands' })).toHaveClass('settings-colormap-remove')
+    expect(screen.getByRole('button', { name: 'Delete Errands' })).not.toHaveAttribute('aria-disabled')
+    const addButton = document.querySelector('.settings-colorrule-add .settings-colorrule-add-action .settings-colormap-add-btn')!
+    expect(addButton).toHaveTextContent('Add')
+    expect(addButton).not.toBeDisabled()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'New To-Do group' }), { target: { value: 'Banding' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add' })) })
+    const saved = mock.api.settings.get().localGroups as Array<{ id: string; name: string; parent?: string }>
+    expect(saved.map((group) => group.name)).toEqual(['Errands', 'Banding'])
+    // A parent saved by an earlier version is dropped on read, so the next save no longer carries it.
+    expect(saved[0]).toEqual({ id: 'local-0f9e8d7c6b5a', name: 'Errands', color: 'palette:blue' })
+    expect(saved[1]).not.toHaveProperty('parent')
+    expect(saved[1].id).toMatch(/^local-[0-9a-f]{12}$/)
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Delete Errands' })) })
+    expect((mock.api.settings.get().localGroups as Array<{ name: string }>).map((group) => group.name)).toEqual(['Banding'])
+  })
+
+  it('refuses to remove a To-Do group while tasks use it, and never asks to ungroup them', async () => {
+    todoList.current = [{ id: 'heron', title: 'Count herons', group: 'Errands' }]
+    const mock = createMockValleyApi({
+      manifest: { id: 'todo' },
+      settings: { localGroups: [{ id: 'local-0f9e8d7c6b5a', name: 'Errands', color: 'palette:blue' }] }
+    })
+    initLocalization(mock.api)
+    initRuntime(mock.api)
+    const confirm = vi.spyOn(mock.api.ui, 'confirm')
+    await act(async () => { render(<Settings section="lists" />) })
+
+    const remove = screen.getByRole('button', { name: 'Delete Errands' })
+    await vi.waitFor(() => expect(remove).toHaveAttribute('aria-disabled', 'true'))
+    expect(remove).toHaveAttribute('title', 'Still used by 1 tasks — move them to another group to delete it')
+    await act(async () => { fireEvent.click(remove) })
+    expect(confirm).not.toHaveBeenCalled()
+    expect((mock.api.settings.get().localGroups as Array<{ name: string }>).map((group) => group.name)).toEqual(['Errands'])
   })
 })

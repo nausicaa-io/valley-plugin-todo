@@ -15,7 +15,8 @@ import {
   Plus,
   Strikethrough,
   TodoStatusGlyph,
-  Trash
+  Trash,
+  X
 } from './icons'
 import { uiText } from './localization'
 import {
@@ -43,10 +44,10 @@ import {
 } from './viewStore'
 import type { DateBreakdown } from './sections'
 import { smartListDef, smartListForeground, type SmartListId, type SmartListSettings, type SmartListTextColor } from './views'
-import { loadTodoList, setTodoGroup, setTodoStatus } from './data'
+import { loadTodoList, onTodoListChanged, setTodoStatus } from './data'
 import { TASK_ICON_FOLDER, useTaskIcons } from './taskIcons'
 import { todoStatusLabelDefault } from './localization'
-import { getLocalGroups, setLocalGroups, useGroups, useLocalGroups } from './groupStore'
+import { setLocalGroups, useGroups, useLocalGroups } from './groupStore'
 import { groupKey, nextGroupColor } from './groups'
 import { LOCAL_GROUP_LIMIT, LOCAL_GROUP_NAME_MAX, newLocalGroupId, renameLocalGroup, type LocalGroup } from './localGroups'
 
@@ -186,7 +187,7 @@ function SmartListsSettings(): ReactElement {
  * keystrokes. This one is uncontrolled: it reports each keystroke to `onType`
  * and the final text to `onCommit` on Enter or blur; Escape restores `initial`.
  */
-function CommitTextField({ initial, onCommit, onType, onEnter, placeholder, ariaLabel, disabled }: {
+function CommitTextField({ initial, onCommit, onType, onEnter, placeholder, ariaLabel, disabled, className = 'todo-settings-text', invalid }: {
   initial: string
   onCommit: (value: string) => void
   onType?: (value: string) => void
@@ -195,11 +196,14 @@ function CommitTextField({ initial, onCommit, onType, onEnter, placeholder, aria
   placeholder?: string
   ariaLabel: string
   disabled?: boolean
+  className?: string
+  invalid?: boolean
 }): ReactElement {
   const skip = React.useRef(false)
   return (
     <input
-      className="settings-control todo-settings-text"
+      className={`settings-control ${className}${invalid ? ' invalid' : ''}`}
+      aria-invalid={invalid || undefined}
       type="text"
       defaultValue={initial}
       placeholder={placeholder}
@@ -220,6 +224,7 @@ function CommitTextField({ initial, onCommit, onType, onEnter, placeholder, aria
         } else if (event.key === 'Escape') {
           event.preventDefault()
           event.currentTarget.value = initial
+          onType?.(initial)
           skip.current = true
           event.currentTarget.blur()
         }
@@ -573,109 +578,149 @@ function GeneralSettings(): ReactElement {
 }
 
 /**
- * Individual groups: To-Do-only lists under the shared ones. Each may sit under
- * a shared group, so that group's view includes it. A rename keeps the old name
- * as an alias, so tasks that carry it still resolve.
+ * Individual groups: To-Do-only lists beside the shared ones, edited exactly
+ * like Settings → Appearance → Groups (grip, name, colour, usage, remove, and an
+ * add row on the same columns). A rename keeps the old name as an alias, so
+ * tasks that carry it still resolve. A group is removed only once no task uses
+ * it, like a shared group.
  */
 function LocalGroupsSettings(): ReactElement {
-  const { Button, ColorField, IconButton, Section, SelectField } = api.ui.settings
+  const { Button, ColorField, IconButton, Section, useReorderDrag } = api.ui.settings
   const local = useLocalGroups()
   const groups = useGroups()
-  const shared = groups.filter((group) => !local.some((candidate) => candidate.id === group.id))
+  const todos = useTodoGroupNames()
   const draft = React.useRef('')
   const [addKey, setAddKey] = React.useState(0)
-  const [draftName, setDraftName] = React.useState('')
+  const [draftColor, setDraftColor] = React.useState(() => nextGroupColor(groups))
+  const [duplicate, setDuplicate] = React.useState(false)
   const taken = (name: string, except?: string): boolean => groups.some((group) => group.id !== except && [group.name, ...(group.aliases ?? [])].some((candidate) => groupKey(candidate) === groupKey(name)))
   const save = (next: LocalGroup[]): void => { void setLocalGroups(next) }
+  const usage = (group: LocalGroup): number => {
+    const names = new Set([group.name, ...(group.aliases ?? [])].map(groupKey))
+    return todos.filter((name) => names.has(groupKey(name))).length
+  }
+  const reorder = useReorderDrag({
+    items: local,
+    indicatorOnly: true,
+    getId: (group) => group.id,
+    getLabel: (group) => group.name,
+    onReorder: (next) => save(next)
+  })
   const add = (): void => {
     const name = draft.current.trim().slice(0, LOCAL_GROUP_NAME_MAX)
-    if (!name || taken(name) || local.length >= LOCAL_GROUP_LIMIT) return
-    save([...local, { id: newLocalGroupId(), name, color: nextGroupColor(groups) }])
+    if (!name || local.length >= LOCAL_GROUP_LIMIT) return
+    if (taken(name)) { setDuplicate(true); return }
+    const created: LocalGroup = { id: newLocalGroupId(), name, color: draftColor }
+    save([...local, created])
     draft.current = ''
-    setDraftName('')
+    setDuplicate(false)
+    setDraftColor(nextGroupColor([...groups, created]))
     setAddKey((key) => key + 1)
   }
   const rename = (group: LocalGroup, value: string): void => {
     if (!value.trim() || value.trim() === group.name || taken(value, group.id)) return
     save(local.map((candidate) => candidate.id === group.id ? renameLocalGroup(candidate, value) : candidate))
   }
-  const remove = async (group: LocalGroup): Promise<void> => {
-    const names = new Set([group.name, ...(group.aliases ?? [])].map(groupKey))
-    const todos = (await loadTodoList()).filter((todo) => todo.group && names.has(groupKey(todo.group)))
-    const choice = await api.ui.confirm({
-      title: uiText('todo.settings.localGroupDeleteTitle', { p0: group.name }),
-      message: todos.length ? uiText('todo.settings.localGroupDeleteMoves', { count: todos.length }) : uiText('todo.settings.localGroupDeleteUnused'),
-      actions: [
-        { label: uiText('auto.77dfd2135f4d'), value: 'cancel', variant: 'ghost' },
-        { label: uiText('auto.f6fdbe48dc54'), value: 'delete', variant: 'danger' }
-      ]
-    })
-    if (choice !== 'delete') return
-    await Promise.all(todos.map((todo) => setTodoGroup(todo.id, undefined)))
-    save(getLocalGroups().filter((candidate) => candidate.id !== group.id))
-  }
-  const parentOptions = [
-    { value: '', label: uiText('todo.settings.localGroupNoParent') },
-    ...shared.map((group) => ({ value: group.id, label: group.name, color: group.color }))
-  ]
   return (
-    <Section title={uiText('todo.settings.localGroups')}>
-      <p className="todo-settings-desc">{uiText('todo.settings.localGroupsDesc')}</p>
-      {local.length > 0 && (
-        <div className="todo-settings-list todo-local-groups" role="list">
-          <div className="todo-settings-item todo-settings-head" aria-hidden="true">
-            <span>{uiText('todo.settings.colColor')}</span>
-            <span>{uiText('todo.settings.localGroupName')}</span>
-            <span>{uiText('todo.settings.localGroupParent')}</span>
-            <span />
-          </div>
-          {local.map((group) => (
-            <div role="listitem" className="todo-settings-item" key={group.id}>
-              <ColorField
-                value={group.color}
-                onChange={(color) => save(local.map((candidate) => candidate.id === group.id ? { ...candidate, color } : candidate))}
-                ariaLabel={uiText('todo.settings.localGroupColor', { p0: group.name })}
-              />
+    <Section>
+      <div className="settings-path-row settings-groups-row">
+      <span className="settings-toggle-text">
+        <span className="settings-toggle-title">{uiText('todo.settings.localGroups')}</span>
+        <span className="settings-toggle-desc">{uiText('todo.settings.localGroupsDesc')}</span>
+      </span>
+      <div className="settings-colorrules settings-groups todo-local-groups" role="list" aria-label={uiText('todo.settings.localGroups')}>
+        {local.map((group, index) => {
+          // Host-drawn controls are matched to their slot, so a moved row
+          // remounts them; otherwise they keep the values of the row that was there.
+          const slot = `${group.id}@${index}`
+          const handleProps = reorder.getHandleProps(group)
+          const count = usage(group)
+          return (
+            <div
+              role="listitem"
+              className={'settings-colorrule-row' + (reorder.overId === group.id ? ' drop-' + (reorder.dropPosition ?? 'before') : '')}
+              key={group.id}
+              {...reorder.getItemProps(group)}
+            >
+              <button {...handleProps} className={(handleProps.className ?? '') + ' settings-colorrule-grip'}>
+                <GripVertical />
+              </button>
               <CommitTextField
                 key={`name:${group.id}:${group.name}`}
+                className="settings-colorrule-key"
                 initial={group.name}
                 ariaLabel={uiText('todo.settings.localGroupName')}
                 onCommit={(value) => rename(group, value)}
               />
-              <SelectField
-                value={group.parent ?? ''}
-                options={parentOptions}
-                ariaLabel={uiText('todo.settings.localGroupParentOf', { p0: group.name })}
-                onChange={(value) => save(local.map((candidate) => {
-                  if (candidate.id !== group.id) return candidate
-                  const { parent: _, ...rest } = candidate
-                  return value ? { ...rest, parent: value } : rest
-                }))}
+              <ColorField
+                key={`color:${slot}`}
+                value={group.color}
+                onChange={(color) => save(local.map((candidate) => candidate.id === group.id ? { ...candidate, color } : candidate))}
+                ariaLabel={uiText('todo.settings.localGroupColor', { p0: group.name })}
               />
+              <span
+                className="settings-group-usage"
+                aria-label={uiText('todo.settings.localGroupUsage', { count })}
+                title={uiText('todo.settings.localGroupUsage', { count })}
+              >{count}</span>
+              {/* aria-disabled, not disabled, like the shared list: the hint
+                  explaining why removal is refused stays reachable on hover. */}
               <IconButton
+                key={`remove:${slot}`}
+                className="settings-colormap-remove"
+                aria-disabled={count > 0 || undefined}
                 ariaLabel={uiText('todo.settings.localGroupDelete', { p0: group.name })}
-                title={uiText('todo.settings.localGroupDelete', { p0: group.name })}
-                onClick={() => void remove(group)}
+                title={count > 0 ? uiText('todo.settings.localGroupRemoveBlocked', { count }) : uiText('todo.settings.localGroupRemove')}
+                onClick={() => { if (count === 0) save(local.filter((candidate) => candidate.id !== group.id)) }}
               >
-                <Trash />
+                <X />
               </IconButton>
             </div>
-          ))}
+          )
+        })}
+        {reorder.liveRegion}
+        <div className="settings-colorrule-row settings-colorrule-add">
+          <span className="settings-colorrule-grip settings-colorrule-grip-placeholder" aria-hidden="true" />
+          <CommitTextField
+            key={`add:${addKey}`}
+            className="settings-colorrule-key"
+            initial=""
+            invalid={duplicate}
+            placeholder={uiText('todo.settings.localGroupNew')}
+            ariaLabel={uiText('todo.settings.localGroupNew')}
+            onType={(value) => { draft.current = value; setDuplicate(false) }}
+            onCommit={(value) => { draft.current = value }}
+            onEnter={add}
+          />
+          <ColorField
+            key={`add-color:${addKey}`}
+            value={draftColor}
+            onChange={setDraftColor}
+            ariaLabel={uiText('todo.settings.localGroupNewColor')}
+          />
+          <span className="settings-colorrule-add-action">
+            <span className="settings-button settings-button--medium settings-colorrule-add-sizer" aria-hidden="true">{uiText('todo.settings.localGroupAdd')}</span>
+            <Button type="button" className="settings-colormap-add-btn" disabled={local.length >= LOCAL_GROUP_LIMIT} onClick={add}>{uiText('todo.settings.localGroupAdd')}</Button>
+          </span>
         </div>
-      )}
-      <div className="todo-status-add">
-        <CommitTextField
-          key={`add:${addKey}`}
-          initial=""
-          placeholder={uiText('todo.settings.localGroupNew')}
-          ariaLabel={uiText('todo.settings.localGroupNew')}
-          onType={(value) => { draft.current = value; const name = value.trim(); if (name !== draftName && (!name || !draftName)) setDraftName(name) }}
-          onCommit={(value) => { draft.current = value; setDraftName(value.trim()) }}
-        />
-        <Button type="button" disabled={!draftName || local.length >= LOCAL_GROUP_LIMIT} onClick={add}>{uiText('todo.settings.localGroupAdd')}</Button>
+        {duplicate && <span className="settings-empty-text">{uiText('todo.settings.localGroupDuplicate')}</span>}
+      </div>
       </div>
     </Section>
   )
+}
+
+/** The group name each task carries, kept current, for the usage counts. */
+function useTodoGroupNames(): string[] {
+  const [names, setNames] = React.useState<string[]>([])
+  React.useEffect(() => {
+    let active = true
+    const load = (): void => { void loadTodoList().then((todos) => { if (active) setNames(todos.flatMap((todo) => todo.group ? [todo.group] : [])) }).catch(() => {}) }
+    load()
+    const off = onTodoListChanged(load)
+    return () => { active = false; off() }
+  }, [])
+  return names
 }
 
 /** `todo.settings` — rendered once per manifest `settingsSections` id, and once for the main page. */

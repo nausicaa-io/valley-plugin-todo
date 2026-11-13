@@ -815,12 +815,63 @@ const CSS = `
 .todo-notes img { max-width: 100%; max-height: 64px; }
 
 .todo-view-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 4px;
+  margin-top: 3px;
+}
+
+/* Fixed lines instead of one wrapping run: a wrapped run put the date, the
+   group and the status somewhere else in every row. First line: date, time,
+   reminder, group. Second: status, priority, place. Third: tags. Each line stays on one
+   line; the items that can be long (group, place) give way with an ellipsis. */
+.todo-meta-line {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   column-gap: 10px;
-  row-gap: 3px;
-  margin-top: 3px;
+  min-width: 0;
+  overflow: clip;
+  overflow-clip-margin: 3px;
+}
+
+.todo-meta-cluster {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  column-gap: 10px;
+}
+
+.todo-meta-cluster > .todo-date + .todo-clock-text {
+  margin-left: -4px;
+}
+
+.todo-meta-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The group follows the date on the first line and gives way with an ellipsis
+   when a time and a reminder crowd it. */
+.todo-meta-when > .todo-group-text {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.todo-meta-details > * {
+  flex: 0 0 auto;
+}
+
+.todo-meta-details > .todo-location-meta {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.todo-meta-tags {
+  flex-wrap: wrap;
+  column-gap: 4px;
+  row-gap: 4px;
+  margin-top: 1px;
 }
 
 /* One line of plain text. No pills, no chips, no outlined badges: a box inside
@@ -3597,7 +3648,6 @@ button.todo-date:hover .todo-date-day {
 .todo-icon-picker-svg > svg { width: 100%; height: 100%; }
 .todo-icon-picker-hint { margin: 0; color: var(--text-tertiary); font-size: var(--smaller-font-size); line-height: 1.4; overflow-wrap: anywhere; }
 .todo-status-restore { margin-top: 6px; }
-.todo-local-groups .todo-settings-item { grid-template-columns: 40px minmax(0, 1fr) minmax(0, 200px) 32px; }
 .todo-settings-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .todo-settings-row-actions svg { width: 15px; height: 15px; }
 .todo-settings-name-field { min-width: 0; }
@@ -3740,15 +3790,27 @@ button.todo-settings-handle:active { cursor: grabbing; }
    newlines between its blocks into empty lines. */
 .todo-notes.is-rendered { white-space: normal; }
 .todo-notes.is-rendered > :is(p, ul, ol, blockquote, pre) + :is(p, ul, ol, blockquote, pre) { margin-top: 2px; }
-.todo-view-meta { column-gap: 8px; row-gap: 4px; }
 /* Calmer rows: tags recede, notes stop at two lines, ⋯ waits for hover. */
-.todo-row .todo-tag-text { color: var(--text-tertiary); font-weight: var(--font-regular); }
+/* Tags are the one bubble in a row: each is a button that searches for itself. */
+.todo-row .todo-tag-text {
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 9px;
+  background: var(--surface-color-alt);
+  color: var(--text-secondary);
+  font-weight: var(--font-regular);
+  cursor: pointer;
+}
+.todo-row .todo-tag-text:hover { color: var(--title-color); }
+.todo-row .todo-tag-text:focus-visible { outline: 1px solid var(--accent-color); outline-offset: 1px; }
 .todo-row .todo-tag-more { color: var(--text-tertiary); font-size: var(--smaller-font-size); }
 .todo-row .todo-notes { -webkit-line-clamp: 2; margin-top: 3px; }
 .todo-row .todo-view-meta { margin-top: 5px; }
 .todo-row .todo-row-actions .todo-menu-btn { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
 /* Flag and ⋯ share one spot at the row's right edge: the flag at rest, the ⋯ on hover. */
-.todo-row .todo-row-actions { display: grid; margin-right: -4px; }
+/* The cluster is one title line tall and its 28px buttons overhang it evenly,
+   so a one-line title sits as close to its details as a wrapped one. */
+.todo-row .todo-row-actions { display: grid; grid-template-rows: minmax(0, 1fr); height: calc(var(--small-font-size) * 1.35); margin-top: 0; margin-right: -4px; }
 .todo-row .todo-row-actions > * { grid-area: 1 / 1; justify-self: end; align-self: center; }
 .todo-row .todo-row-actions .todo-flag-mark { width: 28px; height: 28px; justify-content: center; transition: opacity var(--duration-fast) var(--ease-out); }
 .todo-row:hover .todo-row-actions .todo-flag-mark,
@@ -4303,6 +4365,145 @@ button.todo-settings-handle:active { cursor: grabbing; }
 
 `
 
+/**
+ * The own-groups editor in To-Do Settings uses the shared Groups list classes
+ * (`.settings-groups`), so it lines up exactly like Settings → Appearance → Groups.
+ * The host's sandbox style contract carries the same rules on app builds that
+ * include them; this copy keeps the editor aligned on hosts that predate them.
+ * Keep it identical to the contract block.
+ */
+const GROUP_LIST_CSS = `/* Groups lists: the shared Groups editor and every plugin's own-group editor.
+   One grid holds the rows and the add row, so their columns line up: grip, name,
+   colour, usage count, remove. The add row's action spans the usage and
+   remove columns, so its edges meet theirs whatever the label's length. The grip
+   hangs 5px into the gutter like every reorder handle in Settings, so its column
+   is 11px and the name keeps its place. */
+.settings-colorrules.settings-groups {
+  display: grid;
+  grid-template-columns: 11px minmax(0, 1fr) 20px minmax(calc(2.2 * var(--smaller-font-size)), auto) 28px;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
+}
+
+/* The list owns its whole row: title and description above, the list below. */
+.settings-path-row.settings-groups-row {
+  display: block;
+}
+
+.settings-groups > * {
+  grid-column: 1 / -1;
+}
+
+.settings-groups > .settings-colorrule-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+.settings-groups > .settings-colorrule-add {
+  margin-top: var(--space-1);
+}
+
+.settings-groups > .settings-colorrule-row > .settings-colorrule-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  max-width: none;
+  height: 20px;
+  min-height: 0;
+  margin: 0 0 0 -5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  cursor: grab;
+}
+
+.settings-groups > .settings-colorrule-row > .settings-colorrule-grip:active {
+  cursor: grabbing;
+}
+
+.settings-groups > .settings-colorrule-row > .settings-colorrule-grip-placeholder {
+  visibility: hidden;
+  cursor: default;
+}
+
+.settings-groups > .settings-colorrule-row > :is(.settings-colorrule-key, .settings-input-stack) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-groups .settings-group-usage {
+  min-width: 2.2em;
+  color: var(--text-tertiary);
+  font-size: var(--smaller-font-size);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.settings-groups .settings-colormap-remove {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+/* A plugin's glyph is mirrored into the host button as its own box: an inline
+   svg leaves descender space under it and sits above the centre. */
+.settings-colormap-remove svg {
+  display: block;
+}
+
+.settings-groups > .settings-colorrule-row > .settings-colorrule-add-action {
+  display: grid;
+  grid-column: span 2;
+  min-width: 0;
+}
+
+/* One cell: a host-drawn button's placeholder in a plugin has no width of its own,
+   so a hidden copy of the label (\`.settings-colorrule-add-sizer\`, a medium
+   \`.settings-button\`) sizes the column for languages with a longer label. */
+.settings-groups .settings-colorrule-add-action > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.settings-groups .settings-colorrule-add-sizer {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.settings-groups .settings-colormap-add-btn {
+  width: 100%;
+}
+
+/* Host-drawn fields inside a group row fill their column. */
+.settings-colorrule-row > #plugin-widget-root > :is(.select-field, .settings-path-input, .settings-input-stack) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.settings-groups > .settings-colorrule-row.drop-before::before {
+  top: calc(var(--space-2) / -2);
+  margin: 0;
+  transform: translateY(-50%);
+}
+
+.settings-groups > .settings-colorrule-row.drop-after::before {
+  bottom: calc(var(--space-2) / -2);
+  margin: 0;
+  transform: translateY(50%);
+}
+`
+
 const STYLE_ID = "notes-todo-styles"
 
 /** Inject (or refresh, on hot reload) the plugin stylesheet. */
@@ -4313,7 +4514,7 @@ export function injectStyles(): () => void {
     el.id = STYLE_ID
     document.head.appendChild(el)
   }
-  el.textContent = CSS
+  el.textContent = CSS + GROUP_LIST_CSS
   return () => {
     if (document.getElementById(STYLE_ID) === el) el.remove()
   }

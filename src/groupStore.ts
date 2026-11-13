@@ -4,10 +4,9 @@ import {
   countGroupUsage,
   groupKey,
   normalizeTodoGroups,
-  setGroupChildren,
   type TodoGroup
 } from './groups'
-import { LOCAL_GROUPS_KEY, groupNamesWithChildren, mergedGroups, normalizeLocalGroups, type LocalGroup } from './localGroups'
+import { LOCAL_GROUPS_KEY, mergedGroups, normalizeLocalGroups, type LocalGroup } from './localGroups'
 
 export function getGlobalGroups(): TodoGroup[] {
   return normalizeTodoGroups(api.getState().groups)
@@ -25,8 +24,6 @@ export async function setLocalGroups(groups: LocalGroup[]): Promise<void> {
 export function getGroups(): TodoGroup[] {
   return mergedGroups(getGlobalGroups(), getLocalGroups())
 }
-
-setGroupChildren((name) => groupNamesWithChildren(name, getGlobalGroups(), getLocalGroups()))
 
 export function onGroupsChanged(cb: () => void): () => void {
   const offState = api.subscribe(cb)

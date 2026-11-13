@@ -33,7 +33,7 @@ import { LocationField } from './LocationField'
 import { parseQuickAdd } from './sections'
 import { PanelDateList } from './PanelDateList'
 import { useGroups } from './groupStore'
-import { allGroups, groupColorFor, groupKey, selectedGroupKeys } from './groups'
+import { allGroups, groupColorFor, groupKey } from './groups'
 import {
   configuredSmartLists,
   groupCount,
@@ -190,7 +190,7 @@ export function GroupFilterPopover({
   const embeddedRows = (name: string | null): ReactElement => {
     const matching = todos.filter((todo) => name === null
       ? !todo.group
-      : selectedGroupKeys([name]).has(groupKey(todo.group ?? '')))
+      : groupKey(todo.group ?? '') === groupKey(name))
     const label = name ?? uiText('todo.chip.noGroup')
     const active = name === null
       ? ungrouped

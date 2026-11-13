@@ -2,7 +2,7 @@ import type { TodoRecord } from './types'
 import { paletteRef } from '@valley/plugin-sdk/palette'
 import { parseLocalDate, weekStartIndex } from '@valley/plugin-sdk/dateGrid'
 import { api } from './runtime'
-import { groupKey, selectedGroupKeys } from './groups'
+import { groupKey } from './groups'
 import { addDays, isoDay } from './sort'
 
 function hostWeekStart(): number {
@@ -157,7 +157,8 @@ export function matchesView(todo: TodoRecord, view: TodoView, today: string = is
 export function matchesViewScope(todo: TodoRecord, view: TodoView, today: string = isoDay(new Date())): boolean {
   if (view.kind === 'groups') {
     if (!todo.group) return view.includeUngrouped === true
-    return selectedGroupKeys(view.names).has(groupKey(todo.group))
+    const selected = new Set(view.names.map(groupKey))
+    return selected.has(groupKey(todo.group))
   }
   if (view.kind === 'tag') return (todo.tags ?? []).some((tag) => tag.replace(/^#/, '').toLowerCase() === view.name.toLowerCase())
   if (view.kind === 'nogroup') return !todo.group
@@ -245,8 +246,8 @@ export function viewCounts(todos: TodoRecord[], today: string = isoDay(new Date(
 
 /** How many todos a group row shows — open only, so a done pile never inflates it. */
 export function groupCount(todos: TodoRecord[], name: string | null): number {
-  const keys = name === null ? null : selectedGroupKeys([name])
-  return todos.filter((t) => !t.completed && (keys === null ? !t.group : keys.has(groupKey(t.group ?? ''))))
+  const key = name === null ? null : groupKey(name)
+  return todos.filter((t) => !t.completed && (key === null ? !t.group : groupKey(t.group ?? '') === key))
     .length
 }
 
