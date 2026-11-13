@@ -21,7 +21,7 @@ import {
 } from './icons'
 import { openLocation } from './LocationField'
 import { TodoMenu, openTodoContextMenu } from './TodoMenu'
-import { confirmDeleteTodo } from '../data/reads'
+import { confirmDeleteTodo } from '../data/undo'
 import { basename } from '../model/draft'
 import { kindLabel } from './AttachmentCard'
 import { SwipeRow, openStatusMenu, type SwipeRowActions } from './SwipeRow'

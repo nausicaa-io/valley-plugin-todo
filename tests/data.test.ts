@@ -1,15 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes } from './mockTodoNotes'
-import {
-  appendTodo,
-  deleteTodo,
-  loadTodo,
-  loadTodos,
-  normalizeTodoUrl,
-  setTodoStatus,
-  updateTodo
-} from '../src/data/reads'
+import { appendTodo, deleteTodo, setTodoStatus, updateTodo } from '../src/data/undo'
+import { loadTodo, loadTodos } from '../src/data/reads'
+import { normalizeTodoUrl } from '../src/domain/records'
 import type { TodoRecord, TodoSession } from '../src/types'
 
 const NOW = '2026-06-01T12:00:00.000Z'

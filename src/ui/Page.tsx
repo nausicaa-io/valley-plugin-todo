@@ -13,7 +13,7 @@ import { allGroups, groupColorFor } from '../model/groups'
 import { SECTION_ORDER, bucketTodos, completionTimelineSections, todayIso, type TodoSectionId } from '../model/sections'
 import type { TodoRecord } from '../types'
 import { formatDate, sortTodos, sortTodosByKey, type SortField } from '../model/sort'
-import { notePreview } from './table/TodoTable'
+import { notePreview } from './table/cells'
 
 /** What each table-only column sorts by. Status follows the order statuses are listed in. */
 const TABLE_SORT_KEYS: Record<string, (todo: TodoRecord) => string | number | undefined> = {
@@ -40,7 +40,9 @@ import {
 import { allStatuses, effectiveStatus, matchesStatusFilter } from '../state/statusStore'
 import { uiText } from '../localization'
 import { setTodoSurfaceActions } from './surfaces'
-import { ColumnsButton, PriorityFacet, TodoTable, usePriorityFilter } from './table/TodoTable'
+import { ColumnsButton, PriorityFacet } from './table/header'
+import { TodoTable } from './table/TodoTable'
+import { usePriorityFilter } from './table/columns'
 
 /**
  * `main_workspace` view — the full To-Do page for whatever the sidebar selected.

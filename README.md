@@ -10,7 +10,13 @@ This is an external plugin and is not bundled with Valley. An installed copy liv
 
 - `manifest.json`: readable English identity, version, and paired `author` / `authorUrl` arrays.
 - `config.json`: runtime entry points, permissions, contributions, and storage declarations.
-- `src/`: plugin interface.
+- `src/`: plugin source. `index.tsx` (UI) and `backend/index.ts` (backend) are the build entry points.
+  - `domain/`: task records, validation, dataset ids and the writer the backend owns; no React.
+  - `backend/`: backend registration, Workflow provider, reminders, the `completedAt` backfill and status icons.
+  - `data/`: UI reads, the incremental task list, the backend RPC client and undoable writes.
+  - `model/`: views, sorting, sections, search, dates, groups and the status model.
+  - `state/`: settings-backed stores, the list controller and host-state hooks.
+  - `ui/` (with `ui/table/`), `commands/`, `integrations/` (Calendar source, reminder clicks) and `styles/`.
 - `locales/`: English, German, Spanish, French, and Simplified Chinese catalogs.
 - `tests/`: package-owned checks using the portable SDK testkit.
 - `runtime/`: compiled installation artifact, including the package’s locale catalogs.

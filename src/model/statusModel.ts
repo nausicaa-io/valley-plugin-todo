@@ -4,7 +4,7 @@ import { paletteRef } from '@valley/plugin-sdk/palette'
 /**
  * The status vocabulary without the UI: built-in definitions, custom-status
  * normalisation and the done rules. Settings are always passed in, so the backend
- * decides with the values it read (the UI wrappers in `statuses.ts` read them from
+ * decides with the values it read (the UI wrappers in `state/statusStore.ts` read them from
  * the runtime).
  */
 

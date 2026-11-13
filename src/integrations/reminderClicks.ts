@@ -1,8 +1,8 @@
 import { api, captureTodoScope } from '../runtime'
-import { loadTodoList } from '../data/reads'
+import { loadTodoList } from '../data/listCache'
 
 /**
- * Reminder notification clicks. The backend owner (`reminderOwner.ts`) hands every
+ * Reminder notification clicks. The backend owner (`backend/reminders.ts`) hands every
  * reminder to the host, which fires it; a click on one opens its task's file, or
  * the To-Do page for a task without one.
  */

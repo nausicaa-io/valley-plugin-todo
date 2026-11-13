@@ -56,7 +56,7 @@ export interface SmartListDef {
    * the page title, and the chip in the sidebar strip. It must not follow the
    * **accent**, or every list would look the same and the header would stop
    * telling you which one you are in; going through the palette keeps that true
-   * while still tracking the theme. Same rationale as `statuses.ts`.
+   * while still tracking the theme. Same rationale as `state/statusStore.ts`.
    */
   color: string
   /** Renders under date headers instead of the row's inline date. */

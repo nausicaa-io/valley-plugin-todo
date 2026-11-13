@@ -1,5 +1,6 @@
 import { React, api, captureTodoScope } from '../runtime'
-import { loadTodoList, onTodoListChanged as onTodosChanged } from '../data/reads'
+import { loadTodoList } from '../data/listCache'
+import { onTodoListChanged as onTodosChanged } from '../data/reads'
 import {
   countGroupUsage,
   groupKey,
