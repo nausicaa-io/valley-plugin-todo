@@ -108,10 +108,10 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
   const title = viewTitle(view)
 
   // The tab names the open list (Today, Scheduled, a group…); the header below carries no second title.
+  // Never cleared on unmount: the host unmounts a hidden tab's view, and the tab must keep its list's name.
   React.useEffect(() => {
     api.workspace.setMainTabTitle(title, instanceId)
   }, [title, instanceId])
-  React.useEffect(() => () => api.workspace.setMainTabTitle(null, instanceId), [instanceId])
 
   const filtered = React.useMemo(() => {
     let list = c.todos.filter((todo) => matchesVisibleView(todo, view, showCompleted, today))

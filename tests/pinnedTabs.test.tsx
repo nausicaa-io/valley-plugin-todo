@@ -6,8 +6,8 @@ import { PLUGIN_SURFACE_V1, type UiMenuItem } from '@valley/plugin-sdk'
 import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
 import { Page } from '../src/Page'
 import { TodoPanel } from '../src/TodoPanel'
-import { getView } from '../src/viewStore'
-import { viewTabInstance } from '../src/tabs'
+import { getView, setView } from '../src/viewStore'
+import { startSharedTabTitle, viewTabInstance } from '../src/tabs'
 
 let store: TodoNotesMock
 
@@ -50,6 +50,14 @@ describe('To-Do list tabs', () => {
     expect(store.mock.api.workspace.openMainTab).toHaveBeenLastCalledWith({ instanceId: 'list:all', title: 'All', newTab: true })
     fireEvent.click(screen.getByRole('button', { name: 'Open To-Do page' }))
     expect(store.mock.api.workspace.openMainTab).toHaveBeenLastCalledWith()
+  })
+
+  it('keeps the shared tab named after its list while no view is mounted', () => {
+    const stop = startSharedTabTitle()
+    expect(store.mock.api.workspace.setMainTabTitle).toHaveBeenLastCalledWith('All')
+    act(() => setView({ kind: 'smart', id: 'week' }))
+    expect(store.mock.api.workspace.setMainTabTitle).toHaveBeenLastCalledWith('This Week')
+    stop()
   })
 
   it('keeps a plain click on the shared view', async () => {

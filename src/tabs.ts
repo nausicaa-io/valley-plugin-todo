@@ -2,7 +2,7 @@ import { React, api } from './runtime'
 import { useHostState } from './hooks'
 import { uiText } from './localization'
 import { parseView, serializeView, smartListDef, type TodoView } from './views'
-import { setView, useView } from './viewStore'
+import { getView, onView, setView, useView } from './viewStore'
 
 /**
  * To-Do main tabs. The tab without an instance shows the shared, persisted view, as it always has. A ⌘-click (or middle
@@ -55,4 +55,14 @@ export function useShownView(): TodoView {
   const { activePluginTab } = useHostState('activePluginTab')
   const instance = focusedInstance(activePluginTab)
   return React.useMemo(() => pinnedView(instance), [instance]) ?? shared
+}
+
+/**
+ * Keeps the shared To-Do tab named after the shared list even while its view is not mounted (another tab in front, or
+ * right after a restart). Pinned tabs carry their list's name from the moment they open.
+ */
+export function startSharedTabTitle(): () => void {
+  const apply = (view: TodoView): void => api.workspace.setMainTabTitle(viewTitle(view))
+  apply(getView())
+  return onView(apply)
 }

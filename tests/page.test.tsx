@@ -211,8 +211,9 @@ describe('the To-Do page', () => {
     await waitFor(() => expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('Scheduled'))
     expect(container.querySelector('.todo-page-appbar-title')).toBeNull()
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    // Hiding the tab unmounts the view; the tab keeps its list's name.
     unmount()
-    expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBeNull()
+    expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('Scheduled')
   })
 
   it('names a group view’s tab after the group', async () => {

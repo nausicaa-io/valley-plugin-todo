@@ -26,6 +26,7 @@ import { initLocalization, uiText } from './localization'
 import { todoAgentTools } from './agentTools'
 import { startStatusVocabulary } from './statuses'
 import { startTaskIcons } from './taskIcons'
+import { startSharedTabTitle } from './tabs'
 import { registerTodoSurfaces } from './surfaces'
 
 export function register(api: ValleyPluginApi): () => void {
@@ -34,6 +35,7 @@ export function register(api: ValleyPluginApi): () => void {
   const disposeStyles = injectStyles()
   const disposeStatusVocabulary = startStatusVocabulary()
   const disposeTaskIcons = startTaskIcons()
+  const disposeTabTitle = startSharedTabTitle()
   let deliveryWarningOpen = false
   const offDeliveryWarning = api.backend.on('records.eventDeliveryFailed', () => {
     if (deliveryWarningOpen) return
@@ -82,6 +84,7 @@ export function register(api: ValleyPluginApi): () => void {
     offLinks()
     disposeStatusVocabulary()
     disposeTaskIcons()
+    disposeTabTitle()
     disposeStyles()
   }
 }
