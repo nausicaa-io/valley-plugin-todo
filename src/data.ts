@@ -65,13 +65,18 @@ async function todoRelations(taskId?: string | string[], includeHistory = true, 
   return { tags, links, attachments, sessions, statusHistory }
 }
 
-async function readTodos(scope: TodoRuntimeScope, includeHistory: boolean, taskId?: string | string[]): Promise<TodoRecord[]> {
+async function readTodoRows(scope: TodoRuntimeScope, includeHistory: boolean, taskId?: string | string[]): Promise<{ tasks: DatasetRecord[]; relations: TodoRelations }> {
   const where = !taskId ? undefined : { id: typeof taskId === 'string' ? taskId : { in: taskId } }
   const [tasksResult, relationsResult] = await Promise.allSettled([allRows(TASKS_DATASET, where, scope), todoRelations(taskId, includeHistory, true, scope)])
   if (tasksResult.status === 'rejected') throw tasksResult.reason
   if (relationsResult.status === 'rejected') throw relationsResult.reason
   scope.assertActive()
-  return hydrateTodos(tasksResult.value, relationsResult.value, normalizeGroups(scope.api.getState().groups))
+  return { tasks: tasksResult.value, relations: relationsResult.value }
+}
+
+async function readTodos(scope: TodoRuntimeScope, includeHistory: boolean, taskId?: string | string[]): Promise<TodoRecord[]> {
+  const { tasks, relations } = await readTodoRows(scope, includeHistory, taskId)
+  return hydrateTodos(tasks, relations, normalizeGroups(scope.api.getState().groups))
 }
 
 interface TodoReadState {
@@ -157,15 +162,41 @@ function todoListCache(scope: TodoRuntimeScope): TodoListCache {
   return cache
 }
 
-async function readListRecords(scope: TodoRuntimeScope, ids?: string[]): Promise<TodoListRecord[]> {
-  let todos: TodoRecord[]
-  if (!ids) todos = await readTodos(scope, false)
-  else {
-    todos = []
-    for (let offset = 0; offset < ids.length; offset += 100) todos.push(...await readTodos(scope, false, ids.slice(offset, offset + 100)))
+const completionReady = new WeakMap<TodoRuntimeScope, Promise<boolean>>()
+
+/** Whether the backend has filled `completedAt` for every saved task; asked once per runtime, again after a failure. */
+function completionBackfilled(scope: TodoRuntimeScope): Promise<boolean> {
+  let ready = completionReady.get(scope)
+  if (!ready) {
+    const asked = scope.api.backend.call<boolean>('records.completionReady').then((value) => value === true, () => false)
+    void asked.then((value) => { if (!value && completionReady.get(scope) === asked) completionReady.delete(scope) })
+    completionReady.set(scope, asked)
+    ready = asked
   }
-  const summaries = await readCompletionSummaries(scope.api, todos.map((todo) => todo.id), scope.assertActive)
-  return todos.map((todo) => ({ ...todo, historyLoaded: false, completionSummary: summaries.get(todo.id) ?? null }))
+  return ready
+}
+
+/**
+ * List records with their completion time from the task row (`completedAt`).
+ * Until the backend reports the one-time backfill finished, tasks still without
+ * one fall back to reading their status history, so the result never depends on
+ * how far the backfill got.
+ */
+async function readListRecords(scope: TodoRuntimeScope, backfilled: boolean, ids?: string[]): Promise<TodoListRecord[]> {
+  const todos: TodoRecord[] = []
+  const completions = new Map<string, string>()
+  const groups = normalizeGroups(scope.api.getState().groups)
+  for (let offset = 0; offset < (ids?.length ?? 1); offset += 100) {
+    const { tasks, relations } = await readTodoRows(scope, false, ids?.slice(offset, offset + 100))
+    for (const row of tasks) if (typeof row.completedAt === 'string' && row.completedAt) completions.set(String(row.id), row.completedAt)
+    todos.push(...hydrateTodos(tasks, relations, groups))
+  }
+  const missing = backfilled ? [] : todos.filter((todo) => !completions.has(todo.id)).map((todo) => todo.id)
+  const summaries = missing.length ? await readCompletionSummaries(scope.api, missing, scope.assertActive) : new Map<string, { changedAt: string }>()
+  return todos.map((todo) => {
+    const changedAt = completions.get(todo.id)
+    return { ...todo, historyLoaded: false, completionSummary: changedAt ? { changedAt } : summaries.get(todo.id) ?? null }
+  })
 }
 
 /**
@@ -175,6 +206,12 @@ async function readListRecords(scope: TodoRuntimeScope, ids?: string[]): Promise
  * the whole list again.
  */
 export function loadTodoList(scope = captureTodoScope()): Promise<TodoListRecord[]> {
+  try { scope.assertActive() } catch (error) { return Promise.reject(error) }
+  // Asked before the read starts, so the backfill's own writes never count as a change during it.
+  return completionBackfilled(scope).then((backfilled) => listRead(scope, backfilled))
+}
+
+function listRead(scope: TodoRuntimeScope, backfilled: boolean): Promise<TodoListRecord[]> {
   const cache = todoListCache(scope)
   return coalescedRead(scope, 'list', LIST_DATASETS, '', async () => {
     const groups = JSON.stringify(normalizeGroups(scope.api.getState().groups))
@@ -182,7 +219,7 @@ export function loadTodoList(scope = captureTodoScope()): Promise<TodoListRecord
       cache.full = false
       cache.dirty.clear()
       try {
-        cache.value = await readListRecords(scope)
+        cache.value = await readListRecords(scope, backfilled)
         cache.groups = groups
       } catch (error) {
         cache.full = true
@@ -195,7 +232,7 @@ export function loadTodoList(scope = captureTodoScope()): Promise<TodoListRecord
     cache.dirty.clear()
     let changed: TodoListRecord[]
     try {
-      changed = await readListRecords(scope, ids)
+      changed = await readListRecords(scope, backfilled, ids)
     } catch (error) {
       for (const id of ids) cache.dirty.add(id)
       throw error

@@ -6,6 +6,7 @@ import { keyDatasetChanges } from './keyedChanges'
 import { countIo } from './ioCost'
 import { loadTodoList, updateTodo } from '../src/data'
 import { createTodoDomain } from '../src/domain'
+import { backfillCompletedAt } from '../src/backend/backfill'
 import { startReminderOwner } from '../src/reminderOwner'
 import { patchForStatus } from '../src/statuses'
 import type { TodoRecord, TodoSession, TodoStatusChange } from '../src/types'
@@ -62,9 +63,22 @@ describe('write and read cost (todo-optimize; before/after in Work/lanes/todo-op
     const io = countIo(mock)
     expect(await loadTodoList()).toHaveLength(2000)
     report('cold loadTodoList at 2,000 tasks', io)
-    expect(io.totals().calls).toBeLessThanOrEqual(206)
-    expect(io.totals().rowsRead).toBeLessThanOrEqual(3833)
-    expect(io.totals().rowsWritten).toBe(0)
+    // The completion time comes from the task row: no status-history aggregates or detail pages.
+    expect(io.counts.calls).toEqual({ 'rpc.records.completionReady': 1, 'dataset.query': 6 })
+    expect(io.totals()).toEqual({ calls: 7, rowsRead: 3333, rowsWritten: 0 })
+  }, 60_000)
+
+  it('the one-time completedAt backfill of 2,000 tasks (500 with a completion)', async () => {
+    const { mock } = installTodoNotes(seed(2000))
+    const io = countIo(mock)
+    const domain = createTodoDomain(mock.api)
+    expect(await backfillCompletedAt(mock.api, domain.exclusive)).toEqual({ updated: 500, skipped: false })
+    report('completedAt backfill at 2,000 tasks', io)
+    expect(io.counts.calls).toEqual({ 'dataset.query': 42, 'data.transaction': 20 })
+    expect(io.counts.rowsWritten).toEqual({ 'tasks.update': 500 })
+    io.reset()
+    expect(await backfillCompletedAt(mock.api, domain.exclusive)).toEqual({ updated: 0, skipped: true })
+    expect(io.totals()).toEqual({ calls: 0, rowsRead: 0, rowsWritten: 0 })
   }, 60_000)
 
   it('one settings change with 2,000 tasks and the backend reminder owner running', async () => {

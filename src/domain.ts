@@ -1,7 +1,8 @@
 import type { DatasetRecord, DatasetWhere, ValleyPluginApi } from '@valley/plugin-sdk'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { normalizeGroups } from '@valley/plugin-sdk/groups'
-import { effectiveStatus } from './statuses'
+import { effectiveStatus, STATUS_SETTINGS_KEY } from './statuses'
+import { completionSources, recordCompletion } from './completionHistory'
 import { forWrite, hydrateTodos, normalizeTodoRecord, relationChanges, relationWrites, taskRow, type TodoRelations } from './records'
 import type { TodoRecord } from './types'
 
@@ -24,6 +25,8 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     catch (error) { throw Object.assign(error instanceof Error ? error : new Error(String(error)), { outcomeUnknown: true, committed: true }) }
   }
   const assertActive = () => { if (!active) throw new Error('To-Do service is stopped.') }
+  /** The `completedAt` column a record stores, kept in step with its status history on every write. */
+  const completedAt = (record: TodoRecord): string | null => recordCompletion(record.statusHistory, completionSources(owner.settings?.get()[STATUS_SETTINGS_KEY]))
   const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
     const result = pending.catch(() => {}).then(() => { assertActive(); return operation() })
     pending = result
@@ -81,7 +84,7 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     if (!options.exactStatusHistory && from !== to) statusHistory.push({ from, to, changedAt: new Date().toISOString() })
     next.statusHistory = statusHistory.length ? statusHistory : undefined
     const persisted = forWrite(next)
-    const row = taskRow(persisted)
+    const row: DatasetRecord = { ...taskRow(persisted), completedAt: completedAt(persisted) }
     delete row.id
     delete row.note
     assertActive()
@@ -110,7 +113,7 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
       const next = forWrite(normalizeTodoRecord(record as unknown as DataRecord))
       if (next.startTime && next.reminderOffsets === undefined && !next.remindAt) next.reminderOffsets = Array.isArray(owner.settings?.get().reminderOffsets) ? [...owner.settings!.get().reminderOffsets as number[]] : [10]
       assertActive()
-      await api.data.transaction([{ dataset: 'todo.tasks', operation: 'insert', values: taskRow(next) }, ...relationWrites(next)])
+      await api.data.transaction([{ dataset: 'todo.tasks', operation: 'insert', values: { ...taskRow(next), completedAt: completedAt(next) } }, ...relationWrites(next)])
       await committedEvent(emit, 'task.created', { record: next })
       return true
     }),
@@ -136,6 +139,8 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
         throw error
       }
     }),
+    /** Run an operation between writes: no task write starts or finishes while it runs. */
+    exclusive: <T>(operation: () => Promise<T>): Promise<T> => serialize(operation),
     dispose: async () => { active = false; await pending.catch(() => {}) }
   }
 }
