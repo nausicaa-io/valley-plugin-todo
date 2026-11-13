@@ -3,7 +3,7 @@ import type { CSSProperties, ReactElement } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { paletteCssContrast, paletteCssValue } from '@valley/plugin-sdk/palette'
 import { useActiveCalendarSelection, useHostState } from './hooks'
-import { searchMatcher } from './search'
+import { todoSearchMatcher } from './search'
 import {
   CalendarClock,
   CalendarDays,
@@ -36,7 +36,8 @@ import { useGroups } from './groupStore'
 import { allGroups, groupColorFor, groupKey } from './groups'
 import {
   configuredSmartLists,
-  groupCount,
+  countForGroup,
+  groupCounts,
   matchesVisibleView,
   sameView,
   serializeView,
@@ -182,15 +183,15 @@ export function GroupFilterPopover({
   const selectionRunClass = (active: boolean, index: number): string => active
     ? ` active${!activeRows[index - 1] ? ' selection-run-start' : ''}${!activeRows[index + 1] ? ' selection-run-end' : ''}`
     : ''
+  const openCounts = React.useMemo(() => groupCounts(todos), [todos])
+  const allCounts = React.useMemo(() => groupCounts(todos, false), [todos])
   const commit = (nextNames: string[], nextUngrouped: boolean): void => {
     setLocalSelected(nextNames)
     setLocalUngrouped(nextUngrouped)
     onChange(nextNames, nextUngrouped)
   }
   const embeddedRows = (name: string | null): ReactElement => {
-    const matching = todos.filter((todo) => name === null
-      ? !todo.group
-      : groupKey(todo.group ?? '') === groupKey(name))
+    const matching = countForGroup(allCounts, name)
     const label = name ?? uiText('todo.chip.noGroup')
     const active = name === null
       ? ungrouped
@@ -198,7 +199,7 @@ export function GroupFilterPopover({
     return <div className="todo-group-filter-item" key={name ?? 'ungrouped'}>
       <div className="props-info-row">
         <dt className="props-info-key">{name && <span className="props-info-dot" style={{ background: paletteCssValue(groupColorFor(name, groups)) }} />}{label}</dt>
-        <dd className="props-info-value props-info-filter-value"><span>{matching.length}</span><api.ui.settings.Toggle label={label} checked={active} onChange={() => commit(name === null
+        <dd className="props-info-value props-info-filter-value"><span>{matching}</span><api.ui.settings.Toggle label={label} checked={active} onChange={() => commit(name === null
           ? selectedNames
           : active
             ? selectedNames.filter((candidate) => groupKey(candidate) !== groupKey(name))
@@ -244,7 +245,7 @@ export function GroupFilterPopover({
               <span className="todo-group-filter-check" aria-hidden="true">{active ? '✓' : ''}</span>
               <span className="todo-tree-dot" style={{ background: paletteCssValue(groupColorFor(name, groups)) }} />
               <span className="todo-tree-label">{name}</span>
-              <span className="todo-tree-count">{groupCount(todos, name)}</span>
+              <span className="todo-tree-count">{countForGroup(openCounts, name)}</span>
             </button>
           )
         })}
@@ -258,7 +259,7 @@ export function GroupFilterPopover({
             <span className="todo-group-filter-check" aria-hidden="true">{localUngrouped ? '✓' : ''}</span>
             <span className="todo-tree-dot no-group" />
             <span className="todo-tree-label">{uiText('todo.chip.noGroup')}</span>
-            <span className="todo-tree-count">{groupCount(todos, null)}</span>
+            <span className="todo-tree-count">{countForGroup(openCounts, null)}</span>
           </button>
         )}
       </div>
@@ -328,6 +329,7 @@ export const TodoPanel = (): ReactElement => {
   const today = isoDay(new Date())
 
   const counts = React.useMemo(() => viewCounts(c.todos, today), [c.todos, today])
+  const openGroupCounts = React.useMemo(() => groupCounts(c.todos), [c.todos])
   const groupNames = React.useMemo(
     () => allGroups(groups),
     [groups]
@@ -342,8 +344,7 @@ export const TodoPanel = (): ReactElement => {
     let list = c.ordered.filter((todo) => matchesVisibleView(todo, view, showCompleted, today))
     if (statusFilter !== 'all') list = list.filter((todo) => matchesStatusFilter(todo, statusFilter))
     if (search.trim()) {
-      const matches = searchMatcher(search)
-      list = list.filter((todo) => matches(todo.tags ?? [], todo.title, todo.note, todo.group ?? ''))
+      list = list.filter(todoSearchMatcher(search))
     }
     // Calendar range filter: keep todos whose due date falls within the selection.
     if (selectedDateRange) {
@@ -755,7 +756,7 @@ export const TodoPanel = (): ReactElement => {
             {groupNames.map((name) => treeRow(
               name,
               { kind: 'groups', names: [name] },
-              groupCount(c.todos, name),
+              countForGroup(openGroupCounts, name),
               undefined,
               groupColorFor(name, groups)
             ))}

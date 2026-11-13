@@ -16,6 +16,7 @@ import { bucketTodos, SECTION_ORDER, type TodoSectionId } from './sections'
 import { activeStatuses, isStatusActive, patchForStatus } from './statuses'
 import type { TodoPriority, TodoRecord, TodoStatus } from './types'
 import { revealRequestStore } from './runtime'
+import { isoDay as todayISO } from './dates'
 
 const todoResult = {
   "type": "object",
@@ -255,10 +256,6 @@ const PRIORITIES: TodoPriority[] = ['normal', 'low', 'medium', 'high']
 
 function nowISO(): string {
   return new Date().toISOString()
-}
-
-function todayISO(date = new Date()): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function assignedGroup(raw: string): string | undefined {

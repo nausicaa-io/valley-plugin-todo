@@ -67,6 +67,11 @@ export function refreshTaskIcons(): Promise<void> {
   return current.pending
 }
 
+/** Bumped whenever the icon folder is read again; memoised rows compare it. */
+export function taskIconRevision(): number {
+  return registry().revision
+}
+
 export function taskIconSvg(name: string | undefined): string | undefined {
   return name ? registry().icons[name] : undefined
 }

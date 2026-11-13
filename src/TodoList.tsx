@@ -4,7 +4,7 @@ import type { ReactElement } from 'react'
 import type { TodoRecord } from './types'
 import type { TodoGroup } from './groups'
 import type { TodoListController } from './controller'
-import { TodoRow } from './TodoRow'
+import { TodoRow, useRowEnv, useStructuralValue } from './TodoRow'
 
 export const TodoList = ({ todos, groups, compact, hideDate = false, c }: {
   todos: TodoRecord[]
@@ -22,21 +22,30 @@ export const TodoList = ({ todos, groups, compact, hideDate = false, c }: {
     if (reveal && ids.includes(reveal.todoId)) show(reveal.todoId)
   }, [reveal, ids, show])
 
-  const moveFocus = React.useCallback((from: number, delta: number): void => {
-    const next = todos[Math.max(0, Math.min(todos.length - 1, from + delta))]
+  const env = useRowEnv()
+  const rowGroups = useStructuralValue(groups)
+  const todosRef = React.useRef(todos)
+  todosRef.current = todos
+  const moveFocus = React.useCallback((id: string, delta: number): void => {
+    const list = todosRef.current
+    const from = list.findIndex(todo => todo.id === id)
+    const next = list[Math.max(0, Math.min(list.length - 1, from + delta))]
     if (next) show(next.id, '.todo-row')
-  }, [todos, show])
+  }, [show])
 
   return (
     <div className="todo-list-rows" ref={visible.ref}>
       {visible.render(index => <TodoRow
         key={todos[index].id}
         todo={todos[index]}
-        groups={groups}
+        groups={rowGroups}
         compact={compact}
-        c={c}
+        actions={c.actions}
+        pending={c.pendingIds.has(todos[index].id)}
+        menuOpen={c.menuId === todos[index].id}
+        env={env}
         hideDate={hideDate}
-        onMoveFocus={delta => moveFocus(index, delta)}
+        onMoveFocus={moveFocus}
       />)}
     </div>
   )

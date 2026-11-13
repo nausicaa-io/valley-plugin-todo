@@ -1,7 +1,7 @@
 import { React, api, registerTodoRow } from './runtime'
 import { InlineCalendar } from './DatePanel'
 import { renderInlineMarkdown } from './markdown'
-import type { ReactElement } from 'react'
+import type { ComponentType, MemoExoticComponent, ReactElement } from 'react'
 import type { TodoRecord } from './types'
 import { openTodoCalendar } from './calendarSource'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
@@ -25,9 +25,11 @@ import { confirmDeleteTodo } from './data'
 import { basename } from './draft'
 import { kindLabel } from './AttachmentCard'
 import { SwipeRow, openStatusMenu, type SwipeRowActions } from './SwipeRow'
-import { statusMenuOptions, effectiveStatus, patchForStatus, statusDef } from './statuses'
+import { statusMenuOptions, effectiveStatus, getStatusSettings, patchForStatus, statusDef, type TodoStatusSettings } from './statuses'
 import { PRIORITIES, formatDate, formatDueLabel, isoDay } from './sort'
-import type { TodoListController } from './controller'
+import type { TodoRowActions } from './controller'
+import { taskIconRevision } from './taskIcons'
+import { getAllGroups } from './groupStore'
 import { todoPriorityMetaLabel, uiText } from './localization'
 import { StatusBadge } from './StatusBadge'
 import { setTodoSearch } from './viewStore'
@@ -40,12 +42,110 @@ import { setTodoSearch } from './viewStore'
 const MAX_ROW_FILES = 2
 
 /**
+ * Everything outside its props a row reads while rendering: the day, the date
+ * format, the language, the status settings, the status icon folder and the
+ * colours of switched-off groups a task may still carry. A
+ * memoised row takes it as one prop, so a change to any of them still reaches
+ * every row, exactly as the list's own re-render used to.
+ */
+export interface RowEnv {
+  today: string
+  dateFormat: ReturnType<typeof api.getState>['dateFormat']
+  language: string
+  statuses: TodoStatusSettings
+  icons: number
+  /** Every group, switched off or not, as `groupColorFor` falls back to it. */
+  groupColors: string
+}
+
+export function useRowEnv(): RowEnv {
+  const today = isoDay(new Date())
+  const dateFormat = api.getState().dateFormat
+  const language = api.ui.language()
+  const statuses = getStatusSettings()
+  const icons = taskIconRevision()
+  const groupColors = JSON.stringify(getAllGroups())
+  return React.useMemo(() => ({ today, dateFormat, language, statuses, icons, groupColors }), [today, dateFormat, language, statuses, icons, groupColors])
+}
+
+/**
+ * `React.memo(render)`, wrapped so the memo is made from the host's React
+ * instance (set when the runtime starts, after this module loads). The wrapper
+ * itself holds no state; the memoised row below it bails out on equal props.
+ */
+export function memoRow<P extends object>(render: (props: P) => ReactElement): (props: P) => ReactElement {
+  const memos = new WeakMap<object, MemoExoticComponent<(props: P) => ReactElement>>()
+  return (props: P): ReactElement => {
+    const memo = memos.get(React) ?? React.memo(render)
+    memos.set(React, memo)
+    return React.createElement(memo as unknown as ComponentType<object>, props)
+  }
+}
+
+/** The previous value while the new one is structurally equal, so a re-read list (groups) keeps its identity. */
+export function useStructuralValue<T>(value: T): T {
+  const ref = React.useRef<{ value: T; json: string } | null>(null)
+  if (ref.current?.value === value) return ref.current.value
+  const json = JSON.stringify(value)
+  if (ref.current?.json !== json) ref.current = { value, json }
+  return ref.current.value
+}
+
+const TITLE_HTML_LIMIT = 500
+
+interface TitleHtmlCache { html: Map<string, string>; pending: Map<string, Promise<string>> }
+
+/** Rendered titles for this plugin runtime; it goes away with the runtime on reload. */
+function titleHtmlCache(): TitleHtmlCache {
+  return api.runtime.getOrCreate('todo.titleHtml', () => ({ html: new Map<string, string>(), pending: new Map<string, Promise<string>>() }))
+}
+
+function cachedTitleHtml(title: string): string | undefined {
+  const cache = titleHtmlCache().html
+  const html = cache.get(title)
+  if (html === undefined) return undefined
+  cache.delete(title)
+  cache.set(title, html)
+  return html
+}
+
+function renderTitleHtml(title: string): Promise<string> {
+  const cache = titleHtmlCache()
+  let pending = cache.pending.get(title)
+  if (!pending) {
+    pending = renderInlineMarkdown(title).then((html) => {
+      cache.html.set(title, html)
+      if (cache.html.size > TITLE_HTML_LIMIT) cache.html.delete(cache.html.keys().next().value!)
+      return html
+    }).finally(() => { cache.pending.delete(title) })
+    cache.pending.set(title, pending)
+  }
+  return pending
+}
+
+/** A title's inline Markdown, rendered by the host once per title string. */
+export function useTitleHtml(title: string): string {
+  const [titleHtml, setTitleHtml] = React.useState(() => cachedTitleHtml(title) ?? '')
+  React.useEffect(() => {
+    const cached = cachedTitleHtml(title)
+    if (cached !== undefined) {
+      setTitleHtml(cached)
+      return
+    }
+    let active = true
+    setTitleHtml('')
+    void renderTitleHtml(title).then((html) => { if (active) setTitleHtml(html) }).catch(() => { if (active) setTitleHtml('') })
+    return () => { active = false }
+  }, [title])
+  return titleHtml
+}
+
+/**
  * The round status control shared by the list rows and the task table: a click
  * toggles completed, press-and-hold opens the list of statuses.
  */
-export function useStatusCheck(todo: TodoRecord, c: TodoListController): { check: ReactElement; cancelHold: () => void } {
+export function useStatusCheck(todo: TodoRecord, pending: boolean, patchTodo: TodoRowActions['patchTodo']): { check: ReactElement; cancelHold: () => void } {
   const status = effectiveStatus(todo)
-  const pending = c.pendingIds.has(todo.id)
   const checkboxRef = React.useRef<HTMLInputElement>(null)
   const longPressTimer = React.useRef<number | null>(null)
   const longPressed = React.useRef(false)
@@ -83,7 +183,7 @@ export function useStatusCheck(todo: TodoRecord, c: TodoListController): { check
               type: 'radio' as const,
               checked: option.status === null ? status === 'open' : option.status === status,
               enabled: !pending,
-              onSelect: () => c.patchTodo(todo.id, patchForStatus(option.status))
+              onSelect: () => patchTodo(todo.id, patchForStatus(option.status))
             })), { anchor })
           }, 450)
         }}
@@ -100,7 +200,7 @@ export function useStatusCheck(todo: TodoRecord, c: TodoListController): { check
             longPressed.current = false
             return
           }
-          void c.patchTodo(todo.id, patchForStatus(e.target.checked ? 'completed' : null))
+          void patchTodo(todo.id, patchForStatus(e.target.checked ? 'completed' : null))
         }}
         aria-label={uiText('auto.13816aca9c25', { p0: todo.title })}
       />
@@ -121,32 +221,34 @@ export function useStatusCheck(todo: TodoRecord, c: TodoListController): { check
  * lightweight metadata and file tiles. Editing lives in the detail modal, which
  * the surrounding list renders; a row only asks for it (⋯ → Edit, double-click).
  */
-export const TodoRow = ({
+export const TodoRow = memoRow(function TodoRow({
   todo,
   groups,
   compact,
-  c,
+  actions,
+  pending,
+  menuOpen,
+  env,
   hideDate = false,
   onMoveFocus
 }: {
   todo: TodoRecord
   groups: TodoGroup[]
   compact: boolean
-  c: TodoListController
+  actions: TodoRowActions
+  /** A write for this todo is in flight. */
+  pending: boolean
+  /** This todo's ⋯ menu is the open one. */
+  menuOpen: boolean
+  env: RowEnv
   /** Suppress the inline due date — a date section header already says it. */
   hideDate?: boolean
   /** ↑/↓ between rows, so the list is navigable without stealing Tab entirely. */
-  onMoveFocus?: (delta: number) => void
-}): ReactElement => {
+  onMoveFocus?: (todoId: string, delta: number) => void
+}): ReactElement {
   const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   React.useEffect(() => () => { if (clickTimer.current) clearTimeout(clickTimer.current) }, [])
-  const [titleHtml, setTitleHtml] = React.useState('')
-  React.useEffect(() => {
-    let active = true
-    setTitleHtml('')
-    void renderInlineMarkdown(todo.title).then((html) => { if (active) setTitleHtml(html) }).catch(() => { if (active) setTitleHtml('') })
-    return () => { active = false }
-  }, [todo.title])
+  const titleHtml = useTitleHtml(todo.title)
   const openFile = (relPath: string, newTab?: boolean): void =>
     api.workspace.openFile(relPath, undefined, { newTab })
 
@@ -167,10 +269,9 @@ export const TodoRow = ({
   const urlCount = todo.urls?.length ?? 0
   const showFileCount = compact && files.length > 0
   const reminderPending = !!todo.remindAt && !todo.reminderFiredAt
-  const statusWord = !!todo.status && todo.status !== 'open' && !statusDef(todo.status).done
+  const statusWord = !!todo.status && todo.status !== 'open' && !statusDef(todo.status, env.statuses).done
   const tagCount = todo.tags?.length ?? 0
-  const pending = c.pendingIds.has(todo.id)
-  const today = isoDay(new Date())
+  const today = env.today
   const dueLabel = todo.dueDate && !hideDate
     ? formatDueLabel(
         todo.dueDate,
@@ -180,28 +281,28 @@ export const TodoRow = ({
           tomorrow: uiText('todo.due.tomorrow'),
           yesterday: uiText('todo.due.yesterday')
         },
-        api.ui.language(),
-        api.getState().dateFormat
+        env.language,
+        env.dateFormat
       )
     : ''
-  const dueDateFull = todo.dueDate ? formatDate(todo.dueDate, api.getState().dateFormat) : ''
+  const dueDateFull = todo.dueDate ? formatDate(todo.dueDate, env.dateFormat) : ''
   const overdue = !!todo.dueDate && !todo.completed && todo.dueDate.slice(0, 10) < today
   const hasWhenLine = !!(dueLabel || todo.startTime || reminderPending || todo.group)
   const hasDetailLine = !!(statusWord || todo.priority !== 'normal' || todo.location || urlCount > 0 || showFileCount)
 
   const rowRef = React.useRef<HTMLElement>(null)
   React.useEffect(() => rowRef.current ? registerTodoRow(todo.id, rowRef.current) : undefined, [todo.id])
-  const { check, cancelHold } = useStatusCheck(todo, c)
+  const { check, cancelHold } = useStatusCheck(todo, pending, actions.patchTodo)
 
   const openCalendar = (): void => {
-    if (!openTodoCalendar(todo)) c.openDetail(todo.id)
+    if (!openTodoCalendar(todo)) actions.openDetail(todo.id)
   }
 
-  const patch = (next: Partial<TodoRecord>): unknown => c.patchTodo(todo.id, next)
+  const patch = (next: Partial<TodoRecord>): unknown => actions.patchTodo(todo.id, next)
 
   const swipeActions = React.useMemo<SwipeRowActions>(
     () => ({
-      reschedule: (date) => void c.patchTodo(todo.id, { dueDate: date }),
+      reschedule: (date) => void actions.patchTodo(todo.id, { dueDate: date }),
       pickDate: (anchor) => {
         void api.ui.openPopover(
           (ctx) => (
@@ -209,7 +310,7 @@ export const TodoRow = ({
               <InlineCalendar
                 value={todo.dueDate?.slice(0, 10) ?? ''}
                 onChange={(next) => {
-                  void c.patchTodo(todo.id, { dueDate: next })
+                  void actions.patchTodo(todo.id, { dueDate: next })
                   ctx.close()
                 }}
               />
@@ -220,13 +321,13 @@ export const TodoRow = ({
         )
       },
       setStatus: (anchor) => openStatusMenu(anchor, todo, patch),
-      toggleFlag: () => void c.patchTodo(todo.id, { flagged: !todo.flagged }),
-      openDetails: () => c.openDetail(todo.id),
-      remove: () => void confirmDeleteTodo(todo, c.removeTodo)
+      toggleFlag: () => void actions.patchTodo(todo.id, { flagged: !todo.flagged }),
+      openDetails: () => actions.openDetail(todo.id),
+      remove: () => void confirmDeleteTodo(todo, actions.removeTodo)
     }),
     // `patch` closes over the same two values the rest of this list names.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [todo, c]
+    [todo, actions]
   )
 
   return (
@@ -242,10 +343,10 @@ export const TodoRow = ({
         onContextMenu={(e) => openTodoContextMenu(e, {
           todo,
           groupNames,
-          setOpenId: c.setMenuId,
-          onEdit: () => c.openDetail(todo.id),
+          setOpenId: actions.setMenuId,
+          onEdit: () => actions.openDetail(todo.id),
           onPatch: patch,
-          onRequestDelete: () => confirmDeleteTodo(todo, c.removeTodo),
+          onRequestDelete: () => confirmDeleteTodo(todo, actions.removeTodo),
           disabled: pending
         })}
         onKeyDown={(e) => {
@@ -254,7 +355,7 @@ export const TodoRow = ({
           if (e.target !== e.currentTarget) return
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault()
-            onMoveFocus?.(e.key === 'ArrowDown' ? 1 : -1)
+            onMoveFocus?.(todo.id, e.key === 'ArrowDown' ? 1 : -1)
             return
           }
           if (e.key === 'Escape') {
@@ -265,7 +366,7 @@ export const TodoRow = ({
           }
           if (e.key === 'Enter') {
             e.preventDefault()
-            c.openDetail(todo.id)
+            actions.openDetail(todo.id)
           }
         }}
         onClick={(e) => {
@@ -281,7 +382,7 @@ export const TodoRow = ({
         onDoubleClick={(e) => {
           if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null }
           if ((e.target as Element).closest('input, button, a, textarea, [contenteditable="true"], .cm-editor')) return
-          c.openDetail(todo.id)
+          actions.openDetail(todo.id)
         }}
       >
         {check}
@@ -421,11 +522,11 @@ export const TodoRow = ({
           <TodoMenu
             todo={todo}
             groupNames={groupNames}
-            openId={c.menuId}
-            setOpenId={c.setMenuId}
-            onEdit={() => c.openDetail(todo.id)}
+            openId={menuOpen ? todo.id : null}
+            setOpenId={actions.setMenuId}
+            onEdit={() => actions.openDetail(todo.id)}
             onPatch={patch}
-            onRequestDelete={() => confirmDeleteTodo(todo, c.removeTodo)}
+            onRequestDelete={() => confirmDeleteTodo(todo, actions.removeTodo)}
             disabled={pending}
           />
         </div>
@@ -476,4 +577,4 @@ export const TodoRow = ({
       </article>
     </SwipeRow>
   )
-}
+})

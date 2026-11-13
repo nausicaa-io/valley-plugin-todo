@@ -1,4 +1,4 @@
-import { React, api } from './runtime'
+import { React, api, captureTodoScope } from './runtime'
 import {
   DEFAULT_VIEW,
   normalizeSmartListSettings,
@@ -49,7 +49,11 @@ interface StatusFilterStore {
 interface SearchStore {
   query: string | null
   listeners: Set<(query: string) => void>
+  pending?: { timer: ReturnType<typeof setTimeout>; write: (value: string) => void; forget: () => void }
 }
+
+/** Typing updates the UI at once; the saved setting trails by this long. */
+export const SEARCH_PERSIST_DELAY_MS = 300
 
 /** Every table column sorts; the narrow lists offer only the shared fields. */
 export const TABLE_ONLY_SORT_FIELDS = ['group', 'notes', 'status', 'location', 'tags'] as const
@@ -222,6 +226,7 @@ export function onView(fn: Listener): () => void {
  * realm's selection.
  */
 export function resetViewCache(): void {
+  flushTodoSearch()
   const viewStore = store()
   viewStore.view = null
   viewStore.history = []
@@ -246,13 +251,37 @@ export function useSmartListSettings(): SmartListSettings {
   return settings
 }
 
+/** Write the latest typed search now, if one is waiting. Safe to call at any time. */
+export function flushTodoSearch(): void {
+  const s = searchStore()
+  const pending = s.pending
+  if (!pending) return
+  s.pending = undefined
+  clearTimeout(pending.timer)
+  pending.forget()
+  if (s.query !== null) pending.write(s.query)
+}
+
 export function setTodoSearch(query: string): void {
   const s = searchStore()
   const next = query.slice(0, 500)
   if (s.query === next) return
   s.query = next
-  void api.settings.set(SEARCH_SETTING_KEY, next)
   for (const listener of s.listeners) listener(next)
+  if (next === '') {
+    if (s.pending) {
+      clearTimeout(s.pending.timer)
+      s.pending.forget()
+      s.pending = undefined
+    }
+    void api.settings.set(SEARCH_SETTING_KEY, next)
+    return
+  }
+  if (s.pending) clearTimeout(s.pending.timer)
+  const bound = api
+  const write = (value: string): void => { void bound.settings.set(SEARCH_SETTING_KEY, value).catch(() => undefined) }
+  const forget = s.pending?.forget ?? captureTodoScope()?.onDispose(flushTodoSearch) ?? (() => undefined)
+  s.pending = { timer: setTimeout(flushTodoSearch, SEARCH_PERSIST_DELAY_MS), write, forget }
 }
 
 export function useTodoSearch(): [string, (query: string) => void] {
@@ -334,6 +363,7 @@ export function applyTodoVisibleState(raw: Record<string, unknown>, keepView = f
   setShowCompleted(raw.showCompleted === true)
   setStatusFilter(normalizeStatusFilter(raw.statusFilter))
   setTodoSearch(typeof raw.search === 'string' ? raw.search : '')
+  flushTodoSearch()
   setPageSort(normalizePageSort(raw.sort))
   return true
 }

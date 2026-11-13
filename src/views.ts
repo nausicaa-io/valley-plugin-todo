@@ -153,12 +153,22 @@ export function matchesView(todo: TodoRecord, view: TodoView, today: string = is
   return view.id === 'completed' ? todo.completed : !todo.completed
 }
 
+const groupKeyCache = new WeakMap<object, { names: readonly string[]; count: number; keys: Set<string> }>()
+
+/** The selected group keys of a groups view, built once per view object rather than per todo. */
+function groupViewKeys(view: Extract<TodoView, { kind: 'groups' }>): Set<string> {
+  const hit = groupKeyCache.get(view)
+  if (hit && hit.names === view.names && hit.count === view.names.length) return hit.keys
+  const keys = new Set(view.names.map(groupKey))
+  groupKeyCache.set(view, { names: view.names, count: view.names.length, keys })
+  return keys
+}
+
 /** Apply every criterion of a view except the open/completed split. */
 export function matchesViewScope(todo: TodoRecord, view: TodoView, today: string = isoDay(new Date())): boolean {
   if (view.kind === 'groups') {
     if (!todo.group) return view.includeUngrouped === true
-    const selected = new Set(view.names.map(groupKey))
-    return selected.has(groupKey(todo.group))
+    return groupViewKeys(view).has(groupKey(todo.group))
   }
   if (view.kind === 'tag') return (todo.tags ?? []).some((tag) => tag.replace(/^#/, '').toLowerCase() === view.name.toLowerCase())
   if (view.kind === 'nogroup') return !todo.group
@@ -249,6 +259,34 @@ export function groupCount(todos: TodoRecord[], name: string | null): number {
   const key = name === null ? null : groupKey(name)
   return todos.filter((t) => !t.completed && (key === null ? !t.group : groupKey(t.group ?? '') === key))
     .length
+}
+
+export interface GroupCounts {
+  /** Todos per `groupKey` of their group; an ungrouped todo counts under `groupKey('')`. */
+  byKey: Map<string, number>
+  /** Todos without a group. */
+  ungrouped: number
+}
+
+/**
+ * Every group row's count in one pass, so a list of groups costs one walk over
+ * the todos instead of one per group. `openOnly` gives {@link groupCount}'s numbers.
+ */
+export function groupCounts(todos: readonly TodoRecord[], openOnly = true): GroupCounts {
+  const byKey = new Map<string, number>()
+  let ungrouped = 0
+  for (const todo of todos) {
+    if (openOnly && todo.completed) continue
+    const key = groupKey(todo.group ?? '')
+    byKey.set(key, (byKey.get(key) ?? 0) + 1)
+    if (!todo.group) ungrouped++
+  }
+  return { byKey, ungrouped }
+}
+
+/** One group row's count from {@link groupCounts}; `null` is the ungrouped row. */
+export function countForGroup(counts: GroupCounts, name: string | null): number {
+  return name === null ? counts.ungrouped : counts.byKey.get(groupKey(name)) ?? 0
 }
 
 /**
