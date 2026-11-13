@@ -6,16 +6,18 @@
  * keeps its own undo registration, and the two never collide).
  */
 import type { DataRecord } from '@valley/plugin-sdk/types'
-import type { PluginCommand, ValleyPluginApi } from '@valley/plugin-sdk'
+import type { DatasetWhere, PluginCommand, ValleyPluginApi } from '@valley/plugin-sdk'
 import type { CommandSideEffect } from '@valley/plugin-sdk/commands'
 import { loadTodo, loadTodos, normalizeTodoRecord, rawAppend, rawDelete, rawRestore, rawUpdateCommitted } from './data'
-import { searchMatcher } from './search'
+import { normalizeGroups } from '@valley/plugin-sdk/groups'
+import { parseSearch, searchMatcher } from './search'
+import { readLightTodos, readTodosByIds, TARGETED_READ_LIMIT } from './taskReads'
 import { allGroups, groupForName, groupKey } from './groups'
 import { getGroups } from './groupStore'
 import { bucketTodos, SECTION_ORDER, type TodoSectionId } from './sections'
 import { activeStatuses, isStatusActive, patchForStatus } from './statuses'
 import type { TodoPriority, TodoRecord, TodoStatus } from './types'
-import { revealRequestStore } from './runtime'
+import { captureTodoScope, revealRequestStore } from './runtime'
 import { isoDay as todayISO } from './dates'
 
 const todoResult = {
@@ -293,7 +295,7 @@ function describe(todo: TodoRecord): string {
   return `${state} ${todo.title}${meta ? ` (${meta})` : ''}  [${todo.id}]`
 }
 
-function resolveTodo(todos: TodoRecord[], query: string): TodoRecord {
+function resolveTodo<T extends { id: string; title: string }>(todos: T[], query: string): T {
   const trimmed = query.trim()
   if (!trimmed) throw new Error('Expected a todo id or title.')
   const byId = todos.find((todo) => todo.id === trimmed)
@@ -304,6 +306,32 @@ function resolveTodo(todos: TodoRecord[], query: string): TodoRecord {
   throw new Error(
     `Multiple todos match "${trimmed}":\n${matches.map((todo, index) => `  ${index + 1}. ${todo.title} [${todo.id}]`).join('\n')}\nRe-run with the exact id.`
   )
+}
+
+/** Reads against the live scope: only the columns a decision needs first, whole records for the tasks that survive it. */
+function lightReads() {
+  const scope = captureTodoScope()
+  const options = { groups: normalizeGroups(scope.api.getState().groups), assertActive: scope.assertActive }
+  return {
+    light: (columns: string[], extra: { withTags?: boolean; where?: DatasetWhere } = {}) => readLightTodos(scope.api, columns, { ...options, ...extra }),
+    byIds: (ids: string[]) => readTodosByIds(scope.api, ids, options)
+  }
+}
+
+/**
+ * The task an id or title query names, by `resolveTodo`'s rules, without reading every task in full:
+ * an id is looked up directly, a title is matched against every task's id and title only, and the one
+ * task found is then loaded whole.
+ */
+async function resolveTodoQuery(query: string): Promise<TodoRecord> {
+  const trimmed = query.trim()
+  if (!trimmed) throw new Error('Expected a todo id or title.')
+  const reads = lightReads()
+  const direct = await reads.light(['id', 'title'], { where: { id: trimmed } })
+  const found = resolveTodo(direct.length ? direct : await reads.light(['id', 'title']), query)
+  const [todo] = await reads.byIds([found.id])
+  if (!todo) throw new Error(`No todo matching "${trimmed}".`)
+  return todo
 }
 
 const queryInput = {
@@ -321,7 +349,7 @@ async function replaceTodo(
   update: (previous: TodoRecord) => TodoRecord,
   label: (previous: TodoRecord) => string
 ) {
-  const previous = resolveTodo(await loadTodos(), query)
+  const previous = await resolveTodoQuery(query)
   const next = update(previous)
   const committed = await rawUpdateCommitted(previous.id, next, previous.updatedAt)
   if (!committed) throw new Error('Failed to update todo.')
@@ -382,8 +410,7 @@ export function parseTodoValues(raw: unknown): Partial<TodoRecord> {
 }
 
 export async function editTodoValues(id: string, values: Partial<TodoRecord>, expectedUpdatedAt?: string) {
-  const todos = await loadTodos()
-  const previous = todos.find((todo) => todo.id === id)
+  const previous = await loadTodo(id)
   if (!previous) throw new Error('The task no longer exists.')
   if (expectedUpdatedAt !== undefined && previous.updatedAt !== expectedUpdatedAt) throw new Error('This task changed elsewhere. Reload it before saving; your draft is preserved.')
   if (values.group && values.group !== previous.group && !allGroups(getGroups()).includes(values.group)) throw new Error('Unknown task group. Create it in shared group settings first.')
@@ -401,8 +428,7 @@ async function todoCommandRevision(raw: unknown): Promise<unknown> {
   const query = input.id ?? input.query
   const settings = { groups: getGroups(), statuses: activeStatuses() }
   if (!query) return settings
-  const todos = await loadTodos()
-  const todo = resolveTodo(todos, query)
+  const todo = await resolveTodoQuery(query)
   return { ...settings, records: [todo] }
 }
 
@@ -560,7 +586,9 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       },
       run: async ({ query }) => {
         const matches = searchMatcher(query)
-        return (await loadTodos()).filter((todo) => matches(todo.tags, todo.title, todo.note)).slice(0, 20)
+        const reads = lightReads()
+        const found = await reads.light(['id', 'title', 'note'], { withTags: parseSearch(query).tags.length > 0 })
+        return reads.byIds(found.filter((todo) => matches(todo.tags, todo.title, todo.note)).slice(0, 20).map((todo) => todo.id))
       },
       formatCli: (todos) => todos.length ? todos.map(describe).join('\n') : 'No matching todos.'
     }),
@@ -718,8 +746,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
         fromCli: (args, flags) => ({ query: args.join(' '), confirm: flags.confirm })
       },
       run: async ({ query, confirm }) => {
-        const todos = await loadTodos()
-        const previous = resolveTodo(todos, query)
+        const previous = await resolveTodoQuery(query)
         if (!confirm) return { value: { deleted: false, todo: previous, deletedCount: 0 }, revert: null }
         if (!(await rawDelete(previous.id))) throw new Error('Failed to delete todo.')
         return {
@@ -756,11 +783,18 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
         fromCli: (_args, flags) => ({ section: asStr(flags.section), q: asStr(flags.q ?? flags.search) })
       },
       run: async ({ section, q }): Promise<TodoRecord[]> => {
-        let todos = await loadTodos()
+        let todos: TodoRecord[] | undefined
         if (q) {
           const matches = searchMatcher(q)
-          todos = todos.filter((t) => matches(t.tags, t.title, t.note))
+          const parsed = parseSearch(q)
+          if (parsed.tags.length || parsed.text) {
+            const reads = lightReads()
+            const ids = (await reads.light(['id', 'title', 'note'], { withTags: parsed.tags.length > 0 })).filter((t) => matches(t.tags, t.title, t.note)).map((t) => t.id)
+            if (ids.length <= TARGETED_READ_LIMIT) todos = await reads.byIds(ids)
+          }
+          todos ??= (await loadTodos()).filter((t) => matches(t.tags, t.title, t.note))
         }
+        todos ??= await loadTodos()
         if (section && (SECTION_ORDER as string[]).includes(section)) {
           return bucketTodos(todos)[section as TodoSectionId]
         }
@@ -775,7 +809,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
       paletteSafe: false,
       sideEffect: 'read',
       run: async (): Promise<{ name: string; count: number }[]> => {
-        const todos = await loadTodos()
+        const todos = await lightReads().light(['id', 'title', 'group'])
         const configured = getGroups()
         return allGroups(configured).map((name) => ({
           name,

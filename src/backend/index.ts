@@ -5,6 +5,8 @@ import type { PluginBackendApi } from '@valley/plugin-sdk'
 import { registerWorkflowContribution, type WorkflowContributionContract } from '@valley/plugin-sdk/workflow'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { createTodoDomain } from '../domain'
+import { readLightTodos, TARGETED_READ_LIMIT } from '../taskReads'
+import { normalizeGroups } from '@valley/plugin-sdk/groups'
 import { generateId } from '../lib'
 import { normalizeTodoRecord } from '../records'
 import { normalizeCustomStatuses, patchForStatus, STATUSES, OPTIONAL_STATUSES } from '../statuses'
@@ -94,7 +96,10 @@ export function register(api: PluginBackendApi): () => Promise<void> {
       const limit = parameters.limit === undefined ? 100 : Number(parameters.limit)
       if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error('Task limit must be between 1 and 1000.')
       const query = typeof parameters.query === 'string' ? parameters.query.toLocaleLowerCase() : ''
-      const records = (await domain.list(scoped)).filter(record => (!query || `${record.title}\n${record.note}`.toLocaleLowerCase().includes(query)) && (parameters.completed === undefined || record.completed === parameters.completed)).slice(0, limit)
+      const wanted = (record: TodoRecord) => (!query || `${record.title}\n${record.note}`.toLocaleLowerCase().includes(query)) && (parameters.completed === undefined || record.completed === parameters.completed)
+      // The filter reads the columns it needs; only the tasks it keeps are loaded whole (a read of everything past 100).
+      const found = (await readLightTodos(scoped, ['id', 'title', 'note', 'completed', 'status', 'customStatus'], { groups: normalizeGroups([]) })).filter(wanted).slice(0, limit).map(record => record.id)
+      const records = found.length <= TARGETED_READ_LIMIT ? await domain.getMany(found, scoped) : (await domain.list(scoped)).filter(wanted).slice(0, limit)
       return { items: records.map(record => ({ json: JSON.parse(JSON.stringify(record)) as Record<string, unknown> })) }
     }
     if (nodeTypeId === 'task.delete') {
