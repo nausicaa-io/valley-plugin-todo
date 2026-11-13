@@ -1,6 +1,7 @@
 {
   "icon": "icon.svg",
   "main": "runtime/index.js",
+  "keepTabIcon": true,
   "noteDocuments": [
     {
       "id": "tasks",
