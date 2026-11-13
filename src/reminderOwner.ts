@@ -59,7 +59,7 @@ export function changedTaskIds(event: unknown): string[] | null {
  * Keep scheduled reminders in step with the tasks. A change that names its tasks
  * reconciles only those tasks; a settings change that moves the default reminder
  * offsets, resume, the local day boundary and unkeyed changes reconcile everything.
- * An occurrence already scheduled for the same time with the same text (the
+ * A future occurrence already scheduled for the same time with the same text (the
  * `scheduled` and `texts` maps of reminder-state.json) is not handed to the host again. Disposal stops admitting work at once, never
  * issues another request, and waits for the work already running, so a quit
  * cannot fail on a reconcile the closing runtime refuses.
@@ -105,7 +105,8 @@ export function startReminderOwner(api: PluginBackendApi, list: () => Promise<To
       if (fired[key] === occurrence.at) continue
       const body = record.note.trim().split('\n')[0]
       const signature = textSignature(`${api.i18n.language?.() ?? ''}\n${record.title}\n${body}`)
-      if (scheduledAt[key] === occurrence.at && texts[key] === signature) continue
+      // A past, unfired occurrence goes to the host again as before, which delivers it once (same occurrence id).
+      if (occurrence.at > Date.now() && scheduledAt[key] === occurrence.at && texts[key] === signature) continue
       live()
       await api.notifications.schedule(key, [occurrence.at], {
         eventId: 'reminder', title: record.title, body, targetItemId: record.id,

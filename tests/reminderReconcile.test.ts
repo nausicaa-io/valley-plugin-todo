@@ -214,6 +214,34 @@ describe('reminder reconcile', () => {
     await stop()
   })
 
+  it('on a restart sends the same schedule and cancel calls as the base owner, except a future occurrence already scheduled', async () => {
+    // (a) passed while the app was closed and never fired, (b) still ahead and already scheduled, (c) fired, plus a task that lost its reminder.
+    const records = [reminded('missed', { dueDate: day(-1) }), reminded('ahead'), reminded('fired', { dueDate: day(-1) }), task('cleared')]
+    const first = startOwner([...records.slice(0, 3), reminded('cleared')])
+    await first.begin().then((halt) => halt())
+    const saved = await first.state()
+    const firedAt = saved.scheduled['reminder:fired:10'] as number
+    const state = { ...saved, fired: { 'reminder:fired:10': firedAt } }
+
+    // Base 6fe8755 `reconcileAll`: every occurrence whose fired time differs is handed to the host, every saved key no longer wanted is cancelled.
+    const base: string[] = []
+    const wanted = new Set<string>()
+    for (const record of records) for (const occurrence of reminderTimes(record)) {
+      const key = `reminder:${record.id}:${occurrence.id}`
+      wanted.add(key)
+      if (state.fired[key] !== occurrence.at) base.push(`schedule ${key}`)
+    }
+    for (const key of state.keys as string[]) if (!wanted.has(key)) base.push(`cancel ${key}`)
+    expect(base.sort()).toEqual(['cancel reminder:cleared:10', 'schedule reminder:ahead:10', 'schedule reminder:missed:10'])
+
+    const restarted = startOwner(records, { state })
+    const stop = await restarted.begin()
+    expect(restarted.calls.sort()).toEqual(base.filter((call) => call !== 'schedule reminder:ahead:10'))
+    expect(restarted.host.get('reminder:missed:10')?.at).toBe(saved.scheduled['reminder:missed:10'])
+    expect((await restarted.state()).fired).toEqual({ 'reminder:fired:10': firedAt })
+    await stop()
+  })
+
   it('reschedules with the new texts when the language changed', async () => {
     const run = startOwner([reminded('a'), reminded('b')])
     const stop = await run.begin()
