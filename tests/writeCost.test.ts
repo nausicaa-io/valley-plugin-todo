@@ -37,7 +37,7 @@ const report = (name: string, io: ReturnType<typeof countIo>): void => {
   console.info(`[todo-optimize] ${name}: ${JSON.stringify({ totals: io.totals(), ...io.counts })}`)
 }
 
-describe('write and read cost (todo-optimize WP0 baseline)', () => {
+describe('write and read cost (todo-optimize; before/after in Work/lanes/todo-optimize/baseline.md)', () => {
   it('one checkbox toggle on a task with 40 status changes, 3 links, 2 attachments and 5 sessions', async () => {
     const { mock } = installTodoNotes([heavy() as unknown as DataRecord, ...seed(20)])
     keyDatasetChanges(mock)
@@ -51,10 +51,10 @@ describe('write and read cost (todo-optimize WP0 baseline)', () => {
     io.reset()
     expect((await mock.api.backend.call<{ ok: boolean }>('records.update', { id: 'heavy', record: { ...committed, ...patchForStatus(null), updatedAt: new Date().toISOString() }, expectedUpdatedAt: committed.updatedAt })).ok).toBe(true)
     report('toggle back via records.update alone', io)
-    expect(ui.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 16, 'documents.read': 1, 'documents.update': 1 })
-    expect(ui.rowsWritten).toEqual({ 'task_links.delete': 3, 'task_attachments.delete': 2, 'focus_sessions.delete': 5, 'status_history.delete': 40, 'task_links.insert': 3, 'task_attachments.insert': 2, 'focus_sessions.insert': 5, 'status_history.insert': 41, 'task_tags.delete': 2, 'task_tags.insert': 2, 'tasks.update': 2 })
-    expect(io.counts.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 10, 'documents.read': 1, 'documents.update': 1 })
-    expect(io.totals()).toEqual({ calls: 13, rowsRead: 105, rowsWritten: 109 })
+    expect(ui.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 12, 'documents.read': 1, 'documents.update': 1 })
+    expect(ui.rowsWritten).toEqual({ 'status_history.insert': 1, 'task_tags.delete': 2, 'task_tags.insert': 2, 'tasks.update': 2 })
+    expect(io.counts.calls).toEqual({ 'rpc.records.update': 1, 'dataset.query': 6, 'documents.read': 1, 'documents.update': 1 })
+    expect(io.totals()).toEqual({ calls: 9, rowsRead: 54, rowsWritten: 7 })
   })
 
   it('a cold list load of 2,000 tasks', async () => {

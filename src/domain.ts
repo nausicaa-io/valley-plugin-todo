@@ -2,7 +2,7 @@ import type { DatasetRecord, DatasetWhere, ValleyPluginApi } from '@valley/plugi
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { normalizeGroups } from '@valley/plugin-sdk/groups'
 import { effectiveStatus } from './statuses'
-import { forWrite, hydrateTodos, normalizeTodoRecord, relationDeletes, relationWrites, taskRow, type TodoRelations } from './records'
+import { forWrite, hydrateTodos, normalizeTodoRecord, relationChanges, relationWrites, taskRow, type TodoRelations } from './records'
 import type { TodoRecord } from './types'
 
 type OwnerApi = Pick<ValleyPluginApi, 'data' | 'pluginId'> & { settings?: Pick<ValleyPluginApi['settings'], 'get'> } & { documents: Pick<ValleyPluginApi['documents'], 'read' | 'update'> }
@@ -41,31 +41,37 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     assertActive()
     return records
   }
-  const relations = async (api: OwnerApi, id?: string | string[], tags = true): Promise<TodoRelations> => {
+  const relations = async (api: OwnerApi, id?: string | string[]): Promise<TodoRelations> => {
     const where = id === undefined ? undefined : { taskId: typeof id === 'string' ? id : { in: id } }
     const [tagRows, links, attachments, sessions, statusHistory] = await Promise.all([
-      tags ? rows(api, 'todo.task_tags', where) : [], rows(api, 'todo.task_links', where),
+      rows(api, 'todo.task_tags', where), rows(api, 'todo.task_links', where),
       rows(api, 'todo.task_attachments', where), rows(api, 'todo.focus_sessions', where), rows(api, 'todo.status_history', where)
     ])
     return { tags: tagRows, links, attachments, sessions, statusHistory }
   }
-  const read = async (api: OwnerApi, id?: string | string[]): Promise<TodoRecord[]> => {
+  const readRows = async (api: OwnerApi, id?: string | string[]) => {
     const where = id === undefined ? undefined : { id: typeof id === 'string' ? id : { in: id } }
     const [records, related] = await Promise.all([rows(api, 'todo.tasks', where), relations(api, id)])
-    return hydrateTodos(records, related, normalizeGroups([]))
+    return { todos: hydrateTodos(records, related, normalizeGroups([])), related }
   }
+  const read = async (api: OwnerApi, id?: string | string[]): Promise<TodoRecord[]> => (await readRows(api, id)).todos
   const readMany = async (api: OwnerApi, ids: string[]): Promise<TodoRecord[]> => {
     const unique = [...new Set(ids)]
     const records: TodoRecord[] = []
     for (let offset = 0; offset < unique.length; offset += 100) records.push(...await read(api, unique.slice(offset, offset + 100)))
     return records
   }
-  const content = (record: TodoRecord) => JSON.stringify({ ...record, updatedAt: undefined, reminderFiredAt: undefined })
-  const update = async (api: OwnerApi, id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: Revision, emit = publish, options: TodoUpdateOptions = {}) => {
-    validateReminders(record)
+  /** The document baseline, then the task and its stored relations, read once per write. */
+  const load = async (api: OwnerApi, id: string) => {
     const ref = { pluginId: owner.pluginId, sourceId: 'tasks', itemId: id }
     const baseline = await api.documents.read(ref)
-    const current = (await read(api, id))[0]
+    const { todos, related } = await readRows(api, id)
+    return { ref, baseline, current: todos[0] as TodoRecord | undefined, related }
+  }
+  const content = (record: TodoRecord) => JSON.stringify({ ...record, updatedAt: undefined, reminderFiredAt: undefined })
+  const update = async (api: OwnerApi, id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: Revision, emit = publish, options: TodoUpdateOptions = {}, loaded?: Awaited<ReturnType<typeof load>>) => {
+    validateReminders(record)
+    const { ref, baseline, current, related } = loaded ?? await load(api, id)
     if (!baseline || !current || (expectedUpdatedAt !== undefined && current.updatedAt !== expectedUpdatedAt)) return { ok: false }
     if (!record.title?.trim()) throw new Error('A task title cannot be empty.')
     const from = effectiveStatus(current)
@@ -75,7 +81,6 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     if (!options.exactStatusHistory && from !== to) statusHistory.push({ from, to, changedAt: new Date().toISOString() })
     next.statusHistory = statusHistory.length ? statusHistory : undefined
     const persisted = forWrite(next)
-    const related = await relations(api, id, false)
     const row = taskRow(persisted)
     delete row.id
     delete row.note
@@ -86,14 +91,14 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
       body: persisted.note, explicitTags: persisted.tags ?? [],
       operations: [
         { dataset: 'todo.tasks', operation: 'update', key: { id }, values: row },
-        ...relationDeletes(id, related), ...relationWrites(persisted, false)
+        ...relationChanges(persisted, related)
       ]
     })
     if (content(current) !== content(persisted)) {
       await committedEvent(emit, 'task.updated', { record: persisted, previous: current })
       if (from !== 'completed' && to === 'completed') await committedEvent(emit, 'task.completed', { record: persisted, previous: current })
     }
-    return { ok: true, record: persisted, documentRevision: { expectedRevision: committed.revision, realmGeneration: committed.realmGeneration } }
+    return { ok: true, record: persisted, previous: current, documentRevision: { expectedRevision: committed.revision, realmGeneration: committed.realmGeneration } }
   }
   return {
     list: (api = owner) => read(api),
@@ -112,10 +117,11 @@ export function createTodoDomain(owner: OwnerApi, publish: TodoEventSink = async
     update: (id: string, record: TodoRecord, expectedUpdatedAt?: string, documentRevision?: Revision, api = owner, emit = publish, options: TodoUpdateOptions = {}) =>
       serialize(() => update(api, id, record, expectedUpdatedAt, documentRevision, emit, options)),
     patch: (id: string, values: Partial<TodoRecord> | ((current: TodoRecord) => Partial<TodoRecord>), api = owner, emit = publish) => serialize(async () => {
-      const current = (await read(api, id))[0]
+      const loaded = await load(api, id)
+      const current = loaded.current
       if (!current) throw new Error('The task no longer exists.')
       const patch = typeof values === 'function' ? values(current) : values
-      const result = await update(api, id, { ...current, ...patch, updatedAt: new Date().toISOString() }, current.updatedAt, undefined, emit)
+      const result = await update(api, id, { ...current, ...patch, updatedAt: new Date().toISOString() }, current.updatedAt, undefined, emit, {}, loaded)
       if (!result.ok || !result.record) throw new Error('The task changed before it could be saved.')
       return result.record
     }),

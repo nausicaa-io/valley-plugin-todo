@@ -199,6 +199,18 @@ export interface TodoRelations {
   statusHistory: DatasetRecord[]
 }
 
+type OrderedRelation = Exclude<keyof TodoRelations, 'tags'>
+
+/** The ordered relation rows a record stores, positions counted from 0. */
+function orderedRelationRows(record: TodoRecord): Array<{ dataset: string; relation: OrderedRelation; rows: DatasetRecord[] }> {
+  return [
+    { dataset: LINKS_DATASET, relation: 'links', rows: (record.urls ?? []).map((url, position) => ({ taskId: record.id, position, url })) },
+    { dataset: ATTACHMENTS_DATASET, relation: 'attachments', rows: (record.attachments ?? []).map((path, position) => ({ taskId: record.id, position, path })) },
+    { dataset: SESSIONS_DATASET, relation: 'sessions', rows: (record.history ?? []).map((session, position) => ({ taskId: record.id, position, ...session })) },
+    { dataset: STATUS_HISTORY_DATASET, relation: 'statusHistory', rows: (record.statusHistory ?? []).map((entry, position) => ({ taskId: record.id, position, ...entry })) }
+  ]
+}
+
 export function relationWrites(record: TodoRecord, includeTags = true): DatasetTransactionOperation[] {
   return [
     ...(includeTags ? record.tags.map((tag) => ({
@@ -206,37 +218,33 @@ export function relationWrites(record: TodoRecord, includeTags = true): DatasetT
       operation: 'insert' as const,
       values: { taskId: record.id, tag }
     })) : []),
-    ...(record.urls ?? []).map((url, position) => ({
-      dataset: LINKS_DATASET,
-      operation: 'insert' as const,
-      values: { taskId: record.id, position, url }
-    })),
-    ...(record.attachments ?? []).map((path, position) => ({
-      dataset: ATTACHMENTS_DATASET,
-      operation: 'insert' as const,
-      values: { taskId: record.id, position, path }
-    })),
-    ...(record.history ?? []).map((session, position) => ({
-      dataset: SESSIONS_DATASET,
-      operation: 'insert' as const,
-      values: { taskId: record.id, position, ...session }
-    })),
-    ...(record.statusHistory ?? []).map((entry, position) => ({
-      dataset: STATUS_HISTORY_DATASET,
-      operation: 'insert' as const,
-      values: { taskId: record.id, position, ...entry }
-    }))
+    ...orderedRelationRows(record).flatMap(({ dataset, rows }) => rows.map((values) => ({ dataset, operation: 'insert' as const, values })))
   ]
 }
 
-export function relationDeletes(taskId: string, relations: TodoRelations): DatasetTransactionOperation[] {
-  return [
-    ...relations.tags.map((row) => ({ dataset: TAGS_DATASET, operation: 'delete' as const, key: { taskId, tag: String(row.tag) } })),
-    ...relations.links.map((row) => ({ dataset: LINKS_DATASET, operation: 'delete' as const, key: { taskId, position: Number(row.position) } })),
-    ...relations.attachments.map((row) => ({ dataset: ATTACHMENTS_DATASET, operation: 'delete' as const, key: { taskId, position: Number(row.position) } })),
-    ...relations.sessions.map((row) => ({ dataset: SESSIONS_DATASET, operation: 'delete' as const, key: { taskId, position: Number(row.position) } })),
-    ...relations.statusHistory.map((row) => ({ dataset: STATUS_HISTORY_DATASET, operation: 'delete' as const, key: { taskId, position: Number(row.position) } }))
-  ]
+/**
+ * The writes that turn the stored link, attachment, session and status-history
+ * rows into the record's: rows already stored at their position are left alone,
+ * so an unchanged relation costs nothing and a status change appends one row.
+ * The stored result equals deleting every row and inserting the record's.
+ */
+export function relationChanges(record: TodoRecord, stored: TodoRelations): DatasetTransactionOperation[] {
+  const deletes: DatasetTransactionOperation[] = []
+  const writes: DatasetTransactionOperation[] = []
+  for (const { dataset, relation, rows } of orderedRelationRows(record)) {
+    const byPosition = new Map(stored[relation].map((row) => [Number(row.position), row]))
+    for (const values of rows) {
+      const position = values.position as number
+      const existing = byPosition.get(position)
+      byPosition.delete(position)
+      if (existing && Object.entries(values).every(([field, value]) => existing[field] === value)) continue
+      if (!existing) { writes.push({ dataset, operation: 'insert', values }); continue }
+      const { taskId: _taskId, position: _position, ...changed } = values
+      writes.push({ dataset, operation: 'update', key: { taskId: record.id, position }, values: changed })
+    }
+    for (const position of byPosition.keys()) deletes.push({ dataset, operation: 'delete', key: { taskId: record.id, position } })
+  }
+  return [...deletes, ...writes]
 }
 
 export function hydrateTodos(raw: DatasetRecord[], relations: TodoRelations, groups: ReturnType<typeof normalizeGroups>): TodoRecord[] {
