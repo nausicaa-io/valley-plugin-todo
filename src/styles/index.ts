@@ -13,7 +13,6 @@ import { filtersCss } from "./filters"
 import { settingsCss } from "./settings"
 import { sidebarRowsCss } from "./sidebarRows"
 import { tableCss } from "./table"
-import { groupListCss } from "./groupList"
 
 export const STYLES =
   tokensCss +
@@ -30,8 +29,7 @@ export const STYLES =
   filtersCss +
   settingsCss +
   sidebarRowsCss +
-  tableCss +
-  groupListCss
+  tableCss
 
 const STYLE_ID = "notes-todo-styles"
 
