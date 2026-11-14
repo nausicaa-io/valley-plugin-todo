@@ -11,6 +11,7 @@ import { addDays, formatDate, isoDay } from '../src/model/sort'
 import { getSharedTodos, setSharedTodos } from '../src/state/sharedTodos'
 import { setView } from '../src/state/viewStore'
 import { viewTabInstance } from '../src/state/tabs'
+import { detailItemId } from '../src/integrations/infoDetails'
 import en from '../locales/en.json'
 import de from '../locales/de.json'
 import es from '../locales/es.json'
@@ -122,6 +123,26 @@ describe('To-Do facts on the Info tab', () => {
     expect(pinned).toContainEqual(['Wildlife', '2'])
     expect(pinned.find(([label]) => label === 'Fungi')).toBeUndefined()
     expect(pinned).toContainEqual(['Next due', `Review draft · ${formatDate(day(3))}`])
+  })
+
+  it('declares item ids the host accepts for group names with spaces, umlauts and slashes, and still counts them', () => {
+    const groups = [{ id: 'group_cf', name: 'Copper Finch', color: '#3b82f6' }, { id: 'group_gw', name: 'Grüne Wiese/Nord', color: '#eab308' }]
+    const records = [
+      { id: 'x1', title: 'One', group: 'Copper Finch', createdAt: stamp(-2), updatedAt: stamp(-2) },
+      { id: 'x2', title: 'Two', group: 'copper finch', createdAt: stamp(-2), updatedAt: stamp(-2) },
+      { id: 'x3', title: 'Three', group: 'Grüne Wiese/Nord', status: 'waiting', createdAt: stamp(-2), updatedAt: stamp(-2) }
+    ] as DataRecord[]
+    const store = installTodoNotes(records, { ...SETTINGS, groups })
+    load(store, records)
+    const details = provider(store)
+    expect(WORKSPACE_DETAILS_V1.validate(details)).toBe(true)
+    expect(details.items.every((item) => /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(item.id))).toBe(true)
+    expect(details.items.find((item) => item.label === 'Copper Finch')?.id).toBe(detailItemId('group', 'copper finch'))
+    expect(detailItemId('group', 'copper finch')).toBe(detailItemId('group', 'copper finch'))
+    expect(detailItemId('group', 'fungi')).toBe('group:fungi')
+    const rows = infoRows(store)
+    expect(rows).toContainEqual(['Copper Finch', '2'])
+    expect(rows).toContainEqual(['Grüne Wiese/Nord', '1'])
   })
 
   it('counts a smart list by its own scope', () => {

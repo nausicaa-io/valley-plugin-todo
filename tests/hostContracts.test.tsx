@@ -71,13 +71,19 @@ describe('package host contracts', () => {
     const provided: string[] = []
     const extensions = mock.api.interop.extensions
     const provideExtension = extensions.provide.bind(extensions)
-    extensions.provide = ((contract, value) => { provided.push(`${contract.kind}:${contract.id}`); return provideExtension(contract, value) }) as typeof extensions.provide
+    const invalid: string[] = []
+    extensions.provide = ((contract, value) => {
+      provided.push(`${contract.kind}:${contract.id}`)
+      if (!contract.validate(value)) invalid.push(contract.id)
+      return provideExtension(contract, value)
+    }) as typeof extensions.provide
     const dispose = plugin.register(mock.api)
     try {
       await Promise.resolve()
       expect(provided).toContain(`extension:${WORKSPACE_DETAILS_V1.id}`)
       const claims = (declared.provides ?? []).map((contract) => `${contract.kind}:${contract.id}`)
       expect([...new Set(provided)].filter((contract) => !claims.includes(contract))).toEqual([])
+      expect(invalid, 'providers the host would reject as invalid').toEqual([])
     } finally { dispose() }
   })
   it('owns and disposes its stylesheet in every theme', () => {

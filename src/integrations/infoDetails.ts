@@ -20,13 +20,35 @@ const TAIL_ROWS = ['tags', 'estimated', 'nextDue', 'lastCompleted', 'lastChange'
 const staticItem = (id: string): WorkspaceDetailItem => ({ id, label: englishText(`todo.info.${id}`), labelKey: `todo.info.${id}`, kind: 'text' })
 const verbatimItem = (id: string, label: string): WorkspaceDetailItem => ({ id, label, kind: 'text' })
 
+/** Core accepts item ids matching `[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}`; a group key or status id outside that (a space, an umlaut) gets a stable hash instead. */
+const DETAIL_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
+export function detailItemId(prefix: string, raw: string): string {
+  const plain = `${prefix}:${raw}`
+  if (DETAIL_ID.test(plain)) return plain
+  let hash = 0x811c9dc5
+  for (const byte of new TextEncoder().encode(raw)) hash = Math.imul(hash ^ byte, 0x01000193) >>> 0
+  return `${prefix}:h${hash.toString(16).padStart(8, '0')}`
+}
+
+type DynamicItems = { statuses: WorkspaceDetailItem[]; groups: WorkspaceDetailItem[]; keys: Map<string, string> }
+
 /** The statuses and groups any task uses, in the order Info lists them. The list's rows come from here, whatever view is open. */
-function dynamicItems(all: ListFacts): { statuses: WorkspaceDetailItem[]; groups: WorkspaceDetailItem[] } {
-  const statuses = allStatuses().filter((id) => (all.statuses.get(id) ?? 0) > 0).map((id) => verbatimItem(`status:${id}`, statusDef(id).label))
+function dynamicItems(all: ListFacts): DynamicItems {
+  const keys = new Map<string, string>()
+  const statuses = allStatuses().filter((id) => (all.statuses.get(id) ?? 0) > 0).map((id) => {
+    const itemId = detailItemId('status', id)
+    keys.set(itemId, id)
+    return verbatimItem(itemId, statusDef(id).label)
+  })
   const configured = getGroups().map((group) => group.name)
   const seen = new Set<string>()
   const groups: WorkspaceDetailItem[] = []
-  const add = (key: string, name: string): void => { seen.add(key); groups.push(verbatimItem(`group:${key}`, name)) }
+  const add = (key: string, name: string): void => {
+    const itemId = detailItemId('group', key)
+    seen.add(key)
+    keys.set(itemId, key)
+    groups.push(verbatimItem(itemId, name))
+  }
   for (const name of configured) {
     const key = groupKey(name)
     const used = all.groups.get(key)
@@ -34,7 +56,7 @@ function dynamicItems(all: ListFacts): { statuses: WorkspaceDetailItem[]; groups
   }
   for (const [key, group] of [...all.groups.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name))) if (!seen.has(key)) add(key, group.name)
   if (groups.length && all.ungrouped) groups.push({ id: 'noGroup', label: englishText('todo.chip.noGroup'), labelKey: 'todo.chip.noGroup', kind: 'text' })
-  return { statuses, groups }
+  return { statuses, groups, keys }
 }
 
 function minutesText(total: number): string {
@@ -44,7 +66,7 @@ function minutesText(total: number): string {
   return minutes ? uiText('todo.info.hoursMinutes', { hours, minutes }) : uiText('todo.info.hours', { hours })
 }
 
-function textValues(facts: ListFacts, view: ReturnType<typeof getView>, items: { statuses: WorkspaceDetailItem[]; groups: WorkspaceDetailItem[] }): Record<string, WorkspaceDetailValue> {
+function textValues(facts: ListFacts, view: ReturnType<typeof getView>, items: DynamicItems): Record<string, WorkspaceDetailValue> {
   const values: Record<string, WorkspaceDetailValue> = {}
   const put = (id: string, text: string): void => { if (text) values[id] = { text } }
   const count = (id: string, n: number): void => { if (n > 0) put(id, String(n)) }
@@ -63,13 +85,13 @@ function textValues(facts: ListFacts, view: ReturnType<typeof getView>, items: {
   count('flagged', facts.flagged)
   count('reminder', facts.withReminder)
   put('priority', (['high', 'medium', 'low'] as const).filter((level) => facts.priority[level] > 0).map((level) => `${uiText(`todo.priority.${level}`)} ${facts.priority[level]}`).join(' · '))
-  for (const item of items.statuses) count(item.id, facts.statuses.get(item.id.slice('status:'.length) as TodoStatus) ?? 0)
+  for (const item of items.statuses) count(item.id, facts.statuses.get(items.keys.get(item.id) as TodoStatus) ?? 0)
   const named = [...facts.groups.values()]
   if (named.length) {
     put('groups', String(named.length))
     for (const item of items.groups) {
       if (item.id === 'noGroup') { count(item.id, facts.ungrouped); continue }
-      count(item.id, facts.groups.get(item.id.slice('group:'.length))?.count ?? 0)
+      count(item.id, facts.groups.get(items.keys.get(item.id) ?? '')?.count ?? 0)
     }
   }
   if (facts.tags.size) {
@@ -92,7 +114,7 @@ function textValues(facts: ListFacts, view: ReturnType<typeof getView>, items: {
 export function registerInfoDetails(): () => void {
   const listeners = new Set<() => void>()
   let key = ''
-  let dynamic: ReturnType<typeof dynamicItems> = { statuses: [], groups: [] }
+  let dynamic: DynamicItems = { statuses: [], groups: [], keys: new Map() }
   let off = (): void => {}
   const declare = (): void => {
     const next = dynamicItems(listFacts(getSharedTodos(), DEFAULT_VIEW, isoDay()))
