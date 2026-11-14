@@ -34,15 +34,35 @@ export async function setLocalGroups(groups: LocalGroup[]): Promise<void> {
   await api.settings.set(LOCAL_GROUPS_KEY, normalizeLocalGroups(groups, getGlobalGroups()))
 }
 
+export const GROUP_ORDER_KEY = 'groupOrder'
+
+/**
+ * To-Do's own order of the top-level groups, set by dragging in the sidebar's
+ * Groups list: shared and To-Do-only groups in one sequence. A group the order
+ * does not name yet comes after the named ones, shared before To-Do-only.
+ * Subgroups stay behind their group in their owner's order.
+ */
+function inListOrder(groups: TodoGroup[]): TodoGroup[] {
+  const saved = api?.settings.get()[GROUP_ORDER_KEY]
+  const order = Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : []
+  if (!order.length) return groups
+  const rank = new Map(order.map((id, index) => [id, index]))
+  return groups
+    .filter((group) => group.parent === undefined)
+    .map((group, index) => ({ group, at: rank.get(group.id) ?? order.length + index }))
+    .sort((a, b) => a.at - b.at)
+    .flatMap(({ group }) => [group, ...groups.filter((candidate) => candidate.parent === group.id)])
+}
+
 /** Every shared and To-Do-only group, whatever the switches say: for name checks and a task's saved group colour. */
 export function getAllGroups(): TodoGroup[] {
-  return mergedGroups(getGlobalGroups(), getLocalGroups())
+  return inListOrder(mergedGroups(getGlobalGroups(), getLocalGroups()))
 }
 
 /** The groups To-Do offers and lists: shared and To-Do-only groups, each only while its switch is on. */
 export function getGroups(): TodoGroup[] {
   const kinds = getGroupKinds()
-  return mergedGroups(kinds.shared ? getGlobalGroups() : [], kinds.local ? getLocalGroups() : [])
+  return inListOrder(mergedGroups(kinds.shared ? getGlobalGroups() : [], kinds.local ? getLocalGroups() : []))
 }
 
 // A task in a switched-off group keeps its group's own colour.
@@ -121,22 +141,46 @@ export function useCollapsedGroups(): [ReadonlySet<string>, (id: string) => void
 const isLocalGroup = (id: string): boolean => /^local-[a-z0-9]{1,32}$/.test(id)
 
 /**
- * Where a group dragged in the sidebar's Groups list lands. A group moves only
- * among its own kind (shared or To-Do-only); `null` for a drop on the other
- * kind or on itself. `hiddenSubgroups` is set for a drop after a collapsed
- * group: the dragged group then lands after that group's hidden subgroups.
+ * Where a group dragged in the sidebar's Groups list lands. `sideways` is the
+ * pointer's travel since the drag began: to the right asks for a subgroup, to
+ * the left for the top level, and without either the group keeps its level
+ * where the slot allows both. A group never becomes a subgroup of the other
+ * kind (shared or To-Do-only): such a drop lands after that group's subgroups.
+ * `hiddenSubgroups` is set for a drop after a collapsed group, which lands
+ * after its hidden subgroups. `null` for a drop on the dragged group itself.
  */
-export function groupDropPlacement(dragId: string, overId: string, position: 'before' | 'after', nest: boolean, hiddenSubgroups = false): GroupPlacement | null {
-  if (isLocalGroup(dragId) !== isLocalGroup(overId)) return null
-  const list: readonly { id: string; parent?: string }[] = isLocalGroup(dragId) ? getLocalGroups() : getGlobalGroups()
+export function groupDropPlacement(dragId: string, overId: string, position: 'before' | 'after', sideways: -1 | 0 | 1, hiddenSubgroups = false): GroupPlacement | null {
+  const list = getGroups()
+  const dragged = list.find((group) => group.id === dragId)
+  if (!dragged) return null
+  const nest = sideways > 0 || (sideways === 0 && dragged.parent !== undefined)
   const lastHidden = hiddenSubgroups && position === 'after' ? list.filter((group) => group.parent === overId).at(-1) : undefined
-  return lastHidden ? resolveGroupDrop(list, dragId, lastHidden.id, 'after', false) : resolveGroupDrop(list, dragId, overId, position, nest)
+  const placement = lastHidden ? resolveGroupDrop(list, dragId, lastHidden.id, 'after', false) : resolveGroupDrop(list, dragId, overId, position, nest)
+  if (!placement || placement.parent === null || isLocalGroup(placement.parent) === isLocalGroup(dragId)) return placement
+  const rest = list.filter((group) => group.id !== dragId && group.parent !== dragId)
+  const after = rest.slice(rest.findIndex((group) => group.id === placement.parent) + 1).find((group) => group.parent === undefined)
+  return { parent: null, before: after?.id ?? null }
 }
 
-/** Save a group's new place: a shared group in the app-wide registry, a To-Do-only group in To-Do's settings. */
+/**
+ * Save a dragged group's new place. The order of the top-level groups is
+ * To-Do's own (`groupOrder`), so shared and To-Do-only groups mix freely here
+ * without changing the order other plugins see. A subgroup's group and its
+ * place among the subgroups belong to the group's owner: the shared registry
+ * or To-Do's own groups.
+ */
 export async function moveGroup(id: string, placement: GroupPlacement): Promise<void> {
-  if (isLocalGroup(id)) await setLocalGroups(placeGroup(getLocalGroups(), id, placement))
-  else await api.sharedState.mutateGroup({ kind: 'move', id, ...placement })
+  const inOwner = async (target: GroupPlacement): Promise<void> => {
+    if (isLocalGroup(id)) await setLocalGroups(placeGroup(getLocalGroups(), id, target))
+    else await api.sharedState.mutateGroup({ kind: 'move', id, ...target })
+  }
+  if (placement.parent !== null) { await inOwner(placement); return }
+  const all = getAllGroups()
+  const top = all.filter((group) => group.parent === undefined && group.id !== id).map((group) => group.id)
+  const at = placement.before === null ? -1 : top.indexOf(placement.before)
+  top.splice(at < 0 ? top.length : at, 0, id)
+  await api.settings.set(GROUP_ORDER_KEY, top)
+  if (all.find((group) => group.id === id)?.parent !== undefined) await inOwner({ parent: null, before: null })
 }
 
 export function startGroupUsageReporting(): () => void {

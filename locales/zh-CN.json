@@ -468,6 +468,7 @@
   "todo.settings.localGroupAdd": "添加",
   "todo.settings.localGroupsSetting": "独立待办分组",
   "todo.settings.collapsedGroupsSetting": "侧边栏中折叠的分组",
+  "todo.settings.groupOrderSetting": "侧边栏分组的顺序",
   "todo.settings.localGroupUsage": "{{count}} 个任务使用此分组",
   "todo.settings.localGroupNewColor": "新分组的颜色",
   "todo.settings.localGroupDuplicate": "已存在同名分组。",

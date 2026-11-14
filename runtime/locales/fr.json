@@ -468,6 +468,7 @@
   "todo.settings.localGroupAdd": "Ajouter",
   "todo.settings.localGroupsSetting": "Groupes To-Do individuels",
   "todo.settings.collapsedGroupsSetting": "Groupes repliés de la barre latérale",
+  "todo.settings.groupOrderSetting": "Ordre des groupes de la barre latérale",
   "todo.settings.localGroupUsage": "{{count}} tâches utilisent ce groupe",
   "todo.settings.localGroupNewColor": "Couleur du nouveau groupe",
   "todo.settings.localGroupDuplicate": "Un groupe portant ce nom existe déjà.",

@@ -184,30 +184,51 @@ describe('Groups list: folding and reordering', () => {
     expect(store.mock.api.settings.get().collapsedGroups).toEqual([])
   })
 
-  it('reorders shared groups by drag in the shared registry, nests with the pointer to the right and lifts back out', async () => {
+  it('puts any group anywhere at the top level in To-Do\u2019s own order, shared and To-Do-only mixed', async () => {
     await open()
-    await drag('Rain', 'Fungi', { clientX: 4, clientY: -1 })
-    expect(store.mock.api.sharedState.mutateGroup).toHaveBeenLastCalledWith({ kind: 'move', id: 'group_rain', parent: null, before: 'group_fungi' })
-    expect(names().slice(0, 5)).toEqual(['Rain', 'Fungi', '  Spores', '  Caps', 'Wildlife'])
+    // Home (To-Do-only) above Fungi (shared): the order is To-Do's, the shared registry is not touched.
+    await drag('Home', 'Fungi', { clientX: 4, clientY: -1 })
+    expect(store.mock.api.settings.get().groupOrder).toEqual(['local-cccccccccccc', 'group_fungi', 'group_wildlife', 'group_rain', 'local-aaaaaaaaaaaa'])
+    expect(names()).toEqual(['Home', 'Fungi', '  Spores', '  Caps', 'Wildlife', 'Rain', 'Errands', '  Market'])
+    expect(store.mock.api.sharedState.mutateGroup).not.toHaveBeenCalled()
+    // A shared group below a To-Do-only one.
+    await drag('Wildlife', 'Errands', { clientX: 4, clientY: 1 })
+    expect(names()).toEqual(['Home', 'Fungi', '  Spores', '  Caps', 'Rain', 'Errands', '  Market', 'Wildlife'])
+    expect(store.mock.api.sharedState.mutateGroup).not.toHaveBeenCalled()
+  })
+
+  it('nests only when the pointer travels right, lifts when it travels left, and never under the other kind', async () => {
+    await open()
+    // Grabbed anywhere on the row and dropped below Wildlife without sideways travel: a plain reorder.
+    await drag('Rain', 'Wildlife', { clientX: 4, clientY: 1 })
+    expect(store.mock.api.sharedState.mutateGroup).not.toHaveBeenCalled()
+    // More than 20px to the right: a subgroup of Wildlife, saved in the shared registry.
     await drag('Rain', 'Wildlife', { clientX: 60, clientY: 1 })
     expect(store.mock.api.sharedState.mutateGroup).toHaveBeenLastCalledWith({ kind: 'move', id: 'group_rain', parent: 'group_wildlife', before: null })
     expect(names().slice(0, 5)).toEqual(['Fungi', '  Spores', '  Caps', 'Wildlife', '  Rain'])
-    await drag('Rain', 'Fungi', { clientX: 4, clientY: -1 })
-    expect(names().slice(0, 5)).toEqual(['Rain', 'Fungi', '  Spores', '  Caps', 'Wildlife'])
+    // Without sideways travel a subgroup stays a subgroup where the slot allows it.
+    await drag('Caps', 'Spores', { clientX: 4, clientY: -1 })
+    expect(store.mock.api.sharedState.mutateGroup).toHaveBeenLastCalledWith({ kind: 'move', id: 'group_caps', parent: 'group_fungi', before: 'group_spores' })
+    // To the left at the end of its group: out to the top level.
+    await drag('Rain', 'Rain', { clientX: 4, clientY: 1 })
+    await drag('Rain', 'Wildlife', { clientX: -40, clientY: 1 })
+    expect(store.mock.api.sharedState.mutateGroup).toHaveBeenLastCalledWith({ kind: 'move', id: 'group_rain', parent: null, before: null })
+    expect(names().slice(0, 5)).toEqual(['Fungi', '  Caps', '  Spores', 'Wildlife', 'Rain'])
+    // A shared group dragged right under a To-Do-only group lands after that group's subgroups instead.
+    await drag('Rain', 'Errands', { clientX: 60, clientY: 1 })
+    expect(names()).toEqual(['Fungi', '  Caps', '  Spores', 'Wildlife', 'Errands', '  Market', 'Rain', 'Home'])
+    expect((store.mock.api.settings.get().localGroups as Array<{ name: string }>).map((group) => group.name)).toEqual(['Errands', 'Market', 'Home'])
   })
 
-  it('lands after the hidden subgroups of a folded group, and keeps the two kinds apart', async () => {
+  it('lands after the hidden subgroups of a folded group, and reorders To-Do-only subgroups in To-Do\u2019s own groups', async () => {
     await open()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Hide the subgroups of Fungi' })) })
     await drag('Rain', 'Fungi', { clientX: 60, clientY: 1 })
-    expect(store.mock.api.sharedState.mutateGroup).toHaveBeenLastCalledWith({ kind: 'move', id: 'group_rain', parent: null, before: 'group_wildlife' })
-    const calls = vi.mocked(store.mock.api.sharedState.mutateGroup).mock.calls.length
-    // A shared group dropped on a To-Do-only group goes nowhere.
-    await drag('Wildlife', 'Home', { clientX: 4, clientY: 1 })
-    expect(vi.mocked(store.mock.api.sharedState.mutateGroup).mock.calls.length).toBe(calls)
-    // To-Do-only groups reorder in To-Do's own setting.
-    await drag('Home', 'Errands', { clientX: 4, clientY: -1 })
-    expect((store.mock.api.settings.get().localGroups as Array<{ name: string; parent?: string }>).map((group) => [group.name, group.parent ?? null])).toEqual([['Home', null], ['Errands', null], ['Market', 'local-aaaaaaaaaaaa']])
+    expect(store.mock.api.sharedState.mutateGroup).not.toHaveBeenCalled()
+    expect(store.mock.api.settings.get().groupOrder).toEqual(['group_fungi', 'group_rain', 'group_wildlife', 'local-aaaaaaaaaaaa', 'local-cccccccccccc'])
+    // Home dragged right under Errands becomes its subgroup, saved in To-Do's own groups.
+    await drag('Home', 'Market', { clientX: 60, clientY: 1 })
+    expect((store.mock.api.settings.get().localGroups as Array<{ name: string; parent?: string }>).map((group) => [group.name, group.parent ?? null])).toEqual([['Errands', null], ['Market', 'local-aaaaaaaaaaaa'], ['Home', 'local-aaaaaaaaaaaa']])
   })
 })
 

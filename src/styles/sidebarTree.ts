@@ -324,7 +324,12 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
   transform: translateY(-50%);
   cursor: pointer;
 }
-.todo-group-toggle:hover { background: var(--hover-bg); color: var(--title-color); }
+/* The chevron lies over the row, so hovering it lights the whole row like the rest of it. */
+.todo-group-toggle:hover { color: var(--title-color); }
+.todo-group-nav-row:has(.todo-group-toggle:hover) > .todo-tree-row:not(.active) {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
 .todo-group-toggle svg { width: 14px; height: 14px; }
 /* The title with expand all / collapse all at the far end, like the Files header. */
 .todo-navigation-groups-head {

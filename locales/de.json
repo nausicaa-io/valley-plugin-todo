@@ -468,6 +468,7 @@
   "todo.settings.localGroupAdd": "Hinzufügen",
   "todo.settings.localGroupsSetting": "Eigene To-Do-Gruppen",
   "todo.settings.collapsedGroupsSetting": "Eingeklappte Gruppen in der Seitenleiste",
+  "todo.settings.groupOrderSetting": "Reihenfolge der Gruppen in der Seitenleiste",
   "todo.settings.localGroupUsage": "{{count}} Aufgaben verwenden diese Gruppe",
   "todo.settings.localGroupNewColor": "Farbe der neuen Gruppe",
   "todo.settings.localGroupDuplicate": "Eine Gruppe mit diesem Namen existiert bereits.",

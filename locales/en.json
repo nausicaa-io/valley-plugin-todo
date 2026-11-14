@@ -468,6 +468,7 @@
   "todo.settings.localGroupAdd": "Add",
   "todo.settings.localGroupsSetting": "Individual To-Do groups",
   "todo.settings.collapsedGroupsSetting": "Collapsed sidebar groups",
+  "todo.settings.groupOrderSetting": "Order of the sidebar groups",
   "todo.settings.localGroupUsage": "{{count}} tasks use this group",
   "todo.settings.localGroupNewColor": "Color of the new group",
   "todo.settings.localGroupDuplicate": "A group with that name already exists.",

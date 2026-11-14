@@ -3733,6 +3733,22 @@
         "labelKey": "todo.settings.useLocalGroups"
       },
       {
+        "key": "groupOrder",
+        "label": "Order of the sidebar groups",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 10200,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "default": [],
+        "labelKey": "todo.settings.groupOrderSetting"
+      },
+      {
         "key": "collapsedGroups",
         "label": "Collapsed sidebar groups",
         "type": "custom",
