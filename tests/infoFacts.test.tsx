@@ -74,7 +74,7 @@ describe('To-Do facts on the Info tab', () => {
       ['List', 'All'],
       ['Tasks', '6'],
       ['Open', '5'],
-      ['Completed', '1'],
+      ['Done', '1'],
       ['Overdue', '1'],
       ['Due today', '1'],
       ['Next 7 days', '1'],
@@ -111,7 +111,7 @@ describe('To-Do facts on the Info tab', () => {
     load(store)
     act(() => setView({ kind: 'groups', names: ['Fungi', 'Wildlife'] }))
     const rows = infoRows(store)
-    expect(rows.slice(0, 4)).toEqual([['List', 'Fungi, Wildlife'], ['Tasks', '5'], ['Open', '4'], ['Completed', '1']])
+    expect(rows.slice(0, 4)).toEqual([['List', 'Fungi, Wildlife'], ['Tasks', '5'], ['Open', '4'], ['Done', '1']])
     expect(rows).toContainEqual(['Groups', '2'])
     expect(rows).toContainEqual(['Fungi', '3'])
     expect(rows.find(([label]) => label === 'No group')).toBeUndefined()
@@ -149,7 +149,7 @@ describe('To-Do facts on the Info tab', () => {
     const store = installTodoNotes(RECORDS, SETTINGS)
     load(store)
     act(() => setView({ kind: 'smart', id: 'completed' }))
-    expect(infoRows(store).slice(0, 4)).toEqual([['List', 'Completed'], ['Tasks', '1'], ['Open', '0'], ['Completed', '1']])
+    expect(infoRows(store).slice(0, 4)).toEqual([['List', 'Completed'], ['Tasks', '1'], ['Open', '0'], ['Done', '1']])
   })
 
   it('updates live when a task changes and declares a new status the moment one is used', () => {
@@ -164,7 +164,7 @@ describe('To-Do facts on the Info tab', () => {
     act(() => setSharedTodos(getSharedTodos().map((todo) => todo.id === 'a' ? { ...todo, completed: true, status: 'completed' as const, dueDate: '' } : todo)))
     expect(listener.mock.calls.length).toBeGreaterThan(before)
     const rows = infoRows(store)
-    expect(rows).toContainEqual(['Completed', '2'])
+    expect(rows).toContainEqual(['Done', '2'])
     expect(rows.find(([label]) => label === 'Overdue')).toBeUndefined()
     expect(rows.find(([label]) => label === 'Flagged')).toBeUndefined()
 
@@ -180,7 +180,7 @@ describe('To-Do facts on the Info tab', () => {
     await screen.findByText('Survey fungi')
     await waitFor(() => expect(infoRows(store)).toContainEqual(['Overdue', '1']))
     await act(async () => { await editTodoValues('a', { completed: true }) })
-    await waitFor(() => expect(infoRows(store)).toContainEqual(['Completed', '2']))
+    await waitFor(() => expect(infoRows(store)).toContainEqual(['Done', '2']))
     expect(infoRows(store).find(([label]) => label === 'Overdue')).toBeUndefined()
   })
 
@@ -192,6 +192,9 @@ describe('To-Do facts on the Info tab', () => {
       for (const key of keys) expect(catalog[key], key).toBeTruthy()
       for (const key of ['todo.info.hours', 'todo.info.minutes', 'todo.info.hoursMinutes']) expect(catalog[key], key).toBeTruthy()
     }
+    for (const catalog of [en, de, es, fr, zhCN] as Record<string, string>[]) expect(catalog['todo.info.completed']).not.toBe(catalog['todo.status.completed'])
+    expect(en['todo.info.completed']).toBe('Done')
+    expect(de['todo.info.completed']).toBe('Erledigt')
     expect(de['todo.info.overdue']).toBe('Überfällig')
     expect(de['todo.info.nextDue']).toBe('Nächste Fälligkeit')
     expect(de['todo.info.lastChange']).toBe('Letzte Änderung')

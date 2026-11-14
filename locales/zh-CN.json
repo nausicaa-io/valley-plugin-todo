@@ -500,7 +500,7 @@
   "todo.info.list": "列表",
   "todo.info.tasks": "任务",
   "todo.info.open": "未完成",
-  "todo.info.completed": "已完成",
+  "todo.info.completed": "完成",
   "todo.info.overdue": "已逾期",
   "todo.info.dueToday": "今天到期",
   "todo.info.next7": "未来 7 天",
