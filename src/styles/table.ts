@@ -489,22 +489,9 @@ export const tableCss = `/* ── Main table ───────────�
 .todo-table-flag-btn:focus-visible { outline: none; background: var(--hover-bg); }
 .todo-table .todo-table-location { width: 140px; }
 .todo-table .todo-table-tags { width: 140px; }
-.todo-table .todo-table-actions { width: 48px; }
-/* The ⋯ column stays on the right edge while a wide table scrolls sideways.
-   It paints the row's own background so nothing shows through it. */
-.todo-table td.todo-table-actions {
-  position: sticky;
-  right: 0;
-  z-index: 2;
-  background: var(--surface-color-alt);
-}
-.todo-table th.todo-table-actions { right: 0; z-index: 4; }
-.todo-table-row:hover td.todo-table-actions { background: linear-gradient(var(--hover-bg), var(--hover-bg)), var(--surface-color-alt); }
-.todo-table-row.selected td.todo-table-actions { background: linear-gradient(var(--accent-tint-bg), var(--accent-tint-bg)), var(--surface-color-alt); }
-.todo-table-section td.todo-table-actions { background: var(--surface-color-alt); }
-/* The editing blue reaches the right edge: the sticky column layers it over its own opaque surface. */
-.todo-table-new-row:not(.is-idle) td.todo-table-actions,
-.todo-table-row.is-editing td.todo-table-actions { background: linear-gradient(color-mix(in srgb, var(--accent-color) 6%, transparent), color-mix(in srgb, var(--accent-color) 6%, transparent)), var(--surface-color-alt); }
+/* The trailing column holds only the flag of a row whose Flagged column is hidden. It scrolls with the table and has
+   no surface of its own, so it never covers the last column and takes the row's hover, selection and editing colour. */
+.todo-table .todo-table-actions { width: 24px; }
 .todo-status-plain { color: var(--text-tertiary); font-size: var(--smaller-font-size); }
 .todo-table-row:not(:hover) .todo-status-plain { opacity: 0; }
 

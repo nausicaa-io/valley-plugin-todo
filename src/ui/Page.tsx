@@ -10,6 +10,7 @@ import { openManageGroups } from './GroupEditor'
 import { useGroups } from '../state/groupStore'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { allGroups, groupColorFor } from '../model/groups'
+import { groupMenuItems } from './TodoMenu'
 import { SECTION_ORDER, bucketTodos, completionTimelineSections, todayIso, type TodoSectionId } from '../model/sections'
 import type { TodoRecord } from '../types'
 import { formatDate, sortTodos, sortTodosByKey, type SortField } from '../model/sort'
@@ -179,7 +180,7 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
               {
                 label: uiText('todo.fab.newTodoIn'),
                 icon: <FolderInput />,
-                submenu: names.map((name) => ({
+                submenu: groupMenuItems(names, groups, (name) => ({
                   label: name,
                   onSelect: (context?: { newTab?: boolean }) => {
                     const target: TodoView = { kind: 'groups', names: [name] }

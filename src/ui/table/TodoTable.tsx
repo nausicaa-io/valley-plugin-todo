@@ -283,8 +283,8 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
               {order.map((id) => <React.Fragment key={id}>{id === 'title'
                 ? <SortHeader field="name" label={uiText('todo.table.title')} className={`todo-table-title${headerDrag('title').className}`} thProps={headerDrag('title').props} sort={sort} onSort={onSort} width={widths.title} resize={resizer('title', uiText('todo.table.title'))} />
                 : headerCell(id)}</React.Fragment>)}
-              {/* With a sized Title, the action column takes the room that is left. */}
-              <th className="todo-table-actions" style={widths.title ? { width: 'auto', minWidth: 48 } : undefined} />
+              {/* With a sized Title, the trailing column takes the room that is left. */}
+              <th className="todo-table-actions" style={widths.title ? { width: 'auto', minWidth: 24 } : undefined} />
             </tr>
           </thead>
           <tbody>

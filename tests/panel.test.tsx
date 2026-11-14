@@ -11,6 +11,7 @@ import {
 } from '@valley/plugin-sdk'
 import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
 import { TodoPanel } from '../src/ui/TodoPanel'
+import { groupMenuItems } from '../src/ui/TodoMenu'
 import { Page } from '../src/ui/Page'
 import { NoteTasksPanel } from '../src/ui/NoteTasksPanel'
 import { usePendingIds } from '../src/state/hooks'
@@ -748,6 +749,23 @@ describe('TodoPanel', () => {
     expect(store.mock.api.workspace.openFile).toHaveBeenCalledWith('Notes/A.md', undefined, {
       newTab: true
     })
+  })
+
+  it('lists main groups first in a group menu and puts subgroups behind the group\u2019s chevron', () => {
+    const groups = [
+      { id: 'a', name: 'Fungi', color: '#3b82f6' },
+      { id: 'b', name: 'Spores', color: '#22c55e', parent: 'a' },
+      { id: 'c', name: 'Caps', color: '#a855f7', parent: 'a' },
+      { id: 'd', name: 'Wildlife', color: '#eab308' }
+    ]
+    const items = groupMenuItems(['Fungi', 'Spores', 'Caps', 'Wildlife'], groups, (name) => ({ label: name, type: 'radio' as const, checked: name === 'Caps' }))
+    expect(items.map((item) => item.label)).toEqual(['Fungi', 'Wildlife'])
+    // The group itself leads its submenu, and the group's row is ticked when the choice is inside it.
+    expect(items[0].submenu?.map((item) => [item.label, item.checked])).toEqual([['Fungi', false], ['Spores', false], ['Caps', true]])
+    expect(items[0]).toMatchObject({ type: 'radio', checked: true })
+    expect(items[1].submenu).toBeUndefined()
+    // A subgroup offered without its group stays a plain row, and so does a name the registry does not know.
+    expect(groupMenuItems(['Spores', 'Loose'], groups, (name) => ({ label: name })).map((item) => item.label)).toEqual(['Spores', 'Loose'])
   })
 
   it('offers icon-led group, priority, status, edit, and delete actions', async () => {

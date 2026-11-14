@@ -1,4 +1,5 @@
 import { React, api } from '../../runtime'
+import { groupMenuItems } from '../TodoMenu'
 import type { CSSProperties, ReactElement } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from '../../types'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
@@ -172,7 +173,7 @@ export function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate,
               aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.group') })}
               onClick={(event) => newRowOpen(api.ui.openMenu([
                 { label: uiText('todo.chip.noGroup'), type: 'radio' as const, checked: !draftFields.group, onSelect: () => setDraftFields((fields) => ({ ...fields, group: undefined })) },
-                ...allGroups(groups).map((name) => ({
+                ...groupMenuItems(allGroups(groups), groups, (name) => ({
                   label: name,
                   type: 'radio' as const,
                   checked: draftFields.group === name,

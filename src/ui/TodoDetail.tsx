@@ -1,4 +1,5 @@
 import { React, api } from '../runtime'
+import { groupMenuItems } from './TodoMenu'
 import type { ReactElement } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from '../types'
 import { parseAppOpenUrl } from '@valley/plugin-sdk/paths'
@@ -356,7 +357,7 @@ const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
           {chip('group', <span className="todo-sheet-dot" style={todo.group ? { background: paletteCssValue(groupColorFor(todo.group, groups)) } : undefined} />, todo.group ?? '', uiText('todo.edit.group'),
             (anchor) => void api.ui.openMenu([
               { label: uiText('todo.chip.noGroup'), type: 'radio' as const, checked: !todo.group, onSelect: () => patch({ group: undefined }) },
-              ...groupNames.map((name) => ({ label: name, type: 'radio' as const, checked: todo.group === name, color: groupColorFor(name, groups), onSelect: () => patch({ group: name }) }))
+              ...groupMenuItems(groupNames, groups, (name) => ({ label: name, type: 'radio' as const, checked: todo.group === name, color: groupColorFor(name, groups), onSelect: () => patch({ group: name }) }))
             ], { anchor, align: 'start' }))}
           {chip('place', <MapPin />, todo.location?.name.split(',')[0].trim() ?? '', uiText('todo.sheet.place'),
             (anchor) => popover(anchor, uiText('todo.location'), () => <PlaceEditor todo={todo} onPatch={patch} />, 320))}

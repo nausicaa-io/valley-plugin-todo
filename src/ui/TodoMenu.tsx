@@ -1,6 +1,6 @@
 import { React, api } from '../runtime'
 import type { ReactElement } from 'react'
-import type { UiMenuTarget } from '@valley/plugin-sdk'
+import type { UiMenuItem, UiMenuTarget } from '@valley/plugin-sdk'
 import type { TodoRecord } from '../types'
 import {
   CalendarDays,
@@ -19,6 +19,33 @@ import { todoPriorityLabel, uiText } from '../localization'
 import { PRIORITIES, isoDay } from '../model/sort'
 import { statusMenuOptions, effectiveStatus, patchForStatus } from '../state/statusStore'
 import { rescheduleActions } from '../model/reschedule'
+import { groupForName, groupKey, type TodoGroup } from '../model/groups'
+import { getGroups } from '../state/groupStore'
+
+/**
+ * Menu rows for choosing a group. The main groups come first, in order; a group
+ * with subgroups is one row with a chevron, whose submenu starts with the group
+ * itself and then lists its subgroups, so many groups never form one long flat
+ * column. `row` builds the row of one group name.
+ */
+export function groupMenuItems(names: readonly string[], groups: readonly TodoGroup[], row: (name: string) => UiMenuItem): UiMenuItem[] {
+  const offered = new Set(names.map(groupKey))
+  const known = groups.filter((group) => offered.has(groupKey(group.name)))
+  const items = known.filter((group) => !group.parent || !known.some((candidate) => candidate.id === group.parent)).map((group): UiMenuItem => {
+    const own = row(group.name)
+    const subgroups = known.filter((candidate) => candidate.parent === group.id).map((candidate) => row(candidate.name))
+    if (!subgroups.length) return own
+    const family = [own, ...subgroups]
+    return {
+      label: group.name,
+      // A group colour a caller puts on its rows is carried to the group's own row too.
+      ...('color' in own ? { color: (own as { color?: string }).color } : {}),
+      ...(own.type === 'radio' ? { type: 'radio' as const, checked: family.some((item) => item.checked === true) } : {}),
+      submenu: family
+    }
+  })
+  return [...items, ...names.filter((name) => !groupForName(groups, name)).map(row)]
+}
 
 export interface TodoMenuOptions {
   todo: TodoRecord
@@ -99,7 +126,7 @@ export function openTodoMenu(target: UiMenuTarget, { todo, groupNames, setOpenId
             checked: !todo.group,
             onSelect: () => onPatch({ group: undefined })
           },
-          ...groupNames.map((name) => ({
+          ...groupMenuItems(groupNames, getGroups(), (name) => ({
             label: name,
             type: 'radio' as const,
             checked: todo.group === name,

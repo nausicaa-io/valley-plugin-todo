@@ -4,7 +4,7 @@ import type { TodoRecord } from '../../types'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { allGroups, groupColorFor, type TodoGroup } from '../../model/groups'
 import { Flag, MapPin } from '../icons'
-import { TodoMenu, openTodoContextMenu } from '../TodoMenu'
+import { groupMenuItems, openTodoContextMenu } from '../TodoMenu'
 import { memoRow, useStatusCheck, useTitleHtml, type RowEnv } from '../TodoRow'
 import { confirmDeleteTodo } from '../../data/undo'
 import { effectiveStatus } from '../../state/statusStore'
@@ -102,7 +102,7 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
               aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.group') })}
               onClick={(event) => track('group', api.ui.openMenu([
                 { label: uiText('todo.chip.noGroup'), type: 'radio' as const, checked: !todo.group, onSelect: () => patch({ group: undefined }) },
-                ...allGroups(groups).map((name) => ({
+                ...groupMenuItems(allGroups(groups), groups, (name) => ({
                   label: name,
                   type: 'radio' as const,
                   checked: todo.group === name,
@@ -295,16 +295,8 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
         </td>
       ) : cell(id)}</React.Fragment>)}
       <td className="todo-table-actions">
+        {/* No ⋯ button (14 Nov): the row's actions are on its right-click menu. */}
         {todo.flagged && !columns.includes('flagged') && <span className="todo-table-flag" title={uiText('todo.flagged')}><Flag /></span>}
-        <TodoMenu
-          todo={todo}
-          groupNames={allGroups(groups)}
-          setOpenId={actions.setMenuId}
-          onEdit={() => actions.openDetail(todo.id)}
-          onPatch={patch}
-          onRequestDelete={() => confirmDeleteTodo(todo, actions.removeTodo)}
-          disabled={pending}
-        />
       </td>
     </tr>
   )
