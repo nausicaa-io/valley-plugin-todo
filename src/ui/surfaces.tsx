@@ -5,16 +5,17 @@ import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { React, api, revealRequestStore } from '../runtime'
 import { getSharedTodos, onSharedTodos } from '../state/sharedTodos'
 import { applyTodoVisibleState, getViewHistoryState, goViewHistory, onView, readTodoVisibleState } from '../state/viewStore'
-import { pinnedView, showView, useShownView } from '../state/tabs'
+import { pinnedView, showView, useShownView, viewSummary } from '../state/tabs'
 import { loadTodo } from '../data/reads'
 import { uiText } from '../localization'
 import { GroupFilterPopover } from './TodoPanel'
 import { getGroups, useGroups } from '../state/groupStore'
 import { allGroups, groupColorFor, groupKey } from '../model/groups'
-import { DEFAULT_VIEW, smartListDef } from '../model/views'
+import { DEFAULT_VIEW } from '../model/views'
 import { openManageGroups } from './GroupEditor'
 import { allStatuses, effectiveStatus, statusDef } from '../state/statusStore'
 import { ChevronDown } from './icons'
+import { registerInfoDetails } from '../integrations/infoDetails'
 import type { InteropValueSchema } from '@valley/plugin-sdk'
 
 const bookmarkStateSchema = {
@@ -207,7 +208,7 @@ function Properties(): React.ReactElement {
   const todos = React.useSyncExternalStore(onSharedTodos, getSharedTodos, getSharedTodos)
   const groups = useGroups()
   const view = useShownView()
-  const viewLabel = view.kind === 'smart' ? uiText(smartListDef(view.id).labelKey) : view.kind === 'groups' ? [...view.names, ...(view.includeUngrouped ? [uiText('todo.chip.noGroup')] : [])].join(', ') : view.kind === 'tag' ? `#${view.name}` : uiText('todo.chip.noGroup')
+  const viewLabel = viewSummary(view)
   return <div className="right-panel-body props-info">
     <dl className="props-info-table todo-overall-summary">{[
       [uiText('todo.properties.view'), viewLabel],
@@ -249,5 +250,6 @@ export function registerTodoSurfaces(pluginApi: ValleyPluginApi): () => void {
     inspect: () => getGroups().map((group) => ({ id: group.id, label: group.name, value: getSharedTodos().filter((todo) => groupKey(todo.group ?? '') === groupKey(group.name)).length, readOnly: true })),
     render: () => <GroupProperties />
   }))
+  offs.push(registerInfoDetails())
   return () => offs.forEach((off) => off())
 }

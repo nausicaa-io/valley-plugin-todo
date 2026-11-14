@@ -13,6 +13,9 @@ function english(key: string, params?: Parameters<ValleyPluginApi['ui']['t']>[1]
   return fallback.replace(/\{\{([^}]+)\}\}/g, (_match: string, name: string) => String(params?.[name] ?? ''))
 }
 
+/** The catalog's English text, for registrations that carry an English fallback label beside a translation key. */
+export const englishText = english
+
 let translate: ValleyPluginApi['ui']['t'] = english
 
 export function initLocalization(api: ValleyPluginApi): void {
