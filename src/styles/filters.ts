@@ -319,13 +319,6 @@ export const filtersCss = `/* ── Filter surfaces ─────────
 .todo-group-filter-row .todo-tree-count { color: var(--text-tertiary); }
 .todo-group-filter-row .todo-tree-dot.no-group { background: var(--text-tertiary); }
 
-.todo-group-filter-item + .todo-group-filter-item {
-  border-top: 1px solid var(--border-light);
-}
-.todo-group-filter-item > .props-info-row {
-  align-items: center;
-}
-
 .todo-status-groups {
   margin-top: var(--space-2);
   border-top: 1px solid var(--border-light);

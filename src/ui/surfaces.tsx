@@ -5,14 +5,11 @@ import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { React, api, revealRequestStore } from '../runtime'
 import { getSharedTodos, onSharedTodos } from '../state/sharedTodos'
 import { applyTodoVisibleState, getViewHistoryState, goViewHistory, onView, readTodoVisibleState } from '../state/viewStore'
-import { pinnedView, showView, useShownView, viewSummary } from '../state/tabs'
+import { pinnedView, useShownView, viewSummary } from '../state/tabs'
 import { loadTodo } from '../data/reads'
 import { uiText } from '../localization'
-import { GroupFilterPopover } from './TodoPanel'
-import { getGroups, useGroups } from '../state/groupStore'
+import { useGroups } from '../state/groupStore'
 import { allGroups, groupColorFor, groupKey } from '../model/groups'
-import { DEFAULT_VIEW } from '../model/views'
-import { openManageGroups } from './GroupEditor'
 import { allStatuses, effectiveStatus, statusDef } from '../state/statusStore'
 import { ChevronDown } from './icons'
 import { registerInfoDetails } from '../integrations/infoDetails'
@@ -225,13 +222,6 @@ function Properties(): React.ReactElement {
   </div>
 }
 
-function GroupProperties(): React.ReactElement {
-  const todos = React.useSyncExternalStore(onSharedTodos, getSharedTodos, getSharedTodos)
-  const groups = useGroups()
-  const view = useShownView()
-  return <div className="right-panel-body props-info"><GroupFilterPopover embedded todos={todos} groups={groups} names={allGroups(groups)} hasUngrouped={todos.some((todo) => !todo.group)} selected={view.kind === 'groups' ? view.names : []} includeUngrouped={view.kind === 'nogroup' || (view.kind === 'groups' && view.includeUngrouped === true)} onChange={(names, includeUngrouped) => showView(names.length || includeUngrouped ? { kind: 'groups', names, includeUngrouped } : DEFAULT_VIEW)} onOpenSettings={openManageGroups} /></div>
-}
-
 export function registerTodoSurfaces(pluginApi: ValleyPluginApi): () => void {
   const surfaces = ['main_workspace', 'left_sidebar', 'right_sidebar'] as const
   const offs = surfaces.map((surface) => provideBookmarkSurface(pluginApi, {
@@ -244,11 +234,6 @@ export function registerTodoSurfaces(pluginApi: ValleyPluginApi): () => void {
       return todo ? Object.entries(todo).map(([id, value]) => ({ id, label: uiText(`todo.field.${id}`), value: (value ?? null) as never, readOnly: true })) : []
     },
     render: () => <Properties />
-  }))
-  offs.push(pluginApi.interop.extensions.provide(METADATA_PANEL_SEGMENT_V1, {
-    id: 'todo.groups', label: 'Groups', labelKey: 'todo.view.groups', icon: 'group', pluginSurfaces: ['main_workspace'],
-    inspect: () => getGroups().map((group) => ({ id: group.id, label: group.name, value: getSharedTodos().filter((todo) => groupKey(todo.group ?? '') === groupKey(group.name)).length, readOnly: true })),
-    render: () => <GroupProperties />
   }))
   offs.push(registerInfoDetails())
   return () => offs.forEach((off) => off())

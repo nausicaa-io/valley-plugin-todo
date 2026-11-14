@@ -53,26 +53,17 @@ describe('the sidebar tree', () => {
     store = installTodoNotes(RECORDS, { groups: CONFIGURED })
   })
 
-  it('offers the same live group filter in its own compact inspector tab', async () => {
+  it('offers no Groups tab in Properties: only the To-Do segment is registered, and the group filter stays in the sidebar', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
-    const segment = store.mock.api.interop.extensions.providers(METADATA_PANEL_SEGMENT_V1).find((entry) => entry.extension.id === 'todo.groups')!.extension
-    expect(segment.icon).toBe('group')
-    const { container } = render(<>{segment.render({ relPath: '', kind: 'unsupported' })}</>)
-    expect(container.querySelectorAll('.props-info-row')).toHaveLength(3)
-    expect(screen.getByText('Fungi', { selector: 'dt' }).nextElementSibling).toHaveTextContent('1')
-    const fungiSwitch = screen.getByRole('switch', { name: 'Fungi' })
-    expect(fungiSwitch.parentElement).toHaveClass('props-info-filter-value')
-    await act(async () => fireEvent.click(fungiSwitch))
-    await waitFor(() => expect(titles()).toEqual(['Fungi Survey sheet']))
-    expect(screen.getByRole('switch', { name: 'Fungi' })).toBeChecked()
+    const ids = store.mock.api.interop.extensions.providers(METADATA_PANEL_SEGMENT_V1).map((entry) => entry.extension.id)
+    expect(ids).toEqual(['todo.properties'])
+    expect(ids).not.toContain('todo.groups')
+    expandGroups()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: /^Fungi/ })))
+    await waitFor(() => expect(titles().sort()).toEqual(['Record moss growth', 'Review species list']))
     act(() => setView({ kind: 'groups', names: ['Wildlife'], includeUngrouped: false }))
-    expect(screen.getByRole('switch', { name: 'Fungi' })).not.toBeChecked()
-    expect(screen.getByRole('switch', { name: 'Wildlife' })).toBeChecked()
     await waitFor(() => expect(titles()).toEqual(['Review species list']))
-    fireEvent.click(screen.getByRole('button', { name: 'Manage groups' }))
-    expect(store.mock.api.workspace.openOwnSettings).toHaveBeenCalledWith('groups')
-    expect(store.mock.api.workspace.setGroups).not.toHaveBeenCalled()
   })
 
   it('shows unselected To-Do facts as key/value rows without fake inputs', async () => {
@@ -114,13 +105,6 @@ describe('the sidebar tree', () => {
     expect([...fungiSummary.querySelectorAll('.todo-group-status-row')].map((row) => row.textContent)).toEqual([
       'Completed1', 'To do1', 'In Progress0', 'Waiting1', 'On Hold0', 'Delegated0', 'Deferred0', 'Canceled0'
     ])
-
-    const groupSegment = segments.find((entry) => entry.extension.id === 'todo.groups')!.extension
-    const { container } = render(<>{groupSegment.render({ relPath: '', kind: 'unsupported' })}</>)
-    const fungi = within(container).getByText('Fungi', { selector: 'dt' }).closest('.todo-group-filter-item') as HTMLElement
-    expect(fungi.querySelector('.props-info-value')).toHaveTextContent('3')
-    expect(fungi.querySelectorAll('.props-info-row')).toHaveLength(1)
-    expect(container.querySelector('.todo-group-status-row')).not.toBeInTheDocument()
   })
 
   it('lists the five smart lists with their counts', async () => {

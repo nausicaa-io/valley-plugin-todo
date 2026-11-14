@@ -158,8 +158,7 @@ export function GroupFilterPopover({
   selected,
   includeUngrouped,
   onChange,
-  onOpenSettings,
-  embedded = false
+  onOpenSettings
 }: {
   todos: TodoRecord[]
   groups: ReturnType<typeof useGroups>
@@ -169,54 +168,23 @@ export function GroupFilterPopover({
   includeUngrouped: boolean
   onChange: (names: string[], includeUngrouped: boolean) => void
   onOpenSettings: () => void
-  embedded?: boolean
 }): ReactElement {
   const [localSelected, setLocalSelected] = React.useState(selected)
   const [localUngrouped, setLocalUngrouped] = React.useState(includeUngrouped)
-  const selectedNames = embedded ? selected : localSelected
-  const ungrouped = embedded ? includeUngrouped : localUngrouped
-  const allSelected = selectedNames.length === names.length && (!hasUngrouped || ungrouped)
+  const allSelected = localSelected.length === names.length && (!hasUngrouped || localUngrouped)
   const activeRows = [
-    ...names.map((name) => selectedNames.some((candidate) => candidate.toLowerCase() === name.toLowerCase())),
-    ...(hasUngrouped ? [ungrouped] : [])
+    ...names.map((name) => localSelected.some((candidate) => candidate.toLowerCase() === name.toLowerCase())),
+    ...(hasUngrouped ? [localUngrouped] : [])
   ]
   const selectionRunClass = (active: boolean, index: number): string => active
     ? ` active${!activeRows[index - 1] ? ' selection-run-start' : ''}${!activeRows[index + 1] ? ' selection-run-end' : ''}`
     : ''
   const openCounts = React.useMemo(() => groupCounts(todos), [todos])
-  const allCounts = React.useMemo(() => groupCounts(todos, false), [todos])
   const commit = (nextNames: string[], nextUngrouped: boolean): void => {
     setLocalSelected(nextNames)
     setLocalUngrouped(nextUngrouped)
     onChange(nextNames, nextUngrouped)
   }
-  const embeddedRows = (name: string | null): ReactElement => {
-    const matching = countForGroup(allCounts, name)
-    const label = name ?? uiText('todo.chip.noGroup')
-    const active = name === null
-      ? ungrouped
-      : selectedNames.some((candidate) => groupKey(candidate) === groupKey(name))
-    return <div className="todo-group-filter-item" key={name ?? 'ungrouped'}>
-      <div className="props-info-row">
-        <dt className="props-info-key">{name && <span className="props-info-dot" style={{ background: paletteCssValue(groupColorFor(name, groups)) }} />}{label}</dt>
-        <dd className="props-info-value props-info-filter-value"><span>{matching}</span><api.ui.settings.Toggle label={label} checked={active} onChange={() => commit(name === null
-          ? selectedNames
-          : active
-            ? selectedNames.filter((candidate) => groupKey(candidate) !== groupKey(name))
-            : [...selectedNames, name], name === null ? !ungrouped : ungrouped)} /></dd>
-      </div>
-    </div>
-  }
-  if (embedded) return <div className="props-info">
-    <div className="props-info-actions">
-      <button type="button" onClick={onOpenSettings}>{uiText('todo.properties.manageGroups')}</button>
-      {(names.length > 0 || hasUngrouped) && <button type="button" onClick={() => commit(allSelected ? [] : names, allSelected ? false : hasUngrouped)}>{uiText(allSelected ? 'todo.group.deselectAll' : 'todo.group.selectAll')}</button>}
-    </div>
-    <dl className="props-info-table">
-      {names.map((name) => embeddedRows(name))}
-      {hasUngrouped && embeddedRows(null)}
-    </dl>
-  </div>
   return (
     <div className="todo-group-filter-popover">
       <div className="todo-group-filter-head">

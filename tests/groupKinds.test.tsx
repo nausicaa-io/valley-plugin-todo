@@ -3,7 +3,6 @@ import * as React from 'react'
 import Ajv from 'ajv'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DataRecord } from '@valley/plugin-sdk/types'
-import { METADATA_PANEL_SEGMENT_V1 } from '@valley/plugin-sdk'
 import config from '../config.json'
 import { installTodoNotes } from './mockTodoNotes'
 import { initLocalization } from '../src/localization'
@@ -51,13 +50,15 @@ describe('shared and To-Do-only group switches', () => {
     expect(groupText).toHaveTextContent('Fungi')
     expect((groupText as HTMLElement).style.color).toBe('rgb(59, 130, 246)')
 
-    const segment = store.mock.api.interop.extensions.providers(METADATA_PANEL_SEGMENT_V1).find((entry) => entry.extension.id === 'todo.groups')!.extension
-    render(<>{segment.render({ relPath: '', kind: 'unsupported' })}</>)
-    expect(screen.queryByRole('switch', { name: 'Fungi' })).toBeNull()
-    expect(screen.getByRole('switch', { name: 'Errands' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    render(<>{store.mock.popovers.at(-1)?.node}</>)
+    expect(screen.queryByRole('button', { name: /^Fungi/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Errands/ })).toBeInTheDocument()
 
     await act(async () => { await store.mock.api.settings.set('useSharedGroups', true) })
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Fungi' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    render(<>{store.mock.popovers.at(-1)?.node}</>)
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Fungi/ })).toBeInTheDocument())
   })
 
   it('hides To-Do-only groups the same way and still saves an edit to a task that keeps one', async () => {
