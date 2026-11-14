@@ -7,11 +7,9 @@ import { installTodoNotes } from './mockTodoNotes'
 import type { TodoRecord } from '../src/types'
 import { TodoPanel } from '../src/ui/TodoPanel'
 import { editTodoValues } from '../src/commands/commands'
-import { addDays, formatDate, isoDay } from '../src/model/sort'
+import { addDays, isoDay } from '../src/model/sort'
 import { getSharedTodos, setSharedTodos } from '../src/state/sharedTodos'
-import { setView } from '../src/state/viewStore'
-import { viewTabInstance } from '../src/state/tabs'
-import { detailItemId } from '../src/integrations/infoDetails'
+import { matchesViewScope } from '../src/model/views'
 import en from '../locales/en.json'
 import de from '../locales/de.json'
 import es from '../locales/es.json'
@@ -61,113 +59,60 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('To-Do facts on the Info tab', () => {
-  it('keeps the footer default and lists the facts of a mixed list as plain rows', () => {
+describe('To-Do Footer details', () => {
+  const IDS = ['todayTodo', 'todayCompleted', 'weekTodo', 'weekCompleted', 'allTodo', 'allCompleted']
+  const texts = (store: ReturnType<typeof installTodoNotes>): Record<string, string | undefined> => {
+    const details = provider(store)
+    const snapshot = details.getSnapshot({ selectedItemIds: details.items.map((item) => item.id) })
+    return Object.fromEntries(IDS.map((id) => [id, snapshot.items[id]?.text]))
+  }
+  const inWeek = (): TodoRecord[] => getSharedTodos().filter((todo) => matchesViewScope(todo, { kind: 'smart', id: 'week' }, TODAY))
+
+  it('offers only the title and six counts: to do and completed for Today, This week and All', () => {
     const store = installTodoNotes(RECORDS, SETTINGS)
     load(store)
     const details = provider(store)
     expect(details.defaultItems).toEqual(['title'])
     expect(details.pluginViews).toBe(true)
-    expect(details.items[0]).toMatchObject({ id: 'title', labelKey: 'details.item.title' })
+    expect(details.items.map((item) => item.id)).toEqual(['title', ...IDS])
+    expect(details.items.slice(1).map((item) => item.label)).toEqual(['Today to do', 'Today completed', 'This week to do', 'This week completed', 'All to do', 'All completed'])
     expect(details.items.every((item) => item.kind === 'text')).toBe(true)
-    expect(infoRows(store)).toEqual([
-      ['List', 'All'],
-      ['Tasks', '6'],
-      ['Open', '5'],
-      ['Done', '1'],
-      ['Overdue', '1'],
-      ['Due today', '1'],
-      ['Next 7 days', '1'],
-      ['No date', '1'],
-      ['Flagged', '1'],
-      ['With reminder', '1'],
-      ['Priority', 'High 1 · Medium 1 · Low 1'],
-      ['To do', '3'],
-      ['Completed', '1'],
-      ['Waiting', '1'],
-      ['Review', '1'],
-      ['Groups', '2'],
-      ['Tags', '2 · #field 2 · #fungi 1'],
-      ['Next due', `Wait for spores · ${formatDate(TODAY)}`],
-      ['Last completed', formatDate(day(-3))],
-      ['Last change', formatDate(day(-1))],
-      ['Created', `${formatDate(day(-60))} – ${formatDate(day(-1))}`]
-    ])
+    expect(WORKSPACE_DETAILS_V1.validate(details)).toBe(true)
   })
 
-  it('shows only the title row of an empty list', () => {
+  it('shows each count as name · number in the footer and carries the bare number for Info', () => {
+    const store = installTodoNotes(RECORDS, SETTINGS)
+    load(store)
+    const week = inWeek()
+    expect(texts(store)).toEqual({
+      todayTodo: 'Today to do · 2',
+      todayCompleted: 'Today completed · 1',
+      weekTodo: `This week to do · ${week.filter((todo) => !todo.completed).length}`,
+      weekCompleted: `This week completed · ${week.filter((todo) => todo.completed).length}`,
+      allTodo: 'All to do · 5',
+      allCompleted: 'All completed · 1'
+    })
+    const snapshot = provider(store).getSnapshot({ selectedItemIds: IDS })
+    expect(IDS.map((id) => snapshot.items[id].value)).toEqual([2, 1, week.filter((todo) => !todo.completed).length, week.filter((todo) => todo.completed).length, 5, 1])
+    // What Info draws: the label and the number, nothing repeated.
+    expect(infoRows(store).map(([label]) => label)).toEqual(['Today to do', 'Today completed', 'This week to do', 'This week completed', 'All to do', 'All completed'])
+  })
+
+  it('shows a zero rather than dropping a count', () => {
     const store = installTodoNotes([], SETTINGS)
     load(store, [])
-    expect(infoRows(store)).toEqual([['List', 'All'], ['Tasks', '0']])
-    expect(provider(store).items.map((item) => item.id)).not.toContain('groups')
+    expect(Object.values(texts(store))).toEqual(['Today to do · 0', 'Today completed · 0', 'This week to do · 0', 'This week completed · 0', 'All to do · 0', 'All completed · 0'])
   })
 
-  it('combines several selected lists and follows a list a tab is pinned to', () => {
+  it('updates live when a task changes', () => {
     const store = installTodoNotes(RECORDS, SETTINGS)
     load(store)
-    act(() => setView({ kind: 'groups', names: ['Fungi', 'Wildlife'] }))
-    const rows = infoRows(store)
-    expect(rows.slice(0, 4)).toEqual([['List', 'Fungi, Wildlife'], ['Tasks', '5'], ['Open', '4'], ['Done', '1']])
-    expect(rows).toContainEqual(['Groups', '2'])
-    // Info counts the groups; their names and totals are the Groups tab's.
-    expect(rows.find(([label]) => label === 'Fungi')).toBeUndefined()
-    expect(rows.find(([label]) => label === 'Estimated time')).toBeUndefined()
-    expect(rows.find(([label]) => label === 'No group')).toBeUndefined()
-    expect(rows.find(([label]) => label === 'No date')).toBeUndefined()
-
-    const pinned = infoRows(store, viewTabInstance({ kind: 'groups', names: ['Wildlife'] }))
-    expect(pinned.slice(0, 3)).toEqual([['List', 'Wildlife'], ['Tasks', '2'], ['Open', '2']])
-    expect(pinned).toContainEqual(['Groups', '1'])
-    expect(pinned.find(([label]) => label === 'Wildlife')).toBeUndefined()
-    expect(pinned).toContainEqual(['Next due', `Review draft · ${formatDate(day(3))}`])
-  })
-
-  it('declares item ids the host accepts and counts groups with spaces, umlauts and slashes without a row per name', () => {
-    const groups = [{ id: 'group_cf', name: 'Copper Finch', color: '#3b82f6' }, { id: 'group_gw', name: 'Grüne Wiese/Nord', color: '#eab308' }]
-    const records = [
-      { id: 'x1', title: 'One', group: 'Copper Finch', createdAt: stamp(-2), updatedAt: stamp(-2) },
-      { id: 'x2', title: 'Two', group: 'copper finch', createdAt: stamp(-2), updatedAt: stamp(-2) },
-      { id: 'x3', title: 'Three', group: 'Grüne Wiese/Nord', status: 'waiting', createdAt: stamp(-2), updatedAt: stamp(-2) }
-    ] as DataRecord[]
-    const store = installTodoNotes(records, { ...SETTINGS, groups })
-    load(store, records)
-    const details = provider(store)
-    expect(WORKSPACE_DETAILS_V1.validate(details)).toBe(true)
-    expect(details.items.every((item) => /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(item.id))).toBe(true)
-    expect(details.items.find((item) => item.label === 'Copper Finch')).toBeUndefined()
-    expect(detailItemId('group', 'copper finch')).toBe(detailItemId('group', 'copper finch'))
-    expect(detailItemId('group', 'fungi')).toBe('group:fungi')
-    const rows = infoRows(store)
-    expect(rows).toContainEqual(['Groups', '2'])
-    expect(rows).toContainEqual(['Waiting', '1'])
-  })
-
-  it('counts a smart list by its own scope', () => {
-    const store = installTodoNotes(RECORDS, SETTINGS)
-    load(store)
-    act(() => setView({ kind: 'smart', id: 'completed' }))
-    expect(infoRows(store).slice(0, 4)).toEqual([['List', 'Completed'], ['Tasks', '1'], ['Open', '0'], ['Done', '1']])
-  })
-
-  it('updates live when a task changes and declares a new status the moment one is used', () => {
-    const store = installTodoNotes(RECORDS, SETTINGS)
-    load(store)
-    const details = provider(store)
     const listener = vi.fn()
-    const off = details.subscribe(listener)
-    expect(infoRows(store)).toContainEqual(['Overdue', '1'])
+    const off = provider(store).subscribe(listener)
     const before = listener.mock.calls.length
-
-    act(() => setSharedTodos(getSharedTodos().map((todo) => todo.id === 'a' ? { ...todo, completed: true, status: 'completed' as const, dueDate: '' } : todo)))
+    act(() => setSharedTodos(getSharedTodos().map((todo) => todo.id === 'a' ? { ...todo, completed: true, status: 'completed' as const } : todo)))
     expect(listener.mock.calls.length).toBeGreaterThan(before)
-    const rows = infoRows(store)
-    expect(rows).toContainEqual(['Done', '2'])
-    expect(rows.find(([label]) => label === 'Overdue')).toBeUndefined()
-    expect(rows.find(([label]) => label === 'Flagged')).toBeUndefined()
-
-    act(() => setSharedTodos([...getSharedTodos(), { ...getSharedTodos()[0], id: 'g', title: 'On hold', completed: false, status: 'onhold' }]))
-    expect(provider(store).items.map((item) => item.label)).toContain('On Hold')
-    expect(infoRows(store)).toContainEqual(['On Hold', '1'])
+    expect(texts(store)).toMatchObject({ todayTodo: 'Today to do · 1', todayCompleted: 'Today completed · 2', allTodo: 'All to do · 4', allCompleted: 'All completed · 2' })
     off()
   })
 
@@ -175,26 +120,18 @@ describe('To-Do facts on the Info tab', () => {
     const store = installTodoNotes(RECORDS, SETTINGS)
     await act(async () => { render(<TodoPanel />) })
     await screen.findByText('Survey fungi')
-    await waitFor(() => expect(infoRows(store)).toContainEqual(['Overdue', '1']))
+    await waitFor(() => expect(texts(store).allTodo).toBe('All to do · 5'))
     await act(async () => { await editTodoValues('a', { completed: true }) })
-    await waitFor(() => expect(infoRows(store)).toContainEqual(['Done', '2']))
-    expect(infoRows(store).find(([label]) => label === 'Overdue')).toBeUndefined()
+    await waitFor(() => expect(texts(store).allCompleted).toBe('All completed · 2'))
   })
 
   it('has every label in every shipped catalog, with umlauts intact in German', () => {
     const store = installTodoNotes(RECORDS, SETTINGS)
     const keys = provider(store).items.map((item) => item.labelKey).filter((key): key is string => !!key?.startsWith('todo.info.'))
-    expect(keys.length).toBeGreaterThan(15)
-    for (const catalog of [en, de, es, fr, zhCN] as Record<string, string>[]) {
-      for (const key of keys) expect(catalog[key], key).toBeTruthy()
-      for (const key of ['todo.info.hours', 'todo.info.minutes', 'todo.info.hoursMinutes']) expect(catalog[key], key).toBeTruthy()
-    }
-    for (const catalog of [en, de, es, fr, zhCN] as Record<string, string>[]) expect(catalog['todo.info.completed']).not.toBe(catalog['todo.status.completed'])
-    expect(en['todo.info.completed']).toBe('Done')
-    expect(de['todo.info.completed']).toBe('Erledigt')
-    expect(de['todo.info.overdue']).toBe('Überfällig')
-    expect(de['todo.info.nextDue']).toBe('Nächste Fälligkeit')
-    expect(de['todo.info.lastChange']).toBe('Letzte Änderung')
-    expect(JSON.stringify(de)).not.toContain('�')
+    expect(keys).toHaveLength(6)
+    for (const catalog of [en, de, es, fr, zhCN] as Record<string, string>[]) for (const key of keys) expect(catalog[key], key).toBeTruthy()
+    expect(de['todo.info.todayTodo']).toBe('Heute offen')
+    expect(de['todo.info.weekCompleted']).toBe('Diese Woche erledigt')
+    expect(JSON.stringify(de)).not.toContain('\uFFFD')
   })
 })
