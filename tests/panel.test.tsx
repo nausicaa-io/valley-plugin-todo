@@ -777,7 +777,7 @@ describe('TodoPanel', () => {
     expect(move?.submenu?.map((item) => item.label)).toEqual(['No group', 'Fungi', 'Plants'])
     expect(move?.submenu?.find((item) => item.label === 'Fungi')?.checked).toBe(true)
     await act(async () => {
-      await move?.submenu?.find((item) => item.label === 'Plants')?.onSelect?.()
+      await move?.submenu?.find((item) => item.label === 'Plants')?.onSelect?.({ newTab: false })
     })
     await waitFor(() => expect(store.records[0]).toMatchObject({ group: 'Plants' }))
 
@@ -791,7 +791,7 @@ describe('TodoPanel', () => {
     expect(menuIcons[1]?.querySelector('path')?.getAttribute('d')).toContain('M176 432')
     expect(priority?.submenu?.map((item) => item.label)).toEqual(['None', 'Low', 'Medium', 'High'])
     await act(async () => {
-      await priority?.submenu?.find((item) => item.label === 'High')?.onSelect?.()
+      await priority?.submenu?.find((item) => item.label === 'High')?.onSelect?.({ newTab: false })
     })
     await waitFor(() => expect(store.records[0]).toMatchObject({ priority: 'high' }))
 
@@ -800,12 +800,12 @@ describe('TodoPanel', () => {
       'To do', 'Completed', 'In Progress', 'Waiting', 'On Hold', 'Delegated', 'Deferred', 'Canceled'
     ])
     await act(async () => {
-      await status?.submenu?.find((item) => item.label === 'On Hold')?.onSelect?.()
+      await status?.submenu?.find((item) => item.label === 'On Hold')?.onSelect?.({ newTab: false })
     })
     await waitFor(() => expect(store.records[0]).toMatchObject({ status: 'onhold', completed: false }))
 
     await act(async () => {
-      await status?.submenu?.find((item) => item.label === 'Completed')?.onSelect?.()
+      await status?.submenu?.find((item) => item.label === 'Completed')?.onSelect?.({ newTab: false })
     })
     await waitFor(() => expect(store.records[0]).toMatchObject({ status: 'completed', completed: true }))
 
@@ -813,7 +813,7 @@ describe('TodoPanel', () => {
     expect(deleteItem).toMatchObject({ danger: true })
     vi.mocked(store.mock.api.ui.confirm).mockResolvedValueOnce('delete')
     await act(async () => {
-      await deleteItem?.onSelect?.()
+      await deleteItem?.onSelect?.({ newTab: false })
     })
     const confirmation = vi.mocked(store.mock.api.ui.confirm).mock.calls[0]?.[0]
     expect(confirmation).toMatchObject({
@@ -834,7 +834,7 @@ describe('TodoPanel', () => {
     fireEvent.click(screen.getAllByLabelText('Todo options')[index])
     const edit = (store.mock.menus.at(-1) ?? []).find((item) => item.label === 'Edit')
     await act(async () => {
-      await edit?.onSelect?.()
+      await edit?.onSelect?.({ newTab: false })
     })
   }
 

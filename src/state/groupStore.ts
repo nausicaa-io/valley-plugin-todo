@@ -4,8 +4,10 @@ import { onTodoListChanged as onTodosChanged } from '../data/reads'
 import {
   countGroupUsage,
   groupKey,
+  invalidateGroupFamilies,
   normalizeTodoGroups,
   setGroupColorFallback,
+  setGroupFamilySource,
   type TodoGroup
 } from '../model/groups'
 import { LOCAL_GROUPS_KEY, mergedGroups, normalizeLocalGroups, type LocalGroup } from '../model/localGroups'
@@ -44,6 +46,18 @@ export function getGroups(): TodoGroup[] {
 
 // A task in a switched-off group keeps its group's own colour.
 setGroupColorFallback(getAllGroups)
+
+// A group covers its subgroups in views, filters and counts. The families are
+// read again after a change of the shared groups or of To-Do's settings.
+let familiesApi: typeof api | undefined
+setGroupFamilySource(() => {
+  if (api && familiesApi !== api) {
+    familiesApi = api
+    api.subscribe(invalidateGroupFamilies)
+    api.settings.subscribe(invalidateGroupFamilies)
+  }
+  return api ? getAllGroups() : []
+})
 
 export function onGroupsChanged(cb: () => void): () => void {
   const offState = api.subscribe(cb)

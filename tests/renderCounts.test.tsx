@@ -69,7 +69,7 @@ describe('row render counts', () => {
 
     fireEvent.contextMenu(screen.getByText('Task 05').closest('.todo-row')!)
     const flag = store.mock.menus.at(-1)?.find((item) => item.label === 'Flag')
-    await act(async () => { await flag?.onSelect?.() })
+    await act(async () => { await flag?.onSelect?.({ newTab: false }) })
     await waitFor(() => expect(store.records.find((record) => record.id === 't5')?.flagged).toBe(true))
     await settle()
     expect(screen.getByText('Task 05').closest('.todo-row')).toHaveClass('flagged')

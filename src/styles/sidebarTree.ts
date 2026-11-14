@@ -288,4 +288,10 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
   margin: 1px 0 5px;
 }
 
+
+/* A subgroup sits indented under its group, in My Lists and the group filter. */
+.todo-tree-row.todo-subgroup .todo-tree-dot,
+.todo-group-filter-row.todo-subgroup .todo-tree-dot {
+  margin-left: 14px;
+}
 `

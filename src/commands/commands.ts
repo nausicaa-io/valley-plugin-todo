@@ -14,7 +14,7 @@ import { rawAppend, rawDelete, rawRestore, rawUpdateCommitted } from '../data/cl
 import { normalizeGroups } from '@valley/plugin-sdk/groups'
 import { parseSearch, searchMatcher } from '../model/search'
 import { readLightTodos, readTodosByIds, TARGETED_READ_LIMIT } from '../domain/taskReads'
-import { allGroups, groupForName, groupKey } from '../model/groups'
+import { allGroups, groupForName, groupKey, groupKeysCovered } from '../model/groups'
 import { getGroups } from '../state/groupStore'
 import { bucketTodos, SECTION_ORDER, type TodoSectionId } from '../model/sections'
 import { activeStatuses, isStatusActive, patchForStatus } from '../state/statusStore'
@@ -550,7 +550,7 @@ export function registerTodoCommands(api: ValleyPluginApi): () => void {
         const configured = getGroups()
         return allGroups(configured).map((name) => ({
           name,
-          count: todos.filter((t) => groupKey(t.group ?? '') === groupKey(name)).length
+          count: todos.filter((t) => groupKeysCovered(name).has(groupKey(t.group ?? ''))).length
         }))
       },
       formatCli: (groups) =>

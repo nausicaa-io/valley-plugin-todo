@@ -10,7 +10,7 @@ import { PanelDateList } from './PanelDateList'
 import { GroupFilterPopover, PanelSortPopover, sortFieldGlyph } from './TodoPanel'
 import { CircleCheck, ComfortableView, CompactView, GroupGlyph, SortAscending, SortDescending, TodoStatusGlyph } from './icons'
 import { useGroups } from '../state/groupStore'
-import { allGroups, groupKey } from '../model/groups'
+import { allGroups, groupKey, groupKeysCovered, isSubgroupName } from '../model/groups'
 import { matchesStatusFilter, useStatusVocabulary, type TodoStatusFilter } from '../state/statusStore'
 import { useDateBreakdown, usePanelPresentation } from '../state/viewStore'
 import { SORT_LABEL_KEYS, type SortDir, type SortField } from '../model/sort'
@@ -95,7 +95,7 @@ export const NoteTasksPanel = (): ReactElement => {
     if (!matches || (!showCompleted && todo.completed)) return false
     if (selectedGroups.length || includeUngrouped) {
       if (!todo.group && !includeUngrouped) return false
-      if (todo.group && !new Set(selectedGroups.map(groupKey)).has(groupKey(todo.group))) return false
+      if (todo.group && !selectedGroups.some((name) => groupKeysCovered(name).has(groupKey(todo.group ?? '')))) return false
     }
     return matchesStatusFilter(todo, statusFilter)
   }), [c.ordered, path, showCompleted, statusFilter, selectedGroups, includeUngrouped])

@@ -51,6 +51,7 @@ import { TASK_ICON_FOLDER, useTaskIcons } from './taskIcons'
 import { todoStatusLabelDefault } from '../localization'
 import { USE_LOCAL_GROUPS_KEY, USE_SHARED_GROUPS_KEY, setLocalGroups, useAllGroups, useGroupKinds, useLocalGroups } from '../state/groupStore'
 import { groupKey, nextGroupColor } from '../model/groups'
+import { groupFamily, placeGroup, resolveGroupDrop, stepGroup, subgroupsOf, type GroupPlacement } from '@valley/plugin-sdk/groups'
 import { LOCAL_GROUP_LIMIT, LOCAL_GROUP_NAME_MAX, newLocalGroupId, renameLocalGroup, type LocalGroup } from '../model/localGroups'
 
 const SMART_LIST_ICONS: Record<SmartListId, () => ReactElement> = {
@@ -602,13 +603,71 @@ function LocalGroupsSettings(): ReactElement {
     const names = new Set([group.name, ...(group.aliases ?? [])].map(groupKey))
     return todos.filter((name) => names.has(groupKey(name))).length
   }
+  // A group's count covers its subgroups, like a shared group's.
+  const total = (group: LocalGroup): number => groupFamily(local, group).reduce((sum, member) => sum + usage(member), 0)
+  // A pointer this far right of a row's left edge asks for a subgroup where the slot allows both levels.
+  const NEST_OFFSET = 28
+  const [nest, setNest] = React.useState(false)
+  const [subgroupOf, setSubgroupOf] = React.useState<string | null>(null)
+  const [subColor, setSubColor] = React.useState(() => nextGroupColor(groups))
+  const [subDuplicate, setSubDuplicate] = React.useState(false)
+  const subRow = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => { if (subgroupOf) subRow.current?.querySelector('input')?.focus() }, [subgroupOf])
+  const place = (id: string, placement: GroupPlacement | null): void => {
+    if (!placement) return
+    let next: LocalGroup[]
+    try { next = placeGroup(local, id, placement) } catch { return }
+    if (next.every((group, index) => group.id === local[index]?.id && group.parent === local[index]?.parent)) return
+    save(next)
+  }
   const reorder = useReorderDrag({
     items: local,
     indicatorOnly: true,
     getId: (group) => group.id,
     getLabel: (group) => group.name,
-    onReorder: (next) => save(next)
+    // Pointer drops are resolved in `dropProps`; this is the keyboard path, which keeps a group on its level.
+    onReorder: (_next, move) => {
+      const edge = move.position === 'before' ? local[0]?.id : local.at(-1)?.id
+      place(move.activeId, stepGroup(local, move.activeId, move.position, move.overId === edge))
+    }
   })
+  const wantsNest = (event: React.DragEvent<HTMLElement>): boolean => event.clientX > event.currentTarget.getBoundingClientRect().left + NEST_OFFSET
+  const dropProps = (group: LocalGroup): ReturnType<typeof reorder.getItemProps> => {
+    const props = reorder.getItemProps(group)
+    return {
+      ...props,
+      onDragOver: (event) => { props.onDragOver?.(event); setNest(wantsNest(event)) },
+      onDrop: (event) => {
+        const dragId = reorder.activeId ?? event.dataTransfer.getData('text/plain')
+        if (!dragId) return
+        event.preventDefault()
+        const rect = event.currentTarget.getBoundingClientRect()
+        place(dragId, resolveGroupDrop(local, dragId, group.id, event.clientY < rect.top + rect.height / 2 ? 'before' : 'after', wantsNest(event)))
+        reorder.cancel()
+      }
+    }
+  }
+  // The insertion line sits where the group will land, indented when it lands as a subgroup.
+  const target = reorder.activeId && reorder.overId && reorder.dropPosition
+    ? resolveGroupDrop(local, reorder.activeId, reorder.overId, reorder.dropPosition, nest)
+    : null
+  const dropClass = (group: LocalGroup, index: number): string => {
+    if (!target) return ''
+    const nested = target.parent !== null ? ' drop-nested' : ''
+    if (target.before !== null) return target.before === group.id ? ' drop-before' + nested : ''
+    const scope = target.parent === null ? local : local.filter((entry) => entry.id === target.parent || entry.parent === target.parent)
+    const last = scope.filter((entry) => entry.id !== reorder.activeId && entry.parent !== reorder.activeId).at(-1) ?? local[index]
+    return last.id === group.id ? ' drop-after' + nested : ''
+  }
+  const openSubgroup = (): void => { setSubDuplicate(false); setSubColor(nextGroupColor(groups)) }
+  const addSubgroup = (value: string): void => {
+    const name = value.trim().slice(0, LOCAL_GROUP_NAME_MAX)
+    if (!subgroupOf || !name || local.length >= LOCAL_GROUP_LIMIT) { setSubgroupOf(null); return }
+    if (taken(name)) { setSubDuplicate(true); return }
+    const created: LocalGroup = { id: newLocalGroupId(), name, color: subColor }
+    try { save(placeGroup([...local, created], created.id, { parent: subgroupOf, before: null })) } catch { /* the group it belonged under is gone */ }
+    setSubgroupOf(null)
+  }
   const add = (): void => {
     const name = draft.current.trim().slice(0, LOCAL_GROUP_NAME_MAX)
     if (!name || local.length >= LOCAL_GROUP_LIMIT) return
@@ -637,13 +696,17 @@ function LocalGroupsSettings(): ReactElement {
           // remounts them; otherwise they keep the values of the row that was there.
           const slot = `${group.id}@${index}`
           const handleProps = reorder.getHandleProps(group)
-          const count = usage(group)
+          const subgroups = subgroupsOf(local, group.id).length
+          const count = group.parent ? usage(group) : total(group)
+          const blocked = count > 0 || subgroups > 0
+          const draftHere = subgroupOf !== null && (local[index + 1]?.parent ?? null) !== subgroupOf
+            && (group.id === subgroupOf || group.parent === subgroupOf)
           return (
+            <React.Fragment key={group.id}>
             <div
               role="listitem"
-              className={'settings-colorrule-row' + (reorder.overId === group.id ? ' drop-' + (reorder.dropPosition ?? 'before') : '')}
-              key={group.id}
-              {...reorder.getItemProps(group)}
+              className={'settings-colorrule-row' + (group.parent ? ' settings-group-sub' : '') + dropClass(group, index)}
+              {...dropProps(group)}
             >
               <button {...handleProps} className={(handleProps.className ?? '') + ' settings-colorrule-grip'}>
                 <GripVertical />
@@ -661,6 +724,19 @@ function LocalGroupsSettings(): ReactElement {
                 onChange={(color) => save(local.map((candidate) => candidate.id === group.id ? { ...candidate, color } : candidate))}
                 ariaLabel={uiText('todo.settings.localGroupColor', { p0: group.name })}
               />
+              {group.parent
+                ? <span aria-hidden="true" />
+                : (
+                  <IconButton
+                    key={`addsub:${slot}`}
+                    className="settings-group-addsub"
+                    ariaLabel={uiText('todo.settings.localSubgroupAddTo', { p0: group.name })}
+                    title={uiText('todo.settings.localSubgroupAdd')}
+                    onClick={() => { openSubgroup(); setSubgroupOf(group.id) }}
+                  >
+                    <Plus />
+                  </IconButton>
+                )}
               <span
                 className="settings-group-usage"
                 aria-label={uiText('todo.settings.localGroupUsage', { count })}
@@ -671,14 +747,35 @@ function LocalGroupsSettings(): ReactElement {
               <IconButton
                 key={`remove:${slot}`}
                 className="settings-colormap-remove"
-                aria-disabled={count > 0 || undefined}
+                aria-disabled={blocked || undefined}
                 ariaLabel={uiText('todo.settings.localGroupDelete', { p0: group.name })}
-                title={count > 0 ? uiText('todo.settings.localGroupRemoveBlocked', { count }) : uiText('todo.settings.localGroupRemove')}
-                onClick={() => { if (count === 0) save(local.filter((candidate) => candidate.id !== group.id)) }}
+                title={count > 0 ? uiText('todo.settings.localGroupRemoveBlocked', { count }) : subgroups > 0 ? uiText('todo.settings.localGroupRemoveSubgroups') : uiText('todo.settings.localGroupRemove')}
+                onClick={() => { if (!blocked) save(local.filter((candidate) => candidate.id !== group.id)) }}
               >
                 <X />
               </IconButton>
             </div>
+            {draftHere && (
+              <div ref={subRow} className="settings-colorrule-row settings-group-sub">
+                <span className="settings-colorrule-grip settings-colorrule-grip-placeholder" aria-hidden="true" />
+                <CommitTextField
+                  className="settings-colorrule-key"
+                  initial=""
+                  invalid={subDuplicate}
+                  placeholder={uiText('todo.settings.localSubgroupNew')}
+                  ariaLabel={uiText('todo.settings.localSubgroupNew')}
+                  onType={() => setSubDuplicate(false)}
+                  onCommit={addSubgroup}
+                />
+                <ColorField
+                  key={`sub-color:${subgroupOf}`}
+                  value={subColor}
+                  onChange={setSubColor}
+                  ariaLabel={uiText('todo.settings.localGroupNewColor')}
+                />
+              </div>
+            )}
+            </React.Fragment>
           )
         })}
         {reorder.liveRegion}
@@ -701,12 +798,13 @@ function LocalGroupsSettings(): ReactElement {
             onChange={setDraftColor}
             ariaLabel={uiText('todo.settings.localGroupNewColor')}
           />
+          <span aria-hidden="true" />
           <span className="settings-colorrule-add-action">
             <span className="settings-button settings-button--medium settings-colorrule-add-sizer" aria-hidden="true">{uiText('todo.settings.localGroupAdd')}</span>
             <Button type="button" className="settings-colormap-add-btn" disabled={local.length >= LOCAL_GROUP_LIMIT} onClick={add}>{uiText('todo.settings.localGroupAdd')}</Button>
           </span>
         </div>
-        {duplicate && <span className="settings-empty-text">{uiText('todo.settings.localGroupDuplicate')}</span>}
+        {(duplicate || subDuplicate) && <span className="settings-empty-text">{uiText('todo.settings.localGroupDuplicate')}</span>}
       </div>
       </div>
     </Section>

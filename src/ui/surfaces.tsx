@@ -9,7 +9,7 @@ import { pinnedView, useShownView, viewSummary } from '../state/tabs'
 import { loadTodo } from '../data/reads'
 import { uiText } from '../localization'
 import { useGroups } from '../state/groupStore'
-import { allGroups, groupColorFor, groupKey } from '../model/groups'
+import { allGroups, groupColorFor, groupKey, groupKeysCovered, isSubgroupName } from '../model/groups'
 import { allStatuses, effectiveStatus, statusDef } from '../state/statusStore'
 import { ChevronDown } from './icons'
 import { registerInfoDetails } from '../integrations/infoDetails'
@@ -214,7 +214,7 @@ function Properties(): React.ReactElement {
     ].map(([label, value]) => <div className="props-info-row" key={label}><dt className="props-info-key">{label}</dt><dd className="props-info-value">{value}</dd></div>)}</dl>
     <div className="todo-status-groups">
       {[...allGroups(groups), ...(todos.some((todo) => !todo.group) ? [null] : [])].map((name) => {
-        const matching = todos.filter((todo) => name === null ? !todo.group : groupKey(todo.group ?? '') === groupKey(name))
+        const matching = todos.filter((todo) => name === null ? !todo.group : groupKeysCovered(name).has(groupKey(todo.group ?? '')))
         const label = name ?? uiText('todo.chip.noGroup')
         return <GroupStatusBreakdown key={name ?? 'ungrouped'} label={label} color={name ? paletteCssValue(groupColorFor(name, groups)) : 'var(--text-tertiary)'} todos={matching} />
       })}

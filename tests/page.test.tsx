@@ -613,7 +613,7 @@ describe('the To-Do page', () => {
     }
     expect(store.records.find((r) => r.id === 'b')?.completed).toBe(false)
     const waiting = store.mock.menus.at(-1)!.find((item) => item.label === 'In Progress')!
-    await act(async () => { await waiting.onSelect?.() })
+    await act(async () => { await waiting.onSelect?.({ newTab: false }) })
     await waitFor(() => expect(store.records.find((r) => r.id === 'b')).toMatchObject({ status: 'inprogress' }))
 
     fireEvent.click(screen.getByText('Fungi Survey sheet').closest('tr')!.querySelector('input.todo-check')!)
@@ -669,7 +669,7 @@ it('pages a large list and turns to the page of a revealed task', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: 'Rows per page' }))
   const fifty = store.mock.menus.at(-1)!.find((item) => item.label === '50')!
-  act(() => { void fifty.onSelect?.() })
+  act(() => { void fifty.onSelect?.({ newTab: false }) })
   expect(await screen.findByText('Page 1 of 2')).toBeInTheDocument()
   expect(store.mock.api.settings.get()).toMatchObject({ pageRowsPerPage: 50 })
 

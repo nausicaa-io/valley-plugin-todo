@@ -42,9 +42,9 @@ describe('group names', () => {
     expect(groups[2].color).toBe('#abcdef')
   })
 
-  it('slugifies an id and never produces a bare prefix', () => {
-    expect(newGroupId('Canopy Design')).toBe('group_canopy-design')
-    expect(newGroupId('!!!')).toBe('group_group')
+  it('gives a new group a random id independent of its name', () => {
+    expect(newGroupId()).toMatch(/^shared-[0-9a-f]{12}$/)
+    expect(newGroupId()).not.toBe(newGroupId())
   })
 })
 

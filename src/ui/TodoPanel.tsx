@@ -33,7 +33,7 @@ import { LocationField } from './LocationField'
 import { parseQuickAdd } from '../model/sections'
 import { PanelDateList } from './PanelDateList'
 import { useGroups } from '../state/groupStore'
-import { allGroups, groupColorFor, groupKey } from '../model/groups'
+import { allGroups, groupColorFor, groupKey, isSubgroupName } from '../model/groups'
 import {
   configuredSmartLists,
   countForGroup,
@@ -207,7 +207,7 @@ export function GroupFilterPopover({
             <button
               key={name}
               type="button"
-              className={`todo-group-filter-row${selectionRunClass(active, index)}`}
+              className={`todo-group-filter-row${isSubgroupName(name, groups) ? ' todo-subgroup' : ''}${selectionRunClass(active, index)}`}
               aria-pressed={active}
               onClick={() => commit(active ? localSelected.filter((candidate) => candidate.toLowerCase() !== name.toLowerCase()) : [...localSelected, name], localUngrouped)}
             >
@@ -578,7 +578,9 @@ export const TodoPanel = (): ReactElement => {
     /** Stored colour (`palette:<id>` or a hex) that tints the chip. */
     chip?: string,
     /** The glyph and label colour on the tinted chip; defaults to the palette's contrast. */
-    chipOn?: string
+    chipOn?: string,
+    /** A subgroup: the row sits indented under its group. */
+    sub?: boolean
   ): ReactElement => {
     const current = sameView(view, target)
     const active = target.kind === 'groups' && target.names.length === 1 && !target.includeUngrouped && view.kind === 'groups'
@@ -588,7 +590,7 @@ export const TodoPanel = (): ReactElement => {
       <button
         key={serializeView(target)}
         type="button"
-        className={`todo-tree-row${dot ? ' nested' : ''}${variant ? ` todo-${variant}-chip` : ''}${active ? ' active' : ''}`}
+        className={`todo-tree-row${dot ? ' nested' : ''}${sub ? ' todo-subgroup' : ''}${variant ? ` todo-${variant}-chip` : ''}${active ? ' active' : ''}`}
         aria-current={current ? 'true' : undefined}
         aria-label={variant ? `${label} ${count}` : undefined}
         title={variant ? label : undefined}
@@ -738,7 +740,11 @@ export const TodoPanel = (): ReactElement => {
               { kind: 'groups', names: [name] },
               countForGroup(openGroupCounts, name),
               undefined,
-              groupColorFor(name, groups)
+              groupColorFor(name, groups),
+              undefined,
+              undefined,
+              undefined,
+              isSubgroupName(name, groups)
             ))}
           </div>
         </div>

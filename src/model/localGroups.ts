@@ -3,19 +3,21 @@
  * app-wide shared groups (Settings → Appearance → Groups) that Contacts and
  * Calendar read too.
  *
- * An individual group is a plain group edited like the shared ones; it never
- * sits under a shared group (a `parent` saved by an earlier version is dropped
- * on read). Tasks store a group by name, like every other group consumer, and a rename keeps the old name in `aliases` (the SDK's
+ * An individual group is a plain group edited like the shared ones. It can be a
+ * subgroup of another individual group (`parent`, one level only) but never
+ * sits under a shared group. Tasks store a group by name, like every other group consumer, and a rename keeps the old name in `aliases` (the SDK's
  * own mechanism), so existing tasks keep resolving to the renamed group.
  */
 import type { ValleyGroup } from '@valley/plugin-sdk/types'
-import { groupKey } from '@valley/plugin-sdk/groups'
+import { groupKey, nestGroups } from '@valley/plugin-sdk/groups'
 
 export interface LocalGroup {
   id: string
   name: string
   color: string
   aliases?: string[]
+  /** Id of the individual group this one is a subgroup of. */
+  parent?: string
 }
 
 export const LOCAL_GROUPS_KEY = 'localGroups'
@@ -47,10 +49,12 @@ export function normalizeLocalGroups(value: unknown, shared: readonly ValleyGrou
     ids.add(id)
     taken.add(groupKey(name))
     aliases.forEach((alias) => taken.add(groupKey(alias)))
-    out.push({ id, name, color, ...(aliases.length ? { aliases } : {}) })
+    const parent = clean(raw.parent, 64)
+    out.push({ id, name, color, ...(aliases.length ? { aliases } : {}), ...(/^local-[a-z0-9]{1,32}$/.test(parent) ? { parent } : {}) })
     if (out.length >= LOCAL_GROUP_LIMIT) break
   }
-  return out
+  // A parent that is not an individual top-level group is dropped; subgroups follow their group.
+  return nestGroups(out)
 }
 
 /** A renamed group keeps its old name as an alias so tasks that still carry it resolve. */
@@ -65,6 +69,6 @@ export function renameLocalGroup(group: LocalGroup, name: string): LocalGroup {
 export function mergedGroups(shared: readonly ValleyGroup[], local: readonly LocalGroup[]): ValleyGroup[] {
   return [
     ...shared,
-    ...local.map((group) => ({ id: group.id, name: group.name, color: group.color, ...(group.aliases ? { aliases: group.aliases } : {}) }))
+    ...local.map((group) => ({ id: group.id, name: group.name, color: group.color, ...(group.aliases ? { aliases: group.aliases } : {}), ...(group.parent ? { parent: group.parent } : {}) }))
   ]
 }

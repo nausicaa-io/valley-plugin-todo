@@ -222,4 +222,45 @@ describe('todo settings', () => {
     expect(confirm).not.toHaveBeenCalled()
     expect((mock.api.settings.get().localGroups as Array<{ name: string }>).map((group) => group.name)).toEqual(['Errands'])
   })
+
+  it('adds a subgroup from the + of a To-Do group, counts its tasks under the group and keeps both from removal', async () => {
+    todoList.current = [{ id: 'series', title: 'Series sheet', group: 'Analysis' }]
+    const mock = createMockValleyApi({
+      manifest: { id: 'todo' },
+      settings: { localGroups: [
+        { id: 'local-0f9e8d7c6b5a', name: 'Uni', color: 'palette:blue' },
+        { id: 'local-1a2b3c4d5e6f', name: 'Analysis', color: 'palette:green', parent: 'local-0f9e8d7c6b5a' },
+        { id: 'local-aaaaaaaaaaaa', name: 'Garden', color: 'palette:red' }
+      ] }
+    })
+    initLocalization(mock.api)
+    initRuntime(mock.api)
+    await act(async () => { render(<Settings section="groups" />) })
+
+    const row = (name: string): Element => screen.getByDisplayValue(name).closest('.settings-colorrule-row')!
+    expect(row('Analysis')).toHaveClass('settings-group-sub')
+    expect(row('Uni')).not.toHaveClass('settings-group-sub')
+    expect(screen.queryByRole('button', { name: 'Add subgroup to Analysis' })).toBeNull()
+    await vi.waitFor(() => expect(row('Uni').querySelector('.settings-group-usage')).toHaveTextContent('1'))
+    expect(screen.getByRole('button', { name: 'Delete Uni' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('button', { name: 'Delete Garden' })).not.toHaveAttribute('aria-disabled')
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add subgroup to Uni' })) })
+    const input = screen.getByRole('textbox', { name: 'New subgroup' })
+    expect(input).toHaveFocus()
+    expect(input.closest('.settings-colorrule-row')!.previousElementSibling).toBe(row('Analysis'))
+    fireEvent.change(input, { target: { value: 'Mechanics' } })
+    await act(async () => { fireEvent.blur(input) })
+    const saved = (): Array<[string, string | null]> => (mock.api.settings.get().localGroups as Array<{ name: string; parent?: string }>).map((group) => [group.name, group.parent ?? null])
+    expect(saved()).toEqual([['Uni', null], ['Analysis', 'local-0f9e8d7c6b5a'], ['Mechanics', 'local-0f9e8d7c6b5a'], ['Garden', null]])
+    expect(screen.queryByRole('textbox', { name: 'New subgroup' })).toBeNull()
+
+    // Keyboard reordering keeps a subgroup under its group.
+    await act(async () => { fireEvent.keyDown(row('Mechanics').querySelector('.settings-colorrule-grip')!, { key: 'ArrowUp' }) })
+    expect(saved()).toEqual([['Uni', null], ['Mechanics', 'local-0f9e8d7c6b5a'], ['Analysis', 'local-0f9e8d7c6b5a'], ['Garden', null]])
+
+    // A group with subgroups is not removed, even once no task is left in it.
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Delete Uni' })) })
+    expect(saved()).toHaveLength(4)
+  })
 })

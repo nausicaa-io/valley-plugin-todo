@@ -2,7 +2,7 @@ import type { TodoRecord } from '../types'
 import { paletteRef } from '@valley/plugin-sdk/palette'
 import { parseLocalDate, weekStartIndex } from '@valley/plugin-sdk/dateGrid'
 import { api } from '../runtime'
-import { groupKey } from './groups'
+import { groupFamilyRevision, groupKey, groupKeysCovered } from './groups'
 import { addDays, isoDay } from './sort'
 
 function hostWeekStart(): number {
@@ -153,14 +153,16 @@ export function matchesView(todo: TodoRecord, view: TodoView, today: string = is
   return view.id === 'completed' ? todo.completed : !todo.completed
 }
 
-const groupKeyCache = new WeakMap<object, { names: readonly string[]; count: number; keys: Set<string> }>()
+const groupKeyCache = new WeakMap<object, { names: readonly string[]; count: number; revision: number; keys: Set<string> }>()
 
 /** The selected group keys of a groups view, built once per view object rather than per todo. */
 function groupViewKeys(view: Extract<TodoView, { kind: 'groups' }>): Set<string> {
   const hit = groupKeyCache.get(view)
-  if (hit && hit.names === view.names && hit.count === view.names.length) return hit.keys
-  const keys = new Set(view.names.map(groupKey))
-  groupKeyCache.set(view, { names: view.names, count: view.names.length, keys })
+  const revision = groupFamilyRevision()
+  if (hit && hit.names === view.names && hit.count === view.names.length && hit.revision === revision) return hit.keys
+  // A selected group covers its subgroups.
+  const keys = new Set(view.names.flatMap((name) => [...groupKeysCovered(name)]))
+  groupKeyCache.set(view, { names: view.names, count: view.names.length, revision, keys })
   return keys
 }
 
@@ -223,8 +225,8 @@ export function viewCounts(todos: TodoRecord[], today: string = isoDay(new Date(
 
 /** How many todos a group row shows — open only, so a done pile never inflates it. */
 export function groupCount(todos: TodoRecord[], name: string | null): number {
-  const key = name === null ? null : groupKey(name)
-  return todos.filter((t) => !t.completed && (key === null ? !t.group : groupKey(t.group ?? '') === key))
+  const keys = name === null ? null : groupKeysCovered(name)
+  return todos.filter((t) => !t.completed && (keys === null ? !t.group : keys.has(groupKey(t.group ?? ''))))
     .length
 }
 
@@ -253,7 +255,10 @@ export function groupCounts(todos: readonly TodoRecord[], openOnly = true): Grou
 
 /** One group row's count from {@link groupCounts}; `null` is the ungrouped row. */
 export function countForGroup(counts: GroupCounts, name: string | null): number {
-  return name === null ? counts.ungrouped : counts.byKey.get(groupKey(name)) ?? 0
+  if (name === null) return counts.ungrouped
+  let total = 0
+  for (const key of groupKeysCovered(name)) total += counts.byKey.get(key) ?? 0
+  return total
 }
 
 /**
