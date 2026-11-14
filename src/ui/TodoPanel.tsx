@@ -58,6 +58,7 @@ import {
   useTodoSearch
 } from '../state/viewStore'
 import { openViewTab, opensInNewTab, showView, useShownView } from '../state/tabs'
+import { rangeNames, selectionOf, toggleName, viewOfSelection } from '../model/listSelection'
 import { PRIORITIES, SORT_LABEL_KEYS, formatDate, formatDueLabel, isoDay, type SortDir, type SortField } from '../model/sort'
 import { uiText } from '../localization'
 import { DONE_STATUSES, matchesStatusFilter, useStatusVocabulary } from '../state/statusStore'
@@ -559,6 +560,22 @@ export const TodoPanel = (): ReactElement => {
     api.workspace.patchTimeControl({ selectedDate: null, rangeStart: null, rangeEnd: null })
   }
 
+  // The last list clicked plainly or toggled: Shift-click selects the rows between it and the clicked one.
+  const listAnchorRef = React.useRef<string | null>(null)
+  const pickList = (name: string, event: { shiftKey: boolean; altKey: boolean }): void => {
+    const current = selectionOf(view)
+    const anchor = groupNames.find((candidate) => listAnchorRef.current !== null && groupKey(candidate) === groupKey(listAnchorRef.current))
+    if (event.altKey) {
+      listAnchorRef.current = name
+      showView(viewOfSelection({ ...current, names: toggleName(current.names, name) }))
+    } else if (event.shiftKey && anchor) {
+      showView(viewOfSelection({ ...current, names: rangeNames(groupNames, anchor, name) }))
+    } else {
+      listAnchorRef.current = name
+      showView({ kind: 'groups', names: [name] })
+    }
+  }
+
   const treeRow = (
     label: string,
     target: TodoView,
@@ -595,7 +612,12 @@ export const TodoPanel = (): ReactElement => {
               } as CSSProperties)
             : undefined
         }
-        onClick={(event) => showView(target, opensInNewTab(event))}
+        onClick={(event) => {
+          if (opensInNewTab(event) || target.kind !== 'groups' || target.names.length !== 1) {
+            if (target.kind !== 'groups') listAnchorRef.current = null
+            showView(target, opensInNewTab(event))
+          } else pickList(target.names[0], event)
+        }}
         onAuxClick={(event) => {
           if (event.button !== 1) return
           event.preventDefault()
