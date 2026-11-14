@@ -243,7 +243,7 @@ describe('the sidebar tree', () => {
   it('highlights every selected group in the page navigation', async () => {
     await act(async () => render(<TodoPanel />))
     await act(async () => store.mock.emitState({ activePluginTab: { pluginId: 'todo' } }))
-    await screen.findByText('My Lists')
+    await screen.findByText('Groups')
 
     await act(async () => setView({ kind: 'groups', names: ['Fungi', 'Wildlife'], includeUngrouped: false }))
 

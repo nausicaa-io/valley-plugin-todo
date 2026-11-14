@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { injectStyles } from '../src/styles'
 
-const EXPECTED_SHA256 = 'ffa34fc76781614a5f74b1d8d02826ad851fc1f590225ab7de9399207f0e4773'
-const EXPECTED_LENGTH = 130944
+const EXPECTED_SHA256 = '603bd68e3c91a72a586207b0035613a47fb77f156f3f0be21469edaf64fc5f20'
+const EXPECTED_LENGTH = 132235
 
 describe('plugin stylesheet', () => {
   afterEach(() => {

@@ -11,6 +11,7 @@ import {
   type TodoGroup
 } from '../model/groups'
 import { LOCAL_GROUPS_KEY, mergedGroups, normalizeLocalGroups, type LocalGroup } from '../model/localGroups'
+import { placeGroup, resolveGroupDrop, type GroupPlacement } from '@valley/plugin-sdk/groups'
 
 export const USE_SHARED_GROUPS_KEY = 'useSharedGroups'
 export const USE_LOCAL_GROUPS_KEY = 'useLocalGroups'
@@ -87,6 +88,51 @@ export function useLocalGroups(): LocalGroup[] {
   const [groups, setGroups] = React.useState<LocalGroup[]>(getLocalGroups)
   React.useEffect(() => onGroupsChanged(() => setGroups(getLocalGroups())), [])
   return groups
+}
+
+export const COLLAPSED_GROUPS_KEY = 'collapsedGroups'
+
+/** Ids of the groups whose subgroups the sidebar's Groups list hides. */
+export function getCollapsedGroups(): string[] {
+  const saved = api?.settings.get()[COLLAPSED_GROUPS_KEY]
+  return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : []
+}
+
+/** The collapsed groups and a toggle that saves the choice. */
+export function useCollapsedGroups(): [ReadonlySet<string>, (id: string) => void] {
+  const [ids, setIds] = React.useState<string[]>(getCollapsedGroups)
+  React.useEffect(() => api.settings.subscribe(() => setIds((current) => {
+    const next = getCollapsedGroups()
+    return next.length === current.length && next.every((id, index) => id === current[index]) ? current : next
+  })), [])
+  const toggle = React.useCallback((id: string): void => {
+    const current = getCollapsedGroups()
+    const next = current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
+    setIds(next)
+    void api.settings.set(COLLAPSED_GROUPS_KEY, next)
+  }, [])
+  return [React.useMemo(() => new Set(ids), [ids]), toggle]
+}
+
+const isLocalGroup = (id: string): boolean => /^local-[a-z0-9]{1,32}$/.test(id)
+
+/**
+ * Where a group dragged in the sidebar's Groups list lands. A group moves only
+ * among its own kind (shared or To-Do-only); `null` for a drop on the other
+ * kind or on itself. `hiddenSubgroups` is set for a drop after a collapsed
+ * group: the dragged group then lands after that group's hidden subgroups.
+ */
+export function groupDropPlacement(dragId: string, overId: string, position: 'before' | 'after', nest: boolean, hiddenSubgroups = false): GroupPlacement | null {
+  if (isLocalGroup(dragId) !== isLocalGroup(overId)) return null
+  const list: readonly { id: string; parent?: string }[] = isLocalGroup(dragId) ? getLocalGroups() : getGlobalGroups()
+  const lastHidden = hiddenSubgroups && position === 'after' ? list.filter((group) => group.parent === overId).at(-1) : undefined
+  return lastHidden ? resolveGroupDrop(list, dragId, lastHidden.id, 'after', false) : resolveGroupDrop(list, dragId, overId, position, nest)
+}
+
+/** Save a group's new place: a shared group in the app-wide registry, a To-Do-only group in To-Do's settings. */
+export async function moveGroup(id: string, placement: GroupPlacement): Promise<void> {
+  if (isLocalGroup(id)) await setLocalGroups(placeGroup(getLocalGroups(), id, placement))
+  else await api.sharedState.mutateGroup({ kind: 'move', id, ...placement })
 }
 
 export function startGroupUsageReporting(): () => void {

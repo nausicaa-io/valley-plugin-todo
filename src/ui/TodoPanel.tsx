@@ -1,5 +1,5 @@
 import { React, api, useTodoRevealRequest, revealRequestStore } from '../runtime'
-import type { CSSProperties, ReactElement } from 'react'
+import type { CSSProperties, ReactElement, DragEvent } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from '../types'
 import { paletteCssContrast, paletteCssValue } from '@valley/plugin-sdk/palette'
 import { useActiveCalendarSelection, useHostState } from '../state/hooks'
@@ -25,14 +25,16 @@ import {
   SortAscending,
   SortDescending,
   UpdatedSortGlyph,
-  X
+  X,
+  ChevronDown,
+  ChevronRight
 } from './icons'
 import { useTodoListController } from '../state/controller'
 import { TodoDetailModal } from './TodoDetail'
 import { LocationField } from './LocationField'
 import { parseQuickAdd } from '../model/sections'
 import { PanelDateList } from './PanelDateList'
-import { useGroups } from '../state/groupStore'
+import { groupDropPlacement, moveGroup, useCollapsedGroups, useGroups } from '../state/groupStore'
 import { allGroups, groupColorFor, groupKey, isSubgroupName } from '../model/groups'
 import {
   configuredSmartLists,
@@ -304,6 +306,10 @@ export const TodoPanel = (): ReactElement => {
     [groups]
   )
   const hasUngrouped = React.useMemo(() => c.todos.some((t) => !t.group), [c.todos])
+  // The sidebar's Groups list: a group with subgroups folds, and rows drag to a new place.
+  const [collapsedGroups, toggleCollapsedGroup] = useCollapsedGroups()
+  const draggedGroup = React.useRef<string | null>(null)
+  const [groupDrop, setGroupDrop] = React.useState<{ id: string; position: 'before' | 'after'; nested: boolean } | null>(null)
   const selectedGroupNames = view.kind === 'groups' ? view.names : groupNames
   const includeSelectedUngrouped = view.kind === 'groups' ? view.includeUngrouped === true : hasUngrouped
   const allGroupsSelected = selectedGroupNames.length === groupNames.length
@@ -735,17 +741,71 @@ export const TodoPanel = (): ReactElement => {
           </nav>
           <div className="todo-navigation-groups">
             <div className="todo-navigation-groups-title">{uiText('todo.view.myLists')}</div>
-            {groupNames.map((name) => treeRow(
-              name,
-              { kind: 'groups', names: [name] },
-              countForGroup(openGroupCounts, name),
-              undefined,
-              groupColorFor(name, groups),
-              undefined,
-              undefined,
-              undefined,
-              isSubgroupName(name, groups)
-            ))}
+            {groups.filter((group) => !(group.parent && collapsedGroups.has(group.parent))).map((group) => {
+              const folds = groups.some((candidate) => candidate.parent === group.id)
+              const collapsed = folds && collapsedGroups.has(group.id)
+              // A pointer this far right of the row's left edge asks for a subgroup where the slot allows both levels.
+              const slotOf = (event: DragEvent<HTMLElement>): { position: 'before' | 'after'; nest: boolean } => {
+                const rect = event.currentTarget.getBoundingClientRect()
+                return { position: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after', nest: event.clientX > rect.left + 28 }
+              }
+              return (
+                <div
+                  key={group.id}
+                  className={`todo-group-nav-row${groupDrop?.id === group.id ? ` drop-${groupDrop.position}${groupDrop.nested ? ' drop-nested' : ''}` : ''}`}
+                  draggable
+                  onDragStart={(event) => {
+                    draggedGroup.current = group.id
+                    event.dataTransfer.effectAllowed = 'move'
+                    event.dataTransfer.setData('text/plain', group.id)
+                  }}
+                  onDragOver={(event) => {
+                    const dragId = draggedGroup.current
+                    if (!dragId) return
+                    const { position, nest } = slotOf(event)
+                    const placement = groupDropPlacement(dragId, group.id, position, nest, collapsed)
+                    if (!placement) { if (groupDrop) setGroupDrop(null); return }
+                    event.preventDefault()
+                    const nested = placement.parent !== null && !collapsed
+                    if (groupDrop?.id !== group.id || groupDrop.position !== position || groupDrop.nested !== nested) setGroupDrop({ id: group.id, position, nested })
+                  }}
+                  onDrop={(event) => {
+                    const dragId = draggedGroup.current ?? event.dataTransfer.getData('text/plain')
+                    const { position, nest } = slotOf(event)
+                    const placement = dragId ? groupDropPlacement(dragId, group.id, position, nest, collapsed) : null
+                    draggedGroup.current = null
+                    setGroupDrop(null)
+                    if (!dragId || !placement) return
+                    event.preventDefault()
+                    void moveGroup(dragId, placement).catch(() => {})
+                  }}
+                  onDragEnd={() => { draggedGroup.current = null; setGroupDrop(null) }}
+                >
+                  {folds && (
+                    <button
+                      type="button"
+                      className="todo-group-toggle"
+                      aria-expanded={!collapsed}
+                      aria-label={uiText(collapsed ? 'todo.view.expandGroup' : 'todo.view.collapseGroup', { p0: group.name })}
+                      onClick={() => toggleCollapsedGroup(group.id)}
+                    >
+                      {collapsed ? <ChevronRight /> : <ChevronDown />}
+                    </button>
+                  )}
+                  {treeRow(
+                    group.name,
+                    { kind: 'groups', names: [group.name] },
+                    countForGroup(openGroupCounts, group.name),
+                    undefined,
+                    groupColorFor(group.name, groups),
+                    undefined,
+                    undefined,
+                    undefined,
+                    group.parent !== undefined
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       ) : (

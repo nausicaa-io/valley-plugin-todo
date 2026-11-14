@@ -294,4 +294,47 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
 .todo-group-filter-row.todo-subgroup .todo-tree-dot {
   margin-left: 14px;
 }
+
+/* A row of the sidebar's Groups list. The row is its own drag handle; a group
+   with subgroups carries a fold chevron in the row's left padding, so no label
+   moves. The insertion line is the shared one, centred in the 2px row gap and
+   indented when the group lands as a subgroup. */
+.todo-group-nav-row {
+  position: relative;
+}
+.todo-group-toggle {
+  position: absolute;
+  top: 50%;
+  left: -7px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-tertiary);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.todo-group-toggle:hover { color: var(--text-color); }
+.todo-group-toggle svg { width: 12px; height: 12px; }
+.todo-group-nav-row.drop-before::before,
+.todo-group-nav-row.drop-after::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: var(--drop-knob);
+  margin: 0;
+  background: var(--drop-indicator-fill);
+  pointer-events: none;
+}
+.todo-group-nav-row.drop-before::before { top: -1px; transform: translateY(-50%); }
+.todo-group-nav-row.drop-after::before { bottom: -1px; transform: translateY(50%); }
+.todo-group-nav-row.drop-nested::before { left: 21px; }
 `

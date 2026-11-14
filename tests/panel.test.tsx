@@ -342,7 +342,7 @@ describe('TodoPanel', () => {
     act(() => store.mock.emitState({ activePluginTab: { pluginId: 'todo' } }))
     await waitFor(() => expect(document.querySelector('.todo-active-navigation')).not.toBeNull())
     expect(document.querySelectorAll('.todo-smart-grid .todo-smart-chip')).toHaveLength(6)
-    expect(screen.getByText('My Lists')).toBeInTheDocument()
+    expect(screen.getByText('Groups')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Fungi/ })).toHaveTextContent('1')
     expect(screen.getByLabelText('New todo')).toBeInTheDocument()
     expect(screen.queryByLabelText('Compact view')).not.toBeInTheDocument()

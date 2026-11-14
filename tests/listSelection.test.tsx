@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DataRecord } from '@valley/plugin-sdk/types'
@@ -21,7 +21,7 @@ async function openLists(): Promise<void> {
   store = installTodoNotes(RECORDS, { groups: GROUPS })
   await act(async () => { render(<TodoPanel />) })
   await act(async () => store.mock.emitState({ activePluginTab: { pluginId: 'todo' } }))
-  await screen.findByText('My Lists')
+  await screen.findByText('Groups')
 }
 
 const row = (name: string): HTMLElement => screen.getByRole('button', { name: new RegExp(`^${name}`) })
@@ -46,7 +46,7 @@ describe('list selection model', () => {
   })
 })
 
-describe('My Lists selection', () => {
+describe('Groups list selection', () => {
   it('selects one list on a plain click', async () => {
     await openLists()
     await click('Wildlife')
@@ -114,3 +114,83 @@ describe('My Lists selection', () => {
     expect(selected()).toEqual(['Fungi'])
   })
 })
+
+describe('Groups list: folding and reordering', () => {
+  const TREE = [
+    { id: 'group_fungi', name: 'Fungi', color: '#3b82f6' },
+    { id: 'group_spores', name: 'Spores', color: '#22c55e', parent: 'group_fungi' },
+    { id: 'group_caps', name: 'Caps', color: '#a855f7', parent: 'group_fungi' },
+    { id: 'group_wildlife', name: 'Wildlife', color: '#eab308' },
+    { id: 'group_rain', name: 'Rain', color: '#a855f7' }
+  ]
+  const LOCAL = [
+    { id: 'local-aaaaaaaaaaaa', name: 'Errands', color: 'palette:blue' },
+    { id: 'local-bbbbbbbbbbbb', name: 'Market', color: 'palette:green', parent: 'local-aaaaaaaaaaaa' },
+    { id: 'local-cccccccccccc', name: 'Home', color: 'palette:red' }
+  ]
+  const open = async (): Promise<void> => {
+    store = installTodoNotes(RECORDS, { groups: TREE, localGroups: LOCAL })
+    await act(async () => { render(<TodoPanel />) })
+    await act(async () => store.mock.emitState({ activePluginTab: { pluginId: 'todo' } }))
+    await screen.findByText('Groups')
+  }
+  const names = (): string[] => [...document.querySelectorAll('.todo-navigation-groups .todo-tree-label')].map((label) => (label.closest('.todo-subgroup') ? '  ' : '') + label.textContent)
+  const navRow = (name: string): HTMLElement => row(name).closest('.todo-group-nav-row') as HTMLElement
+  // jsdom rows have no size: a negative y is the upper half, x past 28 asks for a subgroup.
+  const drag = async (from: string, to: string, at: { clientX: number; clientY: number }): Promise<void> => {
+    const dataTransfer = { effectAllowed: '', setData: vi.fn(), getData: () => '' }
+    await act(async () => { fireEvent.dragStart(navRow(from), { dataTransfer }) })
+    // jsdom has no DragEvent, so the pointer position is put on the event by hand.
+    const fire = (type: 'dragOver' | 'drop'): void => {
+      const event = createEvent[type](navRow(to), { dataTransfer })
+      Object.defineProperties(event, { clientX: { value: at.clientX }, clientY: { value: at.clientY } })
+      fireEvent(navRow(to), event)
+    }
+    await act(async () => { fire('dragOver') })
+    await act(async () => { fire('drop') })
+    await act(async () => { await Promise.resolve() })
+  }
+
+  it('titles the section Groups and folds a group with subgroups, saving the choice', async () => {
+    await open()
+    expect(screen.queryByText('My Lists')).toBeNull()
+    expect(names()).toEqual(['Fungi', '  Spores', '  Caps', 'Wildlife', 'Rain', 'Errands', '  Market', 'Home'])
+    expect(screen.queryByRole('button', { name: 'Hide the subgroups of Wildlife' })).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Hide the subgroups of Fungi' })) })
+    expect(names()).toEqual(['Fungi', 'Wildlife', 'Rain', 'Errands', '  Market', 'Home'])
+    expect(store.mock.api.settings.get().collapsedGroups).toEqual(['group_fungi'])
+    expect(screen.getByRole('button', { name: 'Show the subgroups of Fungi' })).toHaveAttribute('aria-expanded', 'false')
+    // Folding never selects the list.
+    expect(selected()).toEqual([])
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Show the subgroups of Fungi' })) })
+    expect(names()).toEqual(['Fungi', '  Spores', '  Caps', 'Wildlife', 'Rain', 'Errands', '  Market', 'Home'])
+    expect(store.mock.api.settings.get().collapsedGroups).toEqual([])
+  })
+
+  it('reorders shared groups by drag in the shared registry, nests with the pointer to the right and lifts back out', async () => {
+    await open()
+    await drag('Rain', 'Fungi', { clientX: 4, clientY: -1 })
+    expect(store.mock.api.sharedState.mutateGroup).toHaveBeenLastCalledWith({ kind: 'move', id: 'group_rain', parent: null, before: 'group_fungi' })
+    expect(names().slice(0, 5)).toEqual(['Rain', 'Fungi', '  Spores', '  Caps', 'Wildlife'])
+    await drag('Rain', 'Wildlife', { clientX: 60, clientY: 1 })
+    expect(store.mock.api.sharedState.mutateGroup).toHaveBeenLastCalledWith({ kind: 'move', id: 'group_rain', parent: 'group_wildlife', before: null })
+    expect(names().slice(0, 5)).toEqual(['Fungi', '  Spores', '  Caps', 'Wildlife', '  Rain'])
+    await drag('Rain', 'Fungi', { clientX: 4, clientY: -1 })
+    expect(names().slice(0, 5)).toEqual(['Rain', 'Fungi', '  Spores', '  Caps', 'Wildlife'])
+  })
+
+  it('lands after the hidden subgroups of a folded group, and keeps the two kinds apart', async () => {
+    await open()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Hide the subgroups of Fungi' })) })
+    await drag('Rain', 'Fungi', { clientX: 60, clientY: 1 })
+    expect(store.mock.api.sharedState.mutateGroup).toHaveBeenLastCalledWith({ kind: 'move', id: 'group_rain', parent: null, before: 'group_wildlife' })
+    const calls = vi.mocked(store.mock.api.sharedState.mutateGroup).mock.calls.length
+    // A shared group dropped on a To-Do-only group goes nowhere.
+    await drag('Wildlife', 'Home', { clientX: 4, clientY: 1 })
+    expect(vi.mocked(store.mock.api.sharedState.mutateGroup).mock.calls.length).toBe(calls)
+    // To-Do-only groups reorder in To-Do's own setting.
+    await drag('Home', 'Errands', { clientX: 4, clientY: -1 })
+    expect((store.mock.api.settings.get().localGroups as Array<{ name: string; parent?: string }>).map((group) => [group.name, group.parent ?? null])).toEqual([['Home', null], ['Errands', null], ['Market', 'local-aaaaaaaaaaaa']])
+  })
+})
+
