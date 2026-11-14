@@ -319,9 +319,14 @@ export const filtersCss = `/* ── Filter surfaces ─────────
 .todo-group-filter-row .todo-tree-count { color: var(--text-tertiary); }
 .todo-group-filter-row .todo-tree-dot.no-group { background: var(--text-tertiary); }
 
+/* The Groups tab of the right sidebar fills the panel; its ScrollPanel scrolls the list. */
+.todo-properties-frame { display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0; min-width: 0; }
 .todo-status-groups {
-  margin-top: var(--space-2);
-  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+}
+/* A subgroup sits one step in under its group. */
+.todo-status-subgroup .todo-status-group-header {
+  padding-left: calc(var(--space-3) + 14px);
 }
 .todo-status-group + .todo-status-group {
   border-top: 1px solid var(--border-light);

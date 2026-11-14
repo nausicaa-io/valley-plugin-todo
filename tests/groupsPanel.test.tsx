@@ -53,34 +53,31 @@ describe('the sidebar tree', () => {
     store = installTodoNotes(RECORDS, { groups: CONFIGURED })
   })
 
-  it('offers no Groups tab in Properties: only the To-Do segment is registered, and the group filter stays in the sidebar', async () => {
+  it('registers one Properties segment, titled Groups with the group icon, and offers no groups in the sidebar filter', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
-    const ids = store.mock.api.interop.extensions.providers(METADATA_PANEL_SEGMENT_V1).map((entry) => entry.extension.id)
-    expect(ids).toEqual(['todo.properties'])
-    expect(ids).not.toContain('todo.groups')
+    const segments = store.mock.api.interop.extensions.providers(METADATA_PANEL_SEGMENT_V1).map((entry) => entry.extension)
+    expect(segments.map((segment) => segment.id)).toEqual(['todo.properties'])
+    expect(segments[0]).toMatchObject({ label: 'Groups', labelKey: 'todo.view.myLists', icon: 'group' })
     expandGroups()
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: /^Fungi/ })))
-    await waitFor(() => expect(titles().sort()).toEqual(['Record moss growth', 'Review species list']))
+    expect(screen.queryByRole('button', { name: /^Fungi/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Deselect all' })).toBeNull()
     act(() => setView({ kind: 'groups', names: ['Wildlife'], includeUngrouped: false }))
     await waitFor(() => expect(titles()).toEqual(['Review species list']))
   })
-
-  it('shows unselected To-Do facts as key/value rows without fake inputs', async () => {
+  it('lists only the groups on the Groups tab, with no summary rows and no fake inputs', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
     const segment = store.mock.api.interop.extensions.providers(METADATA_PANEL_SEGMENT_V1).find((entry) => entry.extension.id === 'todo.properties')!.extension
     expect(segment.editCommand).toBeUndefined()
     const { container } = render(<>{segment.render({ relPath: '', kind: 'unsupported' })}</>)
-    expect(container.querySelectorAll('.todo-overall-summary > .props-info-row')).toHaveLength(10)
-    expect(screen.getByText('Tasks', { selector: 'dt' }).nextElementSibling).toHaveTextContent('3')
-    expect(screen.getByText('Completed', { selector: 'dt' }).nextElementSibling).toHaveTextContent('0')
-    expect(screen.getByText('To do', { selector: 'dt' }).nextElementSibling).toHaveTextContent('3')
+    expect(container.querySelector('.todo-overall-summary')).toBeNull()
+    expect(container.querySelector('dt')).toBeNull()
     expect(container.querySelector('input, select')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('.todo-status-group-header')).toHaveLength(3)
+    expect([...container.querySelectorAll('.todo-status-group-header')].map((header) => header.textContent)).toEqual(['Fungi1', 'Wildlife1', 'No group1'])
+    expect(container.querySelector('.todo-properties-frame[data-plugin-widget-layout="fill"] .todo-groups-properties')).not.toBeNull()
   })
-
-  it('shows every status total overall and for each group while group filters stay compact', async () => {
+  it('shows every status total for each group on the Groups tab', async () => {
     store = installTodoNotes([
       { id: 'open', title: 'Survey fungi', completed: false, group: 'Fungi' } as DataRecord,
       { id: 'waiting', title: 'Wait for spores', completed: false, status: 'waiting', group: 'Fungi' } as DataRecord,
@@ -92,9 +89,6 @@ describe('the sidebar tree', () => {
     const segments = store.mock.api.interop.extensions.providers(METADATA_PANEL_SEGMENT_V1)
     const summary = segments.find((entry) => entry.extension.id === 'todo.properties')!.extension
     const { container: summaryContainer } = render(<>{summary.render({ relPath: '', kind: 'unsupported' })}</>)
-    expect([...summaryContainer.querySelectorAll('.todo-overall-summary > .props-info-row')].map((row) => row.textContent)).toEqual([
-      'ViewAll', 'Tasks3', 'Completed1', 'To do1', 'In Progress0', 'Waiting1', 'On Hold0', 'Delegated0', 'Deferred0', 'Canceled0'
-    ])
     const fungiHeader = within(summaryContainer).getByRole('button', { name: /^Fungi/ })
     const fungiSummary = fungiHeader.closest('.todo-status-group') as HTMLElement
     expect(fungiHeader).toHaveAttribute('aria-expanded', 'false')
@@ -123,113 +117,34 @@ describe('the sidebar tree', () => {
     }
   })
 
-  it('keeps the header group filter icon-only', async () => {
+  it('keeps the header filter icon-only, with All, Completed and To do as its only choices', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
 
-    expect(screen.queryByRole('button', { name: /^Fungi/ })).not.toBeInTheDocument()
     const disclosure = screen.getByRole('button', { name: 'Filter' })
     expect(disclosure.textContent).toBe('')
     expect(disclosure.querySelector('svg')).toBeInTheDocument()
     expect(disclosure).toHaveAttribute('title', 'Filter')
     expect(disclosure).not.toHaveClass('active')
     expandGroups()
-    expect(screen.getByText('Group')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Deselect all' })).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: /^Fungi/ })).toHaveAttribute('aria-pressed', 'true')
+    expect([...document.querySelectorAll('.todo-status-quick-btn')].map((button) => button.textContent)).toEqual(['All', 'Completed', 'To do'])
+    expect(document.querySelector('.todo-group-filter-popover')).toBeNull()
+    expect(screen.queryByText('Group')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Deselect all' })).toBeNull()
   })
-
-  it('opens the central Groups settings from the accent heading', async () => {
-    render(<TodoPanel />)
-    await screen.findByText('Fungi Survey sheet')
-    expandGroups()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Group' }))
-
-    expect(store.mock.api.workspace.openOwnSettings).toHaveBeenCalledWith('groups')
-  })
-
-  it('selects and clears every group from the labeled bulk action', async () => {
-    await act(async () => render(<TodoPanel />))
-    await screen.findByText('Fungi Survey sheet')
-    expandGroups()
-
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Deselect all' })))
-    expect(screen.getByRole('button', { name: 'Select all' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Fungi/ })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: /^Wildlife/ })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: /^No group/ })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: 'Filter' }).textContent).toBe('')
-    expect(screen.getByRole('button', { name: 'Filter' })).toHaveClass('active')
-    expect(screen.queryAllByRole('heading', { level: 4 })).toHaveLength(0)
-
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Select all' })))
-    expect(screen.getByRole('button', { name: 'Deselect all' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Filter' }).textContent).toBe('')
-    expect(screen.getByRole('button', { name: 'Filter' })).not.toHaveClass('active')
-    expect(titles()).toHaveLength(3)
-  })
-
-  it('merges adjacent selections and rounds separated selection runs independently', async () => {
-    await act(async () => render(<TodoPanel />))
-    await screen.findByText('Fungi Survey sheet')
-    expandGroups()
-
-    let rows = [...document.querySelectorAll('.todo-group-filter-row')]
-    expect(rows[0]).toHaveClass('active', 'selection-run-start')
-    expect(rows[0]).not.toHaveClass('selection-run-end')
-    expect(rows[1]).toHaveClass('active')
-    expect(rows[1]).not.toHaveClass('selection-run-start', 'selection-run-end')
-    expect(rows[2]).toHaveClass('active', 'selection-run-end')
-    expect(rows[2]).not.toHaveClass('selection-run-start')
-
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: /^Wildlife/ })))
-    rows = [...document.querySelectorAll('.todo-group-filter-row')]
-    expect(rows[0]).toHaveClass('active', 'selection-run-start', 'selection-run-end')
-    expect(rows[1]).not.toHaveClass('active', 'selection-run-start', 'selection-run-end')
-    expect(rows[2]).toHaveClass('active', 'selection-run-start', 'selection-run-end')
-
-    const disposeStyles = injectStyles()
-    const css = document.getElementById('notes-todo-styles')?.textContent ?? ''
-    expect(css).toContain('.todo-group-filter-row.active:hover {\n  background: color-mix(in srgb, var(--title-color) 14%, transparent);')
-    expect(css).toContain('.todo-group-filter-row.active:has(+ .todo-group-filter-row:hover)')
-    expect(css).toContain('.todo-group-filter-row:hover + .todo-group-filter-row.active')
-    expect(css).not.toContain('.todo-tree-search {')
-    disposeStyles()
-  })
-
-  it('shows every group and No group, each with its open count', async () => {
-    render(<TodoPanel />)
-    await screen.findByText('Fungi Survey sheet')
-    expandGroups()
-
-    const rows = [...document.querySelectorAll('.todo-group-filter-row')]
-    expect(rows.map((r) => (r.textContent ?? '').trim())).toEqual([
-      '✓Fungi1',
-      '✓Wildlife1',
-      '✓No group1'
-    ])
-  })
-
-  it('filters the list to one group after clearing the default selection', async () => {
+  it('filters the list to one selected group', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
     expect(titles()).toHaveLength(3)
 
-    expandGroups()
-    fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
-    fireEvent.click(screen.getByRole('button', { name: /^Fungi/ }))
+    act(() => setView({ kind: 'groups', names: ['Fungi'], includeUngrouped: false }))
     await waitFor(() => expect(titles()).toEqual(['Fungi Survey sheet']))
   })
-
   it('keeps several selected groups as an OR filter without a header count', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
-    expandGroups()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
-    fireEvent.click(screen.getByRole('button', { name: /^Fungi/ }))
-    fireEvent.click(screen.getByRole('button', { name: /^Wildlife/ }))
+    act(() => setView({ kind: 'groups', names: ['Fungi', 'Wildlife'], includeUngrouped: false }))
 
     await waitFor(() => expect(titles()).toEqual(['Fungi Survey sheet', 'Review species list']))
     expect(screen.getByRole('button', { name: 'Filter' }).textContent).toBe('')
@@ -239,7 +154,6 @@ describe('the sidebar tree', () => {
       includeUngrouped: false
     })
   })
-
   it('highlights every selected group in the page navigation', async () => {
     await act(async () => render(<TodoPanel />))
     await act(async () => store.mock.emitState({ activePluginTab: { pluginId: 'todo' } }))
@@ -258,26 +172,20 @@ describe('the sidebar tree', () => {
   it('shows only ungrouped todos under No group', async () => {
     render(<TodoPanel />)
     await screen.findByText('Record moss growth')
-    expandGroups()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
-    fireEvent.click(screen.getByRole('button', { name: /^No group/ }))
+    act(() => setView({ kind: 'groups', names: [], includeUngrouped: true }))
     await waitFor(() => expect(titles()).toEqual(['Record moss growth']))
   })
-
   it('persists the selection so the panel reopens where it was left', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
-    expandGroups()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
-    fireEvent.click(screen.getByRole('button', { name: /^Wildlife/ }))
+    act(() => setView({ kind: 'groups', names: ['Wildlife'], includeUngrouped: false }))
 
     await waitFor(() =>
       expect(parseView(store.mock.api.settings.get().panelChip)).toEqual({ kind: 'groups', names: ['Wildlife'], includeUngrouped: false })
     )
   })
-
   it('restores a persisted selection on mount', async () => {
     store = installTodoNotes(RECORDS, { groups: CONFIGURED, panelChip: 'group:Fungi' })
     render(<TodoPanel />)
@@ -289,13 +197,12 @@ describe('the sidebar tree', () => {
     store = installTodoNotes([], {
       groups: [{ id: 'group_empty', name: 'Fresh', color: '#22c55e' }]
     })
-    render(<TodoPanel />)
-    await screen.findByRole('button', { name: 'Filter' })
-    expandGroups()
+    await act(async () => render(<TodoPanel />))
+    await act(async () => store.mock.emitState({ activePluginTab: { pluginId: 'todo' } }))
+    await screen.findByText('Groups')
 
     expect(await screen.findByRole('button', { name: /^Fresh/ })).toBeTruthy()
   })
-
   it('hides the tree while searching — it competes with the answer', async () => {
     await act(async () => render(<TodoPanel />))
     const search = await screen.findByLabelText('Search todos')
@@ -318,9 +225,7 @@ describe('creating into a group', () => {
   it('assigns the selected group to a new todo', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
-    expandGroups()
-    fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
-    fireEvent.click(screen.getByRole('button', { name: /^Fungi/ }))
+    act(() => setView({ kind: 'groups', names: ['Fungi'], includeUngrouped: false }))
 
     await compose('Track animal motion')
 
@@ -334,10 +239,7 @@ describe('creating into a group', () => {
   it('asks which selected group receives a quick-added todo', async () => {
     await act(async () => render(<TodoPanel />))
     await screen.findByText('Fungi Survey sheet')
-    expandGroups()
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Deselect all' })))
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: /^Fungi/ })))
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: /^Wildlife/ })))
+    await act(async () => setView({ kind: 'groups', names: ['Fungi', 'Wildlife'], includeUngrouped: false }))
     store.mock.api.ui.openMenu = vi.fn(async () => 'group:1')
 
     await compose('Count woodland tracks')

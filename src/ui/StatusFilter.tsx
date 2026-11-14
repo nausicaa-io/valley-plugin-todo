@@ -17,7 +17,7 @@ export function visibleSelectedStatuses(filter: TodoStatusFilter, active: TodoSt
   return showCompleted ? selected : selected.filter((status) => !isDoneStatus(status))
 }
 
-/** All · To do · Completed in one segmented row: everything, everything unfinished, or finished work. */
+/** All · Completed · To do in one segmented row: everything, finished work, or everything unfinished. */
 export function StatusQuickPicks(): ReactElement {
   const [filter, onChange] = useStatusFilter()
   const [showCompleted] = useShowCompleted()
@@ -29,8 +29,8 @@ export function StatusQuickPicks(): ReactElement {
   const same = (list: TodoStatus[]): boolean => list.length === selected.length && list.every((status) => selected.includes(status))
   const picks = [
     { id: 'all', label: uiText('todo.chip.all'), title: uiText('todo.filters.quickAll'), active: selected.length === active.length, select: () => { setShowCompleted(true); onChange('all') } },
-    { id: 'open', label: uiText('todo.status.todo'), title: uiText('todo.filters.quickOpen'), active: same(open), select: () => { setShowCompleted(false); onChange(open as [TodoStatus, ...TodoStatus[]]) } },
-    { id: 'done', label: uiText('todo.status.completed'), title: uiText('todo.filters.quickDone'), active: same(done), select: () => { setShowCompleted(true); onChange(done as [TodoStatus, ...TodoStatus[]]) } }
+    { id: 'done', label: uiText('todo.status.completed'), title: uiText('todo.filters.quickDone'), active: same(done), select: () => { setShowCompleted(true); onChange(done as [TodoStatus, ...TodoStatus[]]) } },
+    { id: 'open', label: uiText('todo.status.todo'), title: uiText('todo.filters.quickOpen'), active: same(open), select: () => { setShowCompleted(false); onChange(open as [TodoStatus, ...TodoStatus[]]) } }
   ]
   return (
     <div className="todo-status-quick" role="group" aria-label={uiText('todo.filters.statuses')}>

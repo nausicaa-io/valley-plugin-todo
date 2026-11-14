@@ -3,7 +3,7 @@ import type { ReactElement } from 'react'
 import type { MainWorkspaceViewProps, UiMenuItem } from '@valley/plugin-sdk'
 import { useActiveCalendarSelection, useHostState } from '../state/hooks'
 import { todoSearchMatcher } from '../model/search'
-import { FilterX, FolderInput, GroupGlyph, Link, Plus, Search, Settings, X } from './icons'
+import { FolderInput, GroupGlyph, Link, Plus, Search, Settings, X } from './icons'
 import { useTodoListController } from '../state/controller'
 import { TodoDetailModal } from './TodoDetail'
 import { openManageGroups } from './GroupEditor'
@@ -149,12 +149,6 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
     }
   }, [filtered, sortField, sortDir, view, today])
 
-  const filteredBy = !!search.trim() || priorities.length > 0 || statusFilter !== 'all'
-  const resetFilters = (): void => {
-    setSearch('')
-    setPriorities([])
-    setStatusFilter('all')
-  }
   const resetKey = [
     serializeView(view), search, JSON.stringify(statusFilter), priorities.join(), showCompleted,
     sortField, sortDir, selectedDate ?? '', selectedDateRange?.start ?? '', selectedDateRange?.end ?? ''
@@ -279,17 +273,6 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
             {searchOpen ? <X /> : <Search />}
           </button>
           <PriorityFacet />
-          {filteredBy && (
-            <button
-              type="button"
-              className="todo-page-appbar-btn"
-              aria-label={uiText('todo.table.reset')}
-              title={uiText('todo.table.reset')}
-              onClick={resetFilters}
-            >
-              <FilterX />
-            </button>
-          )}
           <ColumnsButton />
           <button
             type="button"

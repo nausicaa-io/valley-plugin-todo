@@ -232,10 +232,7 @@ describe('the To-Do page', () => {
     )
     await screen.findAllByText('Fungi Survey sheet')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
-    render(<>{store.mock.popovers.at(-1)?.node}</>)
-    fireEvent.click(screen.getByRole('button', { name: 'Deselect all' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Fungi/ }))
+    act(() => setView({ kind: 'groups', names: ['Fungi'], includeUngrouped: false }))
 
     await waitFor(() => expect(vi.mocked(store.mock.api.workspace.setMainTabTitle).mock.calls.at(-1)?.[0]).toBe('Fungi'))
   })
@@ -476,8 +473,8 @@ describe('the To-Do page', () => {
     expect(store.mock.api.settings.get()).toMatchObject({ pagePriorityFilter: ['high'] })
     expect(document.querySelector('.todo-page-appbar-btn[aria-label="Priority"]')).toHaveClass('active')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
-    await waitFor(() => expect(titles()).toEqual(['Urgent', 'Later']))
+    // The header carries no reset-filters button; the Priority button clears its own filter.
+    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
   })
 
   it('hides and restores columns from View', async () => {

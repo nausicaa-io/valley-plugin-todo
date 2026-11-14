@@ -50,14 +50,13 @@ describe('shared and To-Do-only group switches', () => {
     expect(groupText).toHaveTextContent('Fungi')
     expect((groupText as HTMLElement).style.color).toBe('rgb(59, 130, 246)')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
-    render(<>{store.mock.popovers.at(-1)?.node}</>)
+    // The sidebar's Groups list offers only the kinds that are on.
+    await act(async () => store.mock.emitState({ activePluginTab: { pluginId: 'todo' } }))
+    await screen.findByText('Groups')
     expect(screen.queryByRole('button', { name: /^Fungi/ })).toBeNull()
     expect(screen.getByRole('button', { name: /^Errands/ })).toBeInTheDocument()
 
     await act(async () => { await store.mock.api.settings.set('useSharedGroups', true) })
-    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
-    render(<>{store.mock.popovers.at(-1)?.node}</>)
     await waitFor(() => expect(screen.getByRole('button', { name: /^Fungi/ })).toBeInTheDocument())
   })
 

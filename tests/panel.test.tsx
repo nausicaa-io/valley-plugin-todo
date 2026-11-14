@@ -197,8 +197,9 @@ describe('TodoPanel', () => {
     await compose('Inspect canopy')
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Measure the north edge' } })
     fireEvent.change(screen.getByLabelText('Tags'), { target: { value: '#moss #canopy moss' } })
-    expect(screen.queryByLabelText('Due date')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Add date' }))
+    // The composer opens with its date and time fields shown; the calendar chip folds them.
+    expect(screen.getByLabelText('Due date')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add date' })).toHaveAttribute('aria-pressed', 'true')
     fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-10-02' } })
     fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '09:30' } })
     fireEvent.click(screen.getByLabelText('Flag'))

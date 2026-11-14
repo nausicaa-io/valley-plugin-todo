@@ -65,9 +65,9 @@ import { openViewTab, opensInNewTab, showView, useShownView } from '../state/tab
 import { selectionOf, toggleName, viewOfSelection } from '../model/listSelection'
 import { PRIORITIES, SORT_LABEL_KEYS, formatDate, formatDueLabel, isoDay, type SortDir, type SortField } from '../model/sort'
 import { uiText } from '../localization'
-import { DONE_STATUSES, matchesStatusFilter, useStatusVocabulary } from '../state/statusStore'
-import { StatusQuickPicks } from './StatusFilter'
+import { DONE_STATUSES, isDoneStatus, matchesStatusFilter, useStatusVocabulary } from '../state/statusStore'
 import { openManageGroups } from './GroupEditor'
+import { StatusQuickPicks, visibleSelectedStatuses } from './StatusFilter'
 
 export function sortFieldGlyph(field: SortField): ReactElement {
   if (field === 'flagged') return <Flag />
@@ -76,15 +76,6 @@ export function sortFieldGlyph(field: SortField): ReactElement {
   if (field === 'updated') return <UpdatedSortGlyph />
   if (field === 'created') return <CreatedSortGlyph />
   return <NameSortGlyph />
-}
-
-function PanelStatusPopover(): ReactElement {
-  return (
-    <div className="todo-filter-popover-body">
-      <div className="todo-filter-section-label">{uiText('todo.filters.show')}</div>
-      <StatusQuickPicks />
-    </div>
-  )
 }
 
 export function PanelSortPopover({
@@ -155,6 +146,15 @@ export function PanelSortPopover({
   )
 }
 
+
+function PanelStatusPopover(): ReactElement {
+  return (
+    <div className="todo-filter-popover-body">
+      <div className="todo-filter-section-label">{uiText('todo.filters.show')}</div>
+      <StatusQuickPicks />
+    </div>
+  )
+}
 export function GroupFilterPopover({
   todos,
   groups,
@@ -275,7 +275,8 @@ export const TodoPanel = (): ReactElement => {
   const [draftFields, setDraftFields] = React.useState<Partial<TodoRecord>>({})
   const [addingAttachment, setAddingAttachment] = React.useState(false)
   // Date, place and attachments stay folded behind their chip until wanted.
-  const [showSchedule, setShowSchedule] = React.useState(false)
+  // The composer opens with its date and time fields shown (14 Nov); the calendar chip still folds them.
+  const [showSchedule, setShowSchedule] = React.useState(true)
   const [showPlace, setShowPlace] = React.useState(false)
   const [createError, setCreateError] = React.useState(false)
   const { DateField, TimeField } = api.ui.settings
@@ -316,10 +317,6 @@ export const TodoPanel = (): ReactElement => {
   // The last place the insertion line showed: a drop in the gap between two rows or on the title lands there.
   const pendingGroupDrop = React.useRef<Parameters<typeof moveGroup>[1] | null>(null)
   const [groupDrop, setGroupDrop] = React.useState<{ id: string; position: 'before' | 'after'; nested: boolean } | null>(null)
-  const selectedGroupNames = view.kind === 'groups' ? view.names : groupNames
-  const includeSelectedUngrouped = view.kind === 'groups' ? view.includeUngrouped === true : hasUngrouped
-  const allGroupsSelected = selectedGroupNames.length === groupNames.length
-    && (!hasUngrouped || includeSelectedUngrouped)
 
   const visibleTodos = React.useMemo(() => {
     let list = c.ordered.filter((todo) => matchesVisibleView(todo, view, showCompleted, today))
@@ -384,7 +381,7 @@ export const TodoPanel = (): ReactElement => {
       setDraftTags('')
       setDraftFields({})
       setAddingAttachment(false)
-      setShowSchedule(false)
+      setShowSchedule(true)
       setShowPlace(false)
       inputRef.current?.focus()
     }
@@ -402,7 +399,7 @@ export const TodoPanel = (): ReactElement => {
     setDraftTags('')
     setDraftFields({})
     setAddingAttachment(false)
-    setShowSchedule(false)
+    setShowSchedule(true)
     setShowPlace(false)
     setCreateError(false)
   }
@@ -519,33 +516,15 @@ export const TodoPanel = (): ReactElement => {
    * Completed list's absence. Groups land here because ＋ is now unambiguously
    * "new todo" — one button, one meaning.
    */
+  // The sidebar's one filter is All · Completed · To do (14 Nov); groups are chosen in the Groups list, not here.
+  const shownStatuses = visibleSelectedStatuses(statusFilter, statusDefs.map((status) => status.id), showCompleted)
+  const openStatuses = statusDefs.map((status) => status.id).filter((status) => !isDoneStatus(status))
+  const onlyTodo = shownStatuses.length === openStatuses.length && openStatuses.every((status) => shownStatuses.includes(status))
   const openStatusMenu = (anchor: HTMLElement): void => {
     void api.ui.openPopover(
-      ({ close }) => (
+      () => (
         <div className="todo-filter-popover-stack">
           <PanelStatusPopover />
-          {(groupNames.length > 0 || hasUngrouped) && (
-            <>
-              <div className="todo-filter-divider" />
-              <GroupFilterPopover
-                todos={c.todos}
-                groups={groups}
-                names={groupNames}
-                hasUngrouped={hasUngrouped}
-                selected={selectedGroupNames}
-                includeUngrouped={includeSelectedUngrouped}
-                onChange={(nextNames, nextUngrouped) => setView(
-                  nextNames.length === groupNames.length && (!hasUngrouped || nextUngrouped)
-                    ? DEFAULT_VIEW
-                    : { kind: 'groups', names: nextNames, includeUngrouped: nextUngrouped }
-                )}
-                onOpenSettings={() => {
-                  close()
-                  void openManageGroups()
-                }}
-              />
-            </>
-          )}
         </div>
       ),
       { anchor, align: 'end' },
@@ -659,7 +638,7 @@ export const TodoPanel = (): ReactElement => {
           {!pageActive && (
             <>
               <button
-                className={`todo-menu-btn todo-status-menu-btn${showCompleted || statusFilter !== 'all' || !allGroupsSelected ? ' active' : ''}`}
+                className={`todo-menu-btn todo-status-menu-btn${onlyTodo ? '' : ' active'}`}
                 aria-label={uiText('todo.filters.title')}
                 title={uiText('todo.filters.title')}
                 type="button"

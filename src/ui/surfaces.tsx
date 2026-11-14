@@ -185,9 +185,9 @@ async function restore(raw: PluginLinkState, surface: SlotId, background = false
   if (!background && typeof raw.todoId === 'string') revealRequestStore().request(raw.todoId, 'focus')
 }
 
-function GroupStatusBreakdown({ label, color, todos }: { label: string; color: string; todos: ReturnType<typeof getSharedTodos> }): React.ReactElement {
+function GroupStatusBreakdown({ label, color, todos, sub }: { label: string; color: string; todos: ReturnType<typeof getSharedTodos>; sub?: boolean }): React.ReactElement {
   const [expanded, setExpanded] = React.useState(false)
-  return <section className={`todo-status-group${expanded ? ' expanded' : ''}`}>
+  return <section className={`todo-status-group${sub ? ' todo-status-subgroup' : ''}${expanded ? ' expanded' : ''}`}>
     <button className="todo-status-group-header" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
       <span className="todo-status-group-name"><span className="props-info-dot" style={{ background: color }} />{label}</span>
       <span className="todo-status-group-meta"><span>{todos.length}</span><ChevronDown /></span>
@@ -201,25 +201,20 @@ function GroupStatusBreakdown({ label, color, todos }: { label: string; color: s
   </section>
 }
 
+/** The Groups tab of the right sidebar: every group with its total, opening to its counts by status. A subgroup sits indented under its group. */
 function Properties(): React.ReactElement {
   const todos = React.useSyncExternalStore(onSharedTodos, getSharedTodos, getSharedTodos)
   const groups = useGroups()
-  const view = useShownView()
-  const viewLabel = viewSummary(view)
-  return <div className="right-panel-body props-info">
-    <dl className="props-info-table todo-overall-summary">{[
-      [uiText('todo.properties.view'), viewLabel],
-      [uiText('todo.properties.tasks'), todos.length],
-      ...summaryStatuses().map((status) => [status.label, todos.filter((todo) => effectiveStatus(todo) === status.id).length])
-    ].map(([label, value]) => <div className="props-info-row" key={label}><dt className="props-info-key">{label}</dt><dd className="props-info-value">{value}</dd></div>)}</dl>
+  // The tab fills the sidebar and scrolls in the shared ScrollPanel once the groups outgrow it.
+  return <div className="todo-properties-frame" data-plugin-widget-layout="fill"><api.ui.ScrollPanel fill><div className="right-panel-body props-info todo-groups-properties">
     <div className="todo-status-groups">
       {[...allGroups(groups), ...(todos.some((todo) => !todo.group) ? [null] : [])].map((name) => {
         const matching = todos.filter((todo) => name === null ? !todo.group : groupKeysCovered(name).has(groupKey(todo.group ?? '')))
         const label = name ?? uiText('todo.chip.noGroup')
-        return <GroupStatusBreakdown key={name ?? 'ungrouped'} label={label} color={name ? paletteCssValue(groupColorFor(name, groups)) : 'var(--text-tertiary)'} todos={matching} />
+        return <GroupStatusBreakdown key={name ?? 'ungrouped'} label={label} sub={name !== null && isSubgroupName(name, groups)} color={name ? paletteCssValue(groupColorFor(name, groups)) : 'var(--text-tertiary)'} todos={matching} />
       })}
     </div>
-  </div>
+  </div></api.ui.ScrollPanel></div>
 }
 
 export function registerTodoSurfaces(pluginApi: ValleyPluginApi): () => void {
@@ -228,7 +223,7 @@ export function registerTodoSurfaces(pluginApi: ValleyPluginApi): () => void {
     id: `todo.${surface}`, surface, getSnapshot: (instanceId) => snapshot(surface, instanceId), subscribe, restore: (value, instanceId, options) => restore(value, surface, options?.background, instanceId)
   }, { stateSchema: bookmarkStateSchema, itemStateSchema: { ...bookmarkStateSchema, required: [...bookmarkStateSchema.required, "todoId"] }, description: (snapshot, item) => typeof snapshot.view.path === 'string' && snapshot.view.path ? snapshot.view.path : uiText(item ? 'bookmark.item' : 'bookmark.view') }))
   offs.push(pluginApi.interop.extensions.provide(METADATA_PANEL_SEGMENT_V1, {
-    id: 'todo.properties', label: 'To-Do', labelKey: 'manifest.name', icon: 'list-todo', pluginSurfaces: ['main_workspace'],
+    id: 'todo.properties', label: 'Groups', labelKey: 'todo.view.myLists', icon: 'group', pluginSurfaces: ['main_workspace'],
     inspect: async ({ subject }) => {
       const todo = subject?.item?.id ? await loadTodo(subject.item.id) : null
       return todo ? Object.entries(todo).map(([id, value]) => ({ id, label: uiText(`todo.field.${id}`), value: (value ?? null) as never, readOnly: true })) : []

@@ -87,11 +87,7 @@ describe('To-Do facts on the Info tab', () => {
       ['Waiting', '1'],
       ['Review', '1'],
       ['Groups', '2'],
-      ['Fungi', '3'],
-      ['Wildlife', '2'],
-      ['No group', '1'],
       ['Tags', '2 · #field 2 · #fungi 1'],
-      ['Estimated time', '2 h'],
       ['Next due', `Wait for spores · ${formatDate(TODAY)}`],
       ['Last completed', formatDate(day(-3))],
       ['Last change', formatDate(day(-1))],
@@ -113,19 +109,20 @@ describe('To-Do facts on the Info tab', () => {
     const rows = infoRows(store)
     expect(rows.slice(0, 4)).toEqual([['List', 'Fungi, Wildlife'], ['Tasks', '5'], ['Open', '4'], ['Done', '1']])
     expect(rows).toContainEqual(['Groups', '2'])
-    expect(rows).toContainEqual(['Fungi', '3'])
+    // Info counts the groups; their names and totals are the Groups tab's.
+    expect(rows.find(([label]) => label === 'Fungi')).toBeUndefined()
+    expect(rows.find(([label]) => label === 'Estimated time')).toBeUndefined()
     expect(rows.find(([label]) => label === 'No group')).toBeUndefined()
     expect(rows.find(([label]) => label === 'No date')).toBeUndefined()
 
     const pinned = infoRows(store, viewTabInstance({ kind: 'groups', names: ['Wildlife'] }))
     expect(pinned.slice(0, 3)).toEqual([['List', 'Wildlife'], ['Tasks', '2'], ['Open', '2']])
     expect(pinned).toContainEqual(['Groups', '1'])
-    expect(pinned).toContainEqual(['Wildlife', '2'])
-    expect(pinned.find(([label]) => label === 'Fungi')).toBeUndefined()
+    expect(pinned.find(([label]) => label === 'Wildlife')).toBeUndefined()
     expect(pinned).toContainEqual(['Next due', `Review draft · ${formatDate(day(3))}`])
   })
 
-  it('declares item ids the host accepts for group names with spaces, umlauts and slashes, and still counts them', () => {
+  it('declares item ids the host accepts and counts groups with spaces, umlauts and slashes without a row per name', () => {
     const groups = [{ id: 'group_cf', name: 'Copper Finch', color: '#3b82f6' }, { id: 'group_gw', name: 'Grüne Wiese/Nord', color: '#eab308' }]
     const records = [
       { id: 'x1', title: 'One', group: 'Copper Finch', createdAt: stamp(-2), updatedAt: stamp(-2) },
@@ -137,12 +134,12 @@ describe('To-Do facts on the Info tab', () => {
     const details = provider(store)
     expect(WORKSPACE_DETAILS_V1.validate(details)).toBe(true)
     expect(details.items.every((item) => /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(item.id))).toBe(true)
-    expect(details.items.find((item) => item.label === 'Copper Finch')?.id).toBe(detailItemId('group', 'copper finch'))
+    expect(details.items.find((item) => item.label === 'Copper Finch')).toBeUndefined()
     expect(detailItemId('group', 'copper finch')).toBe(detailItemId('group', 'copper finch'))
     expect(detailItemId('group', 'fungi')).toBe('group:fungi')
     const rows = infoRows(store)
-    expect(rows).toContainEqual(['Copper Finch', '2'])
-    expect(rows).toContainEqual(['Grüne Wiese/Nord', '1'])
+    expect(rows).toContainEqual(['Groups', '2'])
+    expect(rows).toContainEqual(['Waiting', '1'])
   })
 
   it('counts a smart list by its own scope', () => {
