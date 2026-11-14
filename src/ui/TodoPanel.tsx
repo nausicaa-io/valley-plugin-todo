@@ -29,7 +29,8 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Circle
 } from './icons'
 import { useTodoListController } from '../state/controller'
 import { TodoDetailModal } from './TodoDetail'
@@ -67,7 +68,7 @@ import { PRIORITIES, SORT_LABEL_KEYS, formatDate, formatDueLabel, isoDay, type S
 import { uiText } from '../localization'
 import { DONE_STATUSES, isDoneStatus, matchesStatusFilter, useStatusVocabulary } from '../state/statusStore'
 import { openManageGroups } from './GroupEditor'
-import { StatusQuickPicks, visibleSelectedStatuses } from './StatusFilter'
+import { visibleSelectedStatuses } from './StatusFilter'
 
 export function sortFieldGlyph(field: SortField): ReactElement {
   if (field === 'flagged') return <Flag />
@@ -147,14 +148,6 @@ export function PanelSortPopover({
 }
 
 
-function PanelStatusPopover(): ReactElement {
-  return (
-    <div className="todo-filter-popover-body">
-      <div className="todo-filter-section-label">{uiText('todo.filters.show')}</div>
-      <StatusQuickPicks />
-    </div>
-  )
-}
 export function GroupFilterPopover({
   todos,
   groups,
@@ -516,20 +509,28 @@ export const TodoPanel = (): ReactElement => {
    * Completed list's absence. Groups land here because ＋ is now unambiguously
    * "new todo" — one button, one meaning.
    */
-  // The sidebar's one filter is All · Completed · To do (14 Nov); groups are chosen in the Groups list, not here.
-  const shownStatuses = visibleSelectedStatuses(statusFilter, statusDefs.map((status) => status.id), showCompleted)
-  const openStatuses = statusDefs.map((status) => status.id).filter((status) => !isDoneStatus(status))
-  const onlyTodo = shownStatuses.length === openStatuses.length && openStatuses.every((status) => shownStatuses.includes(status))
+  // The sidebar's one filter (14 Nov): All, Completed or To do. The header button shows the icon of the
+  // current choice and opens a three-row dropdown; groups are chosen in the Groups list, not here.
+  const activeStatuses = statusDefs.map((status) => status.id)
+  const shownStatuses = visibleSelectedStatuses(statusFilter, activeStatuses, showCompleted)
+  const doneStatuses = activeStatuses.filter((status) => isDoneStatus(status))
+  const showsExactly = (list: TodoStatus[]): boolean => list.length === shownStatuses.length && list.every((status) => shownStatuses.includes(status))
+  const completion: 'all' | 'completed' | 'todo' | null = showsExactly(activeStatuses) ? 'all'
+    : showsExactly(doneStatuses) ? 'completed'
+      : showsExactly(activeStatuses.filter((status) => !isDoneStatus(status))) ? 'todo' : null
+  const COMPLETION_ICONS = { all: <Inbox />, completed: <CircleCheck />, todo: <Circle /> }
+  const COMPLETION_LABELS = { all: uiText('todo.chip.all'), completed: uiText('todo.view.completed'), todo: uiText('todo.status.todo') }
   const openStatusMenu = (anchor: HTMLElement): void => {
-    void api.ui.openPopover(
-      () => (
-        <div className="todo-filter-popover-stack">
-          <PanelStatusPopover />
-        </div>
-      ),
-      { anchor, align: 'end' },
-      { className: 'todo-filter-popover', ariaLabel: uiText('todo.filters.title'), width: 248 }
-    )
+    void api.ui.openMenu((['all', 'completed', 'todo'] as const).map((id) => ({
+      label: COMPLETION_LABELS[id],
+      icon: COMPLETION_ICONS[id],
+      type: 'radio' as const,
+      checked: completion === id,
+      onSelect: () => {
+        setShowCompleted(id !== 'todo')
+        setStatusFilter(id === 'completed' && doneStatuses.length ? doneStatuses as [TodoStatus, ...TodoStatus[]] : 'all')
+      }
+    })), { anchor, align: 'end' })
   }
 
   const openSortMenu = (anchor: HTMLElement): void => {
@@ -622,12 +623,6 @@ export const TodoPanel = (): ReactElement => {
     : selectedDate
       ? formatDate(selectedDate, dateFormat)
       : null
-  const statusSelectionLabel = statusFilter === 'all'
-    ? null
-    : `${uiText('auto.bae7d5be7082')}: ${statusFilter.length === 1
-      ? (statusDefs.find((status) => status.id === statusFilter[0])?.label ?? uiText('todo.chip.all'))
-      : uiText('todo.filters.statusCount', { count: statusFilter.length })}`
-
   const fabLabel = uiText('todo.fab.newTodo')
 
   return (
@@ -638,13 +633,14 @@ export const TodoPanel = (): ReactElement => {
           {!pageActive && (
             <>
               <button
-                className={`todo-menu-btn todo-status-menu-btn${onlyTodo ? '' : ' active'}`}
+                className={`todo-menu-btn todo-status-menu-btn${completion === 'todo' ? '' : ' active'}`}
                 aria-label={uiText('todo.filters.title')}
-                title={uiText('todo.filters.title')}
+                aria-haspopup="menu"
+                title={completion ? `${uiText('todo.filters.title')}: ${COMPLETION_LABELS[completion]}` : uiText('todo.filters.title')}
                 type="button"
                 onClick={(e) => openStatusMenu(e.currentTarget)}
               >
-                <ListFilter />
+                {completion ? COMPLETION_ICONS[completion] : <ListFilter />}
               </button>
               <button
                 className="todo-menu-btn todo-density-menu-btn"
@@ -857,17 +853,6 @@ export const TodoPanel = (): ReactElement => {
                   smartListForeground(list, paletteCssContrast)
                 ))}
               </nav>
-
-              {statusSelectionLabel && (
-                <button
-                  type="button"
-                  className="todo-tree-row todo-smart-chip todo-status-chip active"
-                  onClick={() => setStatusFilter('all')}
-                >
-                  <span className="todo-tree-label">{statusSelectionLabel}</span>
-                  <span className="todo-chip-clear" aria-hidden="true"><X /></span>
-                </button>
-              )}
             </div>
           )}
 

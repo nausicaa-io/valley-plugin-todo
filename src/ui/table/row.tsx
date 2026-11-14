@@ -295,8 +295,7 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
         </td>
       ) : cell(id)}</React.Fragment>)}
       <td className="todo-table-actions">
-        {/* No ⋯ button (14 Nov): the row's actions are on its right-click menu. */}
-        {todo.flagged && !columns.includes('flagged') && <span className="todo-table-flag" title={uiText('todo.flagged')}><Flag /></span>}
+        {/* Empty on purpose (14 Nov): no ⋯ button (the row's actions are on its right-click menu) and no flag; a flag shows only in the Flagged column. */}
       </td>
     </tr>
   )

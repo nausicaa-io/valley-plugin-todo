@@ -7,8 +7,7 @@ import {
   CALENDAR_ITEM_SOURCE_REVISION_V1,
   CALENDAR_PANEL_SELECTION_V1,
   
-  type ValleyPluginApi
-} from '@valley/plugin-sdk'
+  type ValleyPluginApi, type UiMenuItem } from '@valley/plugin-sdk'
 import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
 import { TodoPanel } from '../src/ui/TodoPanel'
 import { groupMenuItems } from '../src/ui/TodoMenu'
@@ -421,35 +420,56 @@ describe('TodoPanel', () => {
     expect(sortControl.innerHTML).not.toBe(headerSortGlyphs)
   })
 
-  it('switches between All, To do and Completed from the filter popover', async () => {
+  it('switches between All, Completed and To do from the filter icon\u2019s dropdown, each with its own icon', async () => {
     setup([
       { id: 'open', title: 'Survey meadow', completed: false } as DataRecord,
       { id: 'done', title: 'Catalog moss', completed: true } as DataRecord
     ])
     await act(async () => render(<TodoPanel />))
     await screen.findByText('Survey meadow')
+    const filter = screen.getByRole('button', { name: 'Filter' })
+    const menu = async (): Promise<UiMenuItem[]> => {
+      await act(async () => fireEvent.click(filter))
+      return store.mock.menus.at(-1)!
+    }
+    const pick = async (label: string): Promise<void> => {
+      const item = (await menu()).find((entry) => entry.label === label)!
+      await act(async () => { await item.onSelect?.({ newTab: false }) })
+    }
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Filter' })))
-    await waitFor(() => expect(store.mock.popovers.length).toBeGreaterThan(0))
-    await act(async () => render(<>{store.mock.popovers.at(-1)?.node}</>))
-    expect(screen.getByRole('button', { name: 'Show only unfinished statuses' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: 'Statuses' })).not.toBeInTheDocument()
+    // To do is the default: the button shows its icon, is not highlighted, and no popover opens.
+    const todoIcon = filter.innerHTML
+    expect(filter).not.toHaveClass('active')
+    expect(filter).toHaveAttribute('title', 'Filter: To do')
+    const items = await menu()
+    expect(store.mock.popovers).toHaveLength(0)
+    expect(items.map((item) => [item.label, item.type, item.checked])).toEqual([['All', 'radio', false], ['Completed', 'radio', false], ['To do', 'radio', true]])
+    expect(items.every((item) => item.icon !== undefined)).toBe(true)
     expect(screen.queryByText('Catalog moss')).not.toBeInTheDocument()
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show every status' })))
+    await pick('All')
     expect(await screen.findByText('Catalog moss')).toBeInTheDocument()
-    expect(screen.getByLabelText('Filter')).toHaveClass('active')
+    expect(screen.getByText('Survey meadow')).toBeInTheDocument()
+    expect(filter).toHaveClass('active')
+    expect(filter).toHaveAttribute('title', 'Filter: All')
+    const allIcon = filter.innerHTML
+    expect(allIcon).not.toBe(todoIcon)
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show only Completed and Canceled' })))
+    await pick('Completed')
     await waitFor(() => expect(screen.queryByText('Survey meadow')).not.toBeInTheDocument())
     expect(screen.getByText('Catalog moss')).toBeInTheDocument()
+    expect(filter).toHaveAttribute('title', 'Filter: Completed')
+    expect(filter.innerHTML).not.toBe(allIcon)
+    expect(filter.innerHTML).not.toBe(todoIcon)
+    // No status chip appears under the smart lists.
+    expect(document.querySelector('.todo-status-chip')).toBeNull()
 
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Show only unfinished statuses' })))
+    await pick('To do')
     await waitFor(() => expect(screen.queryByText('Catalog moss')).not.toBeInTheDocument())
     expect(screen.getByText('Survey meadow')).toBeInTheDocument()
+    expect(filter.innerHTML).toBe(todoIcon)
   })
-
-  it('keeps a saved multi-status filter as a clearable chip', async () => {
+  it('shows a saved multi-status filter on the filter icon, without a chip, and clears it from the dropdown', async () => {
     setup([
       { id: 'wait', title: 'Await bloom', completed: false, status: 'waiting' } as DataRecord,
       { id: 'hold', title: 'Pause survey', completed: false, status: 'onhold' } as DataRecord,
@@ -459,21 +479,19 @@ describe('TodoPanel', () => {
 
     expect(await screen.findByText('Await bloom')).toBeInTheDocument()
     expect(screen.queryByText('Pause survey')).not.toBeInTheDocument()
-    const tree = document.querySelector('.todo-tree')!
-    const statusChip = tree.querySelector('.todo-status-chip')!
-    expect(statusChip).toHaveTextContent('Status: Waiting')
-    expect(statusChip.previousElementSibling).toHaveClass('todo-smart-strip')
-    expect(statusChip.nextElementSibling).toBeNull()
-    expect(document.querySelector('.todo-tree-group')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
-    expect(statusChip.querySelector('.todo-chip-clear')).not.toBeNull()
-    expect(statusChip.lastElementChild).toHaveClass('todo-chip-clear')
+    expect(document.querySelector('.todo-status-chip')).toBeNull()
+    const filter = screen.getByRole('button', { name: 'Filter' })
+    expect(filter).toHaveClass('active')
+    expect(filter).toHaveAttribute('title', 'Filter')
 
-    await act(async () => fireEvent.click(statusChip.querySelector('.todo-chip-clear')!))
+    await act(async () => fireEvent.click(filter))
+    const items = store.mock.menus.at(-1)!
+    expect(items.some((item) => item.checked)).toBe(false)
+    await act(async () => { await items.find((item) => item.label === 'To do')!.onSelect?.({ newTab: false }) })
     expect(await screen.findByText('Pause survey')).toBeInTheDocument()
     expect(screen.getByText('Collect sample')).toBeInTheDocument()
+    expect(store.mock.api.settings.get().statusFilter).toBe('all')
   })
-
   it('preserves an inactive status on existing tasks but removes it from assignment menus', async () => {
     setup([
       { id: 'hold', title: 'Paused survey', completed: false, status: 'onhold' } as DataRecord

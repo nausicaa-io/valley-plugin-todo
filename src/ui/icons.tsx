@@ -222,6 +222,10 @@ export const FolderInput = (p: IconProps): ReactElement => (
   </Svg>
 )
 
+export const Circle = (p: IconProps): ReactElement => (
+  <Svg {...p}><circle cx="12" cy="12" r="10" /></Svg>
+)
+
 export const CircleCheck = (p: IconProps): ReactElement => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="10" />

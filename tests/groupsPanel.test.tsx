@@ -117,20 +117,18 @@ describe('the sidebar tree', () => {
     }
   })
 
-  it('keeps the header filter icon-only, with All, Completed and To do as its only choices', async () => {
+  it('keeps the header filter icon-only and offers no groups in it', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
 
     const disclosure = screen.getByRole('button', { name: 'Filter' })
     expect(disclosure.textContent).toBe('')
     expect(disclosure.querySelector('svg')).toBeInTheDocument()
-    expect(disclosure).toHaveAttribute('title', 'Filter')
     expect(disclosure).not.toHaveClass('active')
-    expandGroups()
-    expect([...document.querySelectorAll('.todo-status-quick-btn')].map((button) => button.textContent)).toEqual(['All', 'Completed', 'To do'])
-    expect(document.querySelector('.todo-group-filter-popover')).toBeNull()
-    expect(screen.queryByText('Group')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Deselect all' })).toBeNull()
+    fireEvent.click(disclosure)
+    expect(store.mock.popovers).toHaveLength(0)
+    expect(store.mock.menus.at(-1)!.map((item) => item.label)).toEqual(['All', 'Completed', 'To do'])
+    expect(screen.queryByRole('button', { name: /^Fungi/ })).toBeNull()
   })
   it('filters the list to one selected group', async () => {
     render(<TodoPanel />)
@@ -279,20 +277,6 @@ describe('creating into a group', () => {
 describe('the group machinery', () => {
   beforeEach(() => {
     store = installTodoNotes(RECORDS, { groups: CONFIGURED })
-  })
-
-  it('keeps group management out of the filter menu', async () => {
-    render(<TodoPanel />)
-    await screen.findByText('Fungi Survey sheet')
-
-    fireEvent.click(screen.getByLabelText('Filter'))
-
-    await waitFor(() => expect(store.mock.popovers).toHaveLength(1))
-    render(<>{store.mock.popovers[0].node}</>)
-    expect(screen.getByRole('button', { name: 'Show every status' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Statuses' })).not.toBeInTheDocument()
-    expect(screen.queryByText('New group')).not.toBeInTheDocument()
-    expect(screen.queryByText('Manage groups')).not.toBeInTheDocument()
   })
 
   it('creates straight from ＋, with no menu in the way', async () => {
