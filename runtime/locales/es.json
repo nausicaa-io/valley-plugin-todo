@@ -314,6 +314,8 @@
   "todo.view.myLists": "Grupos",
   "todo.view.expandGroup": "Mostrar los subgrupos de {{p0}}",
   "todo.view.collapseGroup": "Ocultar los subgrupos de {{p0}}",
+  "todo.view.expandAllGroups": "Desplegar todos los grupos",
+  "todo.view.collapseAllGroups": "Plegar todos los grupos",
   "todo.view.scheduled": "Programado",
   "todo.view.selectedGroups": "{{count}} grupos",
   "todo.view.today": "Hoy",

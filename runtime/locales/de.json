@@ -314,6 +314,8 @@
   "todo.view.myLists": "Gruppen",
   "todo.view.expandGroup": "Untergruppen von {{p0}} einblenden",
   "todo.view.collapseGroup": "Untergruppen von {{p0}} ausblenden",
+  "todo.view.expandAllGroups": "Alle Gruppen ausklappen",
+  "todo.view.collapseAllGroups": "Alle Gruppen einklappen",
   "todo.view.scheduled": "Geplant",
   "todo.view.selectedGroups": "{{count}} Gruppen",
   "todo.view.today": "Heute",

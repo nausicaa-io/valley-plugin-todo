@@ -98,8 +98,8 @@ export function getCollapsedGroups(): string[] {
   return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : []
 }
 
-/** The collapsed groups and a toggle that saves the choice. */
-export function useCollapsedGroups(): [ReadonlySet<string>, (id: string) => void] {
+/** The collapsed groups, a toggle for one group and a setter for all of them; each saves the choice. */
+export function useCollapsedGroups(): [ReadonlySet<string>, (id: string) => void, (ids: string[]) => void] {
   const [ids, setIds] = React.useState<string[]>(getCollapsedGroups)
   React.useEffect(() => api.settings.subscribe(() => setIds((current) => {
     const next = getCollapsedGroups()
@@ -111,7 +111,11 @@ export function useCollapsedGroups(): [ReadonlySet<string>, (id: string) => void
     setIds(next)
     void api.settings.set(COLLAPSED_GROUPS_KEY, next)
   }, [])
-  return [React.useMemo(() => new Set(ids), [ids]), toggle]
+  const setAll = React.useCallback((next: string[]): void => {
+    setIds(next)
+    void api.settings.set(COLLAPSED_GROUPS_KEY, next)
+  }, [])
+  return [React.useMemo(() => new Set(ids), [ids]), toggle, setAll]
 }
 
 const isLocalGroup = (id: string): boolean => /^local-[a-z0-9]{1,32}$/.test(id)

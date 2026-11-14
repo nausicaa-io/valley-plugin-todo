@@ -167,6 +167,23 @@ describe('Groups list: folding and reordering', () => {
     expect(store.mock.api.settings.get().collapsedGroups).toEqual([])
   })
 
+  it('folds and unfolds every group from the button at the end of the Groups title', async () => {
+    await open()
+    const head = document.querySelector('.todo-navigation-groups-head')!
+    expect(head.firstElementChild).toHaveTextContent('Groups')
+    expect(head.lastElementChild).toBe(screen.getByRole('button', { name: 'Collapse all groups' }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Collapse all groups' })) })
+    expect(names()).toEqual(['Fungi', 'Wildlife', 'Rain', 'Errands', 'Home'])
+    expect(store.mock.api.settings.get().collapsedGroups).toEqual(['group_fungi', 'local-aaaaaaaaaaaa'])
+    // One open group is enough for the button to offer collapsing again.
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Show the subgroups of Errands' })) })
+    expect(screen.getByRole('button', { name: 'Collapse all groups' })).toBeInTheDocument()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Collapse all groups' })) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Expand all groups' })) })
+    expect(names()).toEqual(['Fungi', '  Spores', '  Caps', 'Wildlife', 'Rain', 'Errands', '  Market', 'Home'])
+    expect(store.mock.api.settings.get().collapsedGroups).toEqual([])
+  })
+
   it('reorders shared groups by drag in the shared registry, nests with the pointer to the right and lifts back out', async () => {
     await open()
     await drag('Rain', 'Fungi', { clientX: 4, clientY: -1 })

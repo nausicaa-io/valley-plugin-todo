@@ -295,22 +295,26 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
   margin-left: 14px;
 }
 
-/* A row of the sidebar's Groups list. The row is its own drag handle; a group
-   with subgroups carries a fold chevron in the row's left padding, so no label
-   moves. The insertion line is the shared one, centred in the 2px row gap and
-   indented when the group lands as a subgroup. */
+/* A row of the sidebar's Groups list. The row is its own drag handle. Every row
+   keeps a slot for the fold chevron at its left, inside the row and its hover,
+   so the dots of groups with and without subgroups line up; a subgroup sits one
+   step further in. The insertion line is the shared one, centred in the 2px row
+   gap and indented when the group lands as a subgroup. */
 .todo-group-nav-row {
   position: relative;
+}
+.todo-navigation-groups .todo-group-nav-row .todo-tree-row {
+  padding-left: 24px;
 }
 .todo-group-toggle {
   position: absolute;
   top: 50%;
-  left: -7px;
+  left: 4px;
   z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
+  width: 18px;
   height: 18px;
   padding: 0;
   border: none;
@@ -320,8 +324,20 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
   transform: translateY(-50%);
   cursor: pointer;
 }
-.todo-group-toggle:hover { color: var(--text-color); }
-.todo-group-toggle svg { width: 12px; height: 12px; }
+.todo-group-toggle:hover { background: var(--hover-bg); color: var(--title-color); }
+.todo-group-toggle svg { width: 14px; height: 14px; }
+/* The title with expand all / collapse all at the far end, like the Files header. */
+.todo-navigation-groups-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: var(--shell-control-toolbar);
+  padding: 0 2px 4px 7px;
+}
+.todo-navigation-groups-head .todo-navigation-groups-title {
+  padding: 0;
+}
 .todo-group-nav-row.drop-before::before,
 .todo-group-nav-row.drop-after::before {
   content: '';
@@ -336,5 +352,5 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
 }
 .todo-group-nav-row.drop-before::before { top: -1px; transform: translateY(-50%); }
 .todo-group-nav-row.drop-after::before { bottom: -1px; transform: translateY(50%); }
-.todo-group-nav-row.drop-nested::before { left: 21px; }
+.todo-group-nav-row.drop-nested::before { left: 38px; }
 `

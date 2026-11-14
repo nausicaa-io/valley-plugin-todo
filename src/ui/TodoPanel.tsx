@@ -27,7 +27,9 @@ import {
   UpdatedSortGlyph,
   X,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown
 } from './icons'
 import { useTodoListController } from '../state/controller'
 import { TodoDetailModal } from './TodoDetail'
@@ -307,7 +309,9 @@ export const TodoPanel = (): ReactElement => {
   )
   const hasUngrouped = React.useMemo(() => c.todos.some((t) => !t.group), [c.todos])
   // The sidebar's Groups list: a group with subgroups folds, and rows drag to a new place.
-  const [collapsedGroups, toggleCollapsedGroup] = useCollapsedGroups()
+  const [collapsedGroups, toggleCollapsedGroup, setCollapsedGroups] = useCollapsedGroups()
+  const foldableGroups = React.useMemo(() => groups.filter((group) => groups.some((candidate) => candidate.parent === group.id)).map((group) => group.id), [groups])
+  const allGroupsFolded = foldableGroups.length > 0 && foldableGroups.every((id) => collapsedGroups.has(id))
   const draggedGroup = React.useRef<string | null>(null)
   const [groupDrop, setGroupDrop] = React.useState<{ id: string; position: 'before' | 'after'; nested: boolean } | null>(null)
   const selectedGroupNames = view.kind === 'groups' ? view.names : groupNames
@@ -740,7 +744,20 @@ export const TodoPanel = (): ReactElement => {
             ))}
           </nav>
           <div className="todo-navigation-groups">
-            <div className="todo-navigation-groups-title">{uiText('todo.view.myLists')}</div>
+            <div className="todo-navigation-groups-head">
+              <span className="todo-navigation-groups-title">{uiText('todo.view.myLists')}</span>
+              {foldableGroups.length > 0 && (
+                <button
+                  type="button"
+                  className="panel-tool-btn todo-groups-fold-all"
+                  aria-label={uiText(allGroupsFolded ? 'todo.view.expandAllGroups' : 'todo.view.collapseAllGroups')}
+                  title={uiText(allGroupsFolded ? 'todo.view.expandAllGroups' : 'todo.view.collapseAllGroups')}
+                  onClick={() => setCollapsedGroups(allGroupsFolded ? [] : foldableGroups)}
+                >
+                  {allGroupsFolded ? <ChevronsUpDown /> : <ChevronsDownUp />}
+                </button>
+              )}
+            </div>
             {groups.filter((group) => !(group.parent && collapsedGroups.has(group.parent))).map((group) => {
               const folds = groups.some((candidate) => candidate.parent === group.id)
               const collapsed = folds && collapsedGroups.has(group.id)

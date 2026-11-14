@@ -314,6 +314,8 @@
   "todo.view.myLists": "分组",
   "todo.view.expandGroup": "显示 {{p0}} 的子分组",
   "todo.view.collapseGroup": "隐藏 {{p0}} 的子分组",
+  "todo.view.expandAllGroups": "展开所有分组",
+  "todo.view.collapseAllGroups": "折叠所有分组",
   "todo.view.scheduled": "已计划",
   "todo.view.selectedGroups": "{{count}} 个分组",
   "todo.view.today": "今天",
