@@ -5,7 +5,7 @@ import type { ValleyPluginManifest } from '@valley/plugin-sdk/types'
 import { initRuntime } from '../src/runtime'
 import { registerTodoFence } from '../src/ui/fence'
 import { afterEach, describe, expect, it } from 'vitest'
-import { METADATA_PANEL_SEGMENT_V1, PLUGIN_SURFACE_V1, WORKSPACE_BOOKMARK_V1 } from '@valley/plugin-sdk'
+import { METADATA_PANEL_SEGMENT_V1, PLUGIN_SURFACE_V1, WORKSPACE_BOOKMARK_V1, WORKSPACE_DETAILS_V1 } from '@valley/plugin-sdk'
 import { createMockValleyApi } from './harness'
 import * as plugin from '../src/index'
 import manifest from '../manifest.json'
@@ -64,6 +64,20 @@ describe('package host contracts', () => {
       if (Object.keys(declared.fileViews ?? {}).length) expect(surfaces).toContain('main_workspace')
       if (properties.some(({ extension }) => extension.pluginSurfaces?.includes('main_workspace'))) expect(surfaces).toContain('main_workspace')
       expect(new Set(commands.map((command) => command.id)).size).toBe(commands.length)
+    } finally { dispose() }
+  })
+  it('declares in config.json every interop contract it provides, as the host refuses undeclared ones', async () => {
+    const mock = createMockValleyApi({ manifest: declared })
+    const provided: string[] = []
+    const extensions = mock.api.interop.extensions
+    const provideExtension = extensions.provide.bind(extensions)
+    extensions.provide = ((contract, value) => { provided.push(`${contract.kind}:${contract.id}`); return provideExtension(contract, value) }) as typeof extensions.provide
+    const dispose = plugin.register(mock.api)
+    try {
+      await Promise.resolve()
+      expect(provided).toContain(`extension:${WORKSPACE_DETAILS_V1.id}`)
+      const claims = (declared.provides ?? []).map((contract) => `${contract.kind}:${contract.id}`)
+      expect([...new Set(provided)].filter((contract) => !claims.includes(contract))).toEqual([])
     } finally { dispose() }
   })
   it('owns and disposes its stylesheet in every theme', () => {
