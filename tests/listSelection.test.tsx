@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
 import { TodoPanel } from '../src/ui/TodoPanel'
-import { rangeNames, selectionOf, toggleName, viewOfSelection } from '../src/model/listSelection'
+import { selectionOf, toggleName, viewOfSelection } from '../src/model/listSelection'
 import { getView, setView } from '../src/state/viewStore'
 
 const GROUPS = [
@@ -37,16 +37,6 @@ afterEach(() => {
 })
 
 describe('list selection model', () => {
-  const order = ['Fungi', 'Wildlife', 'Moss', 'Rain']
-
-  it('takes the rows between the anchor and the click in the order shown, either way round', () => {
-    expect(rangeNames(order, 'Wildlife', 'Rain')).toEqual(['Wildlife', 'Moss', 'Rain'])
-    expect(rangeNames(order, 'Rain', 'Wildlife')).toEqual(['Wildlife', 'Moss', 'Rain'])
-    expect(rangeNames(order, 'moss', 'MOSS')).toEqual(['Moss'])
-    expect(rangeNames(order, 'Gone', 'Moss')).toEqual(['Moss'])
-    expect(rangeNames(order, 'Moss', 'Gone')).toEqual([])
-  })
-
   it('toggles one name without touching the rest, and an empty selection is the default list', () => {
     expect(toggleName(['Fungi', 'Moss'], 'moss')).toEqual(['Fungi'])
     expect(toggleName(['Fungi'], 'Rain')).toEqual(['Fungi', 'Rain'])
@@ -67,72 +57,53 @@ describe('My Lists selection', () => {
     expect(row('Wildlife')).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('selects the whole range with Shift-click, forwards and backwards, and keeps the anchor', async () => {
+  it('adds exactly the clicked list on Shift-click: the first and the last select only those two', async () => {
     await openLists()
     await click('Fungi')
-    await click('Moss', { shiftKey: true })
-    expect(selected()).toEqual(['Fungi', 'Wildlife', 'Moss'])
-    for (const name of ['Fungi', 'Wildlife', 'Moss']) expect(row(name)).toHaveAttribute('aria-pressed', 'true')
-    expect(row('Rain')).toHaveAttribute('aria-pressed', 'false')
-    await click('Wildlife', { shiftKey: true })
-    expect(selected()).toEqual(['Fungi', 'Wildlife'])
-
-    await click('Rain')
-    await click('Wildlife', { shiftKey: true })
-    expect(selected()).toEqual(['Wildlife', 'Moss', 'Rain'])
-  })
-
-  it('treats Shift-click without an anchor as a plain click that sets the anchor', async () => {
-    await openLists()
-    await click('Moss', { shiftKey: true })
-    expect(selected()).toEqual(['Moss'])
     await click('Rain', { shiftKey: true })
-    expect(selected()).toEqual(['Moss', 'Rain'])
+    expect(selected()).toEqual(['Fungi', 'Rain'])
+    expect(row('Wildlife')).toHaveAttribute('aria-pressed', 'false')
+    expect(row('Moss')).toHaveAttribute('aria-pressed', 'false')
+    await click('Moss', { shiftKey: true })
+    expect(selected()).toEqual(['Fungi', 'Rain', 'Moss'])
   })
 
-  it('adds or removes a single list with Option-click and moves the anchor to it', async () => {
+  it('removes a selected list on Shift-click, and an emptied selection is the default list', async () => {
     await openLists()
     await click('Fungi')
-    await click('Moss', { altKey: true })
-    expect(selected()).toEqual(['Fungi', 'Moss'])
-    await click('Fungi', { altKey: true })
+    await click('Moss', { shiftKey: true })
+    await click('Fungi', { shiftKey: true })
     expect(selected()).toEqual(['Moss'])
-    await click('Fungi', { altKey: true })
-    expect(selected()).toEqual(['Moss', 'Fungi'])
-    await click('Moss', { altKey: true })
-    await click('Fungi', { altKey: true })
+    await click('Moss', { shiftKey: true })
     expect(getView()).toEqual({ kind: 'smart', id: 'all' })
-
-    await click('Fungi')
-    await click('Rain', { altKey: true })
-    await click('Wildlife', { shiftKey: true })
-    expect(selected()).toEqual(['Wildlife', 'Moss', 'Rain'])
   })
 
-  it('starts over on a plain click, and a smart list drops the anchor', async () => {
+  it('starts a selection from a smart list and keeps the ungrouped choice', async () => {
     await openLists()
-    await click('Fungi')
-    await click('Rain', { shiftKey: true })
-    expect(selected()).toHaveLength(4)
-    await click('Moss')
-    expect(selected()).toEqual(['Moss'])
-    await click('Rain', { shiftKey: true })
-    expect(selected()).toEqual(['Moss', 'Rain'])
-
     await click('All')
-    expect(getView()).toEqual({ kind: 'smart', id: 'all' })
     await click('Wildlife', { shiftKey: true })
     expect(selected()).toEqual(['Wildlife'])
-  })
-
-  it('extends a selection made elsewhere, such as the group filter', async () => {
-    await openLists()
     act(() => setView({ kind: 'groups', names: ['Rain'], includeUngrouped: true }))
-    await click('Fungi', { altKey: true })
+    await click('Fungi', { shiftKey: true })
     expect(getView()).toEqual({ kind: 'groups', names: ['Rain', 'Fungi'], includeUngrouped: true })
   })
 
-  it('opens a list in a new tab on ⌘-click and middle click without touching the selection or the anchor', async () => {
+  it('treats Option-click as a plain click', async () => {
+    await openLists()
+    await click('Fungi')
+    await click('Moss', { altKey: true })
+    expect(selected()).toEqual(['Moss'])
+  })
+
+  it('starts over on a plain click', async () => {
+    await openLists()
+    await click('Fungi')
+    await click('Rain', { shiftKey: true })
+    await click('Moss')
+    expect(selected()).toEqual(['Moss'])
+  })
+
+  it('opens a list in a new tab on ⌘-click and middle click without touching the selection', async () => {
     await openLists()
     await click('Fungi')
     await click('Rain', { metaKey: true })
@@ -141,7 +112,5 @@ describe('My Lists selection', () => {
     await act(async () => { fireEvent(row('Moss'), new MouseEvent('auxclick', { bubbles: true, button: 1 })) })
     expect(store.mock.api.workspace.openMainTab).toHaveBeenCalledTimes(2)
     expect(selected()).toEqual(['Fungi'])
-    await click('Moss', { shiftKey: true })
-    expect(selected()).toEqual(['Fungi', 'Wildlife', 'Moss'])
   })
 })

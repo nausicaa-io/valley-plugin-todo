@@ -19,14 +19,6 @@ export function viewOfSelection(selection: ListSelection): TodoView {
     : DEFAULT_VIEW
 }
 
-/** Every row from the anchor to the clicked row, either way round, in the order the rows are shown. */
-export function rangeNames(order: readonly string[], anchor: string, clicked: string): string[] {
-  const from = order.findIndex((name) => groupKey(name) === groupKey(anchor))
-  const to = order.findIndex((name) => groupKey(name) === groupKey(clicked))
-  if (from < 0 || to < 0) return to < 0 ? [] : [order[to]]
-  return order.slice(Math.min(from, to), Math.max(from, to) + 1)
-}
-
 /** One row added or removed, the rest of the selection untouched. */
 export function toggleName(names: readonly string[], name: string): string[] {
   return names.some((entry) => groupKey(entry) === groupKey(name))
