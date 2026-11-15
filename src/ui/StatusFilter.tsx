@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import type { TodoStatus } from '../types'
-import { React, api } from '../runtime'
-import { ChevronDown, TodoStatusGlyph } from './icons'
+import { React } from '../runtime'
+import { TodoStatusGlyph } from './icons'
 import { uiText } from '../localization'
 import { setShowCompleted, useShowCompleted, useStatusFilter } from '../state/viewStore'
 import {
@@ -18,7 +18,7 @@ export function visibleSelectedStatuses(filter: TodoStatusFilter, active: TodoSt
 }
 
 /** All · Completed · To do in one segmented row: everything, finished work, or everything unfinished. */
-export function StatusQuickPicks(): ReactElement {
+function StatusQuickPicks(): ReactElement {
   const [filter, onChange] = useStatusFilter()
   const [showCompleted] = useShowCompleted()
   const defs = useStatusVocabulary()

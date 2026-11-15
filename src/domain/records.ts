@@ -7,7 +7,7 @@ import { generateId } from './ids'
 import { isCustomStatusId, parseStoredStatus } from '../model/statusModel'
 import type { TodoPriority, TodoRecord, TodoSession, TodoStatusChange } from '../types'
 
-import { ATTACHMENTS_DATASET, LINKS_DATASET, SESSIONS_DATASET, STATUS_HISTORY_DATASET, TAGS_DATASET, TASKS_DATASET } from './datasets'
+import { ATTACHMENTS_DATASET, LINKS_DATASET, SESSIONS_DATASET, STATUS_HISTORY_DATASET, TAGS_DATASET } from './datasets'
 import { isTodoPriority } from './validation'
 // ── value coercion ──────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ function asMinutes(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return Math.round(value)
   return undefined
 }
-export function normalizeHistory(value: unknown): TodoSession[] {
+function normalizeHistory(value: unknown): TodoSession[] {
   if (!Array.isArray(value)) return []
   return value
     .filter((entry): entry is Record<string, unknown> => isRecord(entry))

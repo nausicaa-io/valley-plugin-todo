@@ -1,8 +1,9 @@
 import type { TodoPriority, TodoRecord } from '../types'
 import { byPriorityThenName, byStartTimeThenPriority, compareByName } from './sort'
 import { parseLocalDate, startOfWeek } from '@valley/plugin-sdk/dateGrid'
-import { addDays, isoDay } from './dates'
+import { isoDay } from './dates'
 import { isTodoListRecord } from '../domain/completion'
+import { kernelOrder } from './orderKernel'
 
 /**
  * Pure logic behind the main-workspace To-Do page: section bucketing, header
@@ -46,6 +47,12 @@ export function bucketTodos(
     someday: [],
     completed: []
   }
+  const fast = kernelOrder(todos, 'sections', { today })
+  if (fast) {
+    let at = 0
+    SECTION_ORDER.forEach((id, index) => { out[id] = fast.ordered.slice(at, at += fast.sections[index]) })
+    return out
+  }
   for (const todo of todos) {
     if (todo.completed) {
       out.completed.push(todo)
@@ -69,7 +76,7 @@ export function bucketTodos(
 
 export type DateBreakdown = 'monthly' | 'weekly' | 'daily'
 
-export interface PanelDateSection {
+interface PanelDateSection {
   /** `''` for undated, otherwise a day, week-start day, or month. */
   key: string
   kind: 'none' | DateBreakdown
@@ -78,10 +85,12 @@ export interface PanelDateSection {
 
 export function completionTimestamp(todo: TodoRecord): string {
   if (isTodoListRecord(todo)) return todo.completionSummary?.changedAt || todo.updatedAt || todo.createdAt
-  const transition = [...(todo.statusHistory ?? [])]
-    .reverse()
-    .find((change) => change.to === 'completed' || change.to === 'canceled')
-  return transition?.changedAt || todo.updatedAt || todo.createdAt
+  const history = todo.statusHistory ?? []
+  for (let index = history.length - 1; index >= 0; index--) {
+    const { to, changedAt } = history[index]
+    if (to === 'completed' || to === 'canceled') return changedAt || todo.updatedAt || todo.createdAt
+  }
+  return todo.updatedAt || todo.createdAt
 }
 
 export function localDayOfTimestamp(value: string): string {
@@ -89,11 +98,17 @@ export function localDayOfTimestamp(value: string): string {
   return Number.isNaN(date.getTime()) ? value.slice(0, 10) : todayIso(date)
 }
 
+/** `todos` newest completion first; tasks completed at the same instant keep their order. */
+export function newestCompletionFirst(todos: TodoRecord[], stamps: ReadonlyMap<TodoRecord, string>): TodoRecord[] {
+  return kernelOrder(todos, 'stamp', { stamp: (todo) => stamps.get(todo)! })?.ordered
+    ?? [...todos].sort((a, b) => stamps.get(b)!.localeCompare(stamps.get(a)!))
+}
+
 export function completionTimelineSections(todos: TodoRecord[]): PanelDateSection[] {
   // Each timestamp walks the status history, so compute it once per task
   // rather than twice per comparison.
   const stamps = new Map(todos.map((todo) => [todo, completionTimestamp(todo)]))
-  const ordered = [...todos].sort((a, b) =>
+  const ordered = kernelOrder(todos, 'completion', { stamp: (todo) => stamps.get(todo)! })?.ordered ?? [...todos].sort((a, b) =>
     stamps.get(b)!.localeCompare(stamps.get(a)!) || compareByName(a, b)
   )
   const buckets = new Map<string, TodoRecord[]>()
@@ -137,7 +152,7 @@ export function panelDateSections(
     .map(([key, list]) => ({ key, kind: key ? mode : 'none', todos: list }))
 }
 
-export interface QuickAddParse {
+interface QuickAddParse {
   title: string
   dueDate: string
   priority: TodoPriority

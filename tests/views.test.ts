@@ -10,9 +10,10 @@ import {
   SMART_LISTS,
   configuredSmartLists,
   endOfWeek,
-  groupCount,
+  countForGroup,
+  groupCounts,
   matchesVisibleView,
-  matchesView,
+  matchesViewScope,
   normalizeSmartListSettings,
   parseView,
   sameView,
@@ -21,6 +22,9 @@ import {
   viewCounts,
   type TodoView
 } from '../src/model/views'
+
+/** A smart list as the lists show it with finished work hidden. */
+const matchesView = (record: TodoRecord, view: TodoView, today: string): boolean => matchesVisibleView(record, view, false, today)
 
 const TODAY = '2026-08-13'
 
@@ -176,7 +180,7 @@ describe('matchesView', () => {
 
   it('keeps a completed todo inside its group — a group is not a smart list', () => {
     expect(
-      matchesView(todo({ group: 'Fungi', completed: true }), { kind: 'groups', names: ['Fungi'] }, TODAY)
+      matchesViewScope(todo({ group: 'Fungi', completed: true }), { kind: 'groups', names: ['Fungi'] }, TODAY)
     ).toBe(true)
   })
 })
@@ -222,7 +226,7 @@ describe('viewCounts', () => {
   })
 })
 
-describe('groupCount', () => {
+describe('group counts', () => {
   const todos = [
     todo({ group: 'Fungi' }),
     todo({ group: 'fungi' }),
@@ -231,12 +235,12 @@ describe('groupCount', () => {
   ]
 
   it('counts open todos only, case-insensitively', () => {
-    expect(groupCount(todos, 'Fungi')).toBe(2)
-    expect(groupCount(todos, 'fungi')).toBe(2)
+    expect(countForGroup(groupCounts(todos), 'Fungi')).toBe(2)
+    expect(countForGroup(groupCounts(todos), 'fungi')).toBe(2)
   })
 
   it('counts the ungrouped for the No group row', () => {
-    expect(groupCount(todos, null)).toBe(1)
+    expect(countForGroup(groupCounts(todos), null)).toBe(1)
   })
 })
 

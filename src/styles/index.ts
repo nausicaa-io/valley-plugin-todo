@@ -14,7 +14,7 @@ import { settingsCss } from "./settings"
 import { sidebarRowsCss } from "./sidebarRows"
 import { tableCss } from "./table"
 
-export const STYLES =
+const STYLES =
   tokensCss +
   panelCss +
   swipeCss +

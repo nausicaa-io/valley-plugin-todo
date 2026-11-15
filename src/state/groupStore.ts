@@ -22,19 +22,49 @@ export function getGroupKinds(): { shared: boolean; local: boolean } {
   return { shared: settings[USE_SHARED_GROUPS_KEY] !== false, local: settings[USE_LOCAL_GROUPS_KEY] !== false }
 }
 
-export function getGlobalGroups(): TodoGroup[] {
+function getGlobalGroups(): TodoGroup[] {
   return normalizeTodoGroups(api?.getState().groups)
 }
 
-export function getLocalGroups(): LocalGroup[] {
-  return normalizeLocalGroups(api?.settings.get()[LOCAL_GROUPS_KEY], getGlobalGroups())
+const savedLocalGroups = (): LocalGroup[] => normalizeLocalGroups(api?.settings.get()[LOCAL_GROUPS_KEY], getGlobalGroups())
+
+/**
+ * The To-Do-only groups just saved, shown until the settings hold them. Saving
+ * is a round trip, and a colour, name or place that only changed when it came
+ * back made To-Do-only groups feel slower than shared ones.
+ */
+let unsavedLocalGroups: { groups: LocalGroup[] } | null = null
+const localGroupListeners = new Set<() => void>()
+
+function showLocalGroups(next: typeof unsavedLocalGroups): void {
+  unsavedLocalGroups = next
+  invalidateGroupFamilies()
+  for (const listener of [...localGroupListeners]) listener()
+}
+
+function getLocalGroups(): LocalGroup[] {
+  return unsavedLocalGroups?.groups ?? savedLocalGroups()
 }
 
 export async function setLocalGroups(groups: LocalGroup[]): Promise<void> {
-  await api.settings.set(LOCAL_GROUPS_KEY, normalizeLocalGroups(groups, getGlobalGroups()))
+  const shown = { groups: normalizeLocalGroups(groups, getGlobalGroups()) }
+  showLocalGroups(shown)
+  // Only the latest save decides when the saved value takes over again.
+  const settle = (): void => { if (unsavedLocalGroups === shown) showLocalGroups(null) }
+  try {
+    await api.settings.set(LOCAL_GROUPS_KEY, shown.groups)
+  } catch (error) {
+    settle()
+    throw error
+  }
+  if (JSON.stringify(savedLocalGroups()) === JSON.stringify(shown.groups)) { settle(); return }
+  // The save is accepted but the settings have not reported it yet: wait for that report, a moment at most.
+  const done = (): void => { off(); clearTimeout(timer); settle() }
+  const off = api.settings.subscribe(done)
+  const timer = setTimeout(done, 2000)
 }
 
-export const GROUP_ORDER_KEY = 'groupOrder'
+const GROUP_ORDER_KEY = 'groupOrder'
 
 /**
  * To-Do's own order of the top-level groups, set by dragging in the sidebar's
@@ -83,7 +113,8 @@ setGroupFamilySource(() => {
 export function onGroupsChanged(cb: () => void): () => void {
   const offState = api.subscribe(cb)
   const offSettings = api.settings.subscribe(cb)
-  return () => { offState(); offSettings() }
+  localGroupListeners.add(cb)
+  return () => { offState(); offSettings(); localGroupListeners.delete(cb) }
 }
 
 export function useGroups(): TodoGroup[] {
@@ -110,10 +141,10 @@ export function useLocalGroups(): LocalGroup[] {
   return groups
 }
 
-export const COLLAPSED_GROUPS_KEY = 'collapsedGroups'
+const COLLAPSED_GROUPS_KEY = 'collapsedGroups'
 
 /** Ids of the groups whose subgroups the sidebar's Groups list hides. */
-export function getCollapsedGroups(): string[] {
+function getCollapsedGroups(): string[] {
   const saved = api?.settings.get()[COLLAPSED_GROUPS_KEY]
   return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : []
 }

@@ -2,14 +2,12 @@ import { React, api, useTodoRevealRequest, openTodoComposer } from '../runtime'
 import type { ReactElement } from 'react'
 import type { MainWorkspaceViewProps, UiMenuItem } from '@valley/plugin-sdk'
 import { useActiveCalendarSelection, useHostState } from '../state/hooks'
-import { todoSearchMatcher } from '../model/search'
 import { FolderInput, GroupGlyph, Link, Plus, Search, Settings, X } from './icons'
 import { useTodoListController } from '../state/controller'
 import { TodoDetailModal } from './TodoDetail'
 import { openManageGroups } from './GroupEditor'
 import { useGroups } from '../state/groupStore'
-import { paletteCssValue } from '@valley/plugin-sdk/palette'
-import { allGroups, groupColorFor } from '../model/groups'
+import { allGroups } from '../model/groups'
 import { groupMenuItems } from './TodoMenu'
 import { SECTION_ORDER, bucketTodos, completionTimelineSections, todayIso, type TodoSectionId } from '../model/sections'
 import type { TodoRecord } from '../types'
@@ -24,7 +22,7 @@ const TABLE_SORT_KEYS: Record<string, (todo: TodoRecord) => string | number | un
   location: (todo) => todo.location?.name || undefined,
   tags: (todo) => todo.tags?.[0]
 }
-import { DEFAULT_VIEW, matchesVisibleView, serializeView, smartListDef, type TodoView } from '../model/views'
+import { DEFAULT_VIEW, serializeView, type TodoView } from '../model/views'
 import { openViewTab, pinnedView, viewTitle } from '../state/tabs'
 import {
   getViewHistoryState,
@@ -34,13 +32,13 @@ import {
   setView,
   useShowCompleted,
   useStatusFilter,
-  useSmartListSettings,
   useTodoSearch,
   useView
 } from '../state/viewStore'
-import { allStatuses, effectiveStatus, matchesStatusFilter } from '../state/statusStore'
+import { allStatuses, effectiveStatus } from '../state/statusStore'
 import { uiText } from '../localization'
 import { setTodoSurfaceActions } from './surfaces'
+import { filterVisibleTodos } from '../state/visibleTodos'
 import { ColumnsButton, PriorityFacet } from './table/header'
 import { TodoTable } from './table/TodoTable'
 import { usePriorityFilter } from './table/columns'
@@ -88,8 +86,8 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
   const [pageSort, setPageSort] = usePageSort()
   const { field: sortField, dir: sortDir } = pageSort
   const [showCompleted] = useShowCompleted()
-  const [statusFilter, setStatusFilter] = useStatusFilter()
-  const [priorities, setPriorities] = usePriorityFilter()
+  const [statusFilter] = useStatusFilter()
+  const [priorities] = usePriorityFilter()
 
   const c = useTodoListController('due', 'asc')
   useTodoRevealRequest(c.openDetail)
@@ -105,9 +103,6 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
   }, [c.loading, c.todos, groups, view, pinned])
 
   const today = todayIso()
-  const smartListSettings = useSmartListSettings()
-  const listDef = view.kind === 'smart' ? smartListDef(view.id, smartListSettings) : null
-
   const title = viewTitle(view)
 
   // The tab names the open list (Today, Scheduled, a group…); the header below carries no second title.
@@ -116,23 +111,10 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
     api.workspace.setMainTabTitle(title, instanceId)
   }, [title, instanceId])
 
-  const filtered = React.useMemo(() => {
-    let list = c.todos.filter((todo) => matchesVisibleView(todo, view, showCompleted, today))
-    if (statusFilter !== 'all') list = list.filter((todo) => matchesStatusFilter(todo, statusFilter))
-    if (priorities.length) list = list.filter((todo) => priorities.includes(todo.priority))
-    if (search.trim()) {
-      list = list.filter(todoSearchMatcher(search))
-    }
-    if (selectedDateRange) {
-      list = list.filter((todo) => {
-        const d = todo.dueDate?.slice(0, 10)
-        return !!d && d >= selectedDateRange.start && d <= selectedDateRange.end
-      })
-    } else if (selectedDate) {
-      list = list.filter((todo) => todo.dueDate?.slice(0, 10) === selectedDate)
-    }
-    return list
-  }, [c.todos, view, showCompleted, statusFilter, priorities, search, selectedDate, selectedDateRange, today])
+  const filtered = React.useMemo(
+    () => filterVisibleTodos(c.todos, { view, showCompleted, today, statusFilter, priorities, search, selectedDate, selectedDateRange }),
+    [c.todos, view, showCompleted, statusFilter, priorities, search, selectedDate, selectedDateRange, today]
+  )
 
   const { ordered, sectionOf } = React.useMemo(() => {
     const columnKey = TABLE_SORT_KEYS[sortField as keyof typeof TABLE_SORT_KEYS]

@@ -84,7 +84,7 @@ interface FenceFilter {
   limit: number
 }
 
-export function filterFenceTodos(todos: TodoRecord[], filter: FenceFilter): TodoRecord[] {
+function filterFenceTodos(todos: TodoRecord[], filter: FenceFilter): TodoRecord[] {
   const today = isoToday()
   const weekEnd = isoInDays(7)
   const wantedTag = filter.tag ? filter.tag.replace(/^#/, '').toLowerCase() : null

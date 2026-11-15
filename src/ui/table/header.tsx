@@ -22,28 +22,6 @@ function FacetButton({ label, active, icon, onOpen }: { label: string; active: b
   )
 }
 
-export function StatusFacet(): ReactElement {
-  const [filter] = useStatusFilter()
-  const [showCompleted] = useShowCompleted()
-  const defs = useStatusVocabulary()
-  const active = defs.map((status) => status.id)
-  const selected = visibleSelectedStatuses(filter, active, showCompleted)
-  // Hiding done work is the default, not a filter the user set.
-  const filtering = filter !== 'all' && selected.length !== active.length
-  return (
-    <FacetButton
-      label={uiText('todo.table.status')}
-      active={filtering}
-      icon={<CircleCheck />}
-      onOpen={(anchor) => void api.ui.openPopover(
-        () => <StatusChoices />,
-        { anchor, align: 'start', gap: 4 },
-        { className: 'todo-status-filter-popover', ariaLabel: uiText('todo.filters.statuses') }
-      )}
-    />
-  )
-}
-
 /** The status filter, on the header cell above the column of status checks it filters. */
 export function StatusHeaderFilter(): ReactElement {
   const [filter] = useStatusFilter()

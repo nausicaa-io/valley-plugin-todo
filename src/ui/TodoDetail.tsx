@@ -1,7 +1,7 @@
 import { React, api } from '../runtime'
 import { groupMenuItems } from './TodoMenu'
 import type { ReactElement } from 'react'
-import type { TodoPriority, TodoRecord, TodoStatus } from '../types'
+import type { TodoPriority, TodoRecord } from '../types'
 import { parseAppOpenUrl } from '@valley/plugin-sdk/paths'
 import { getSharedTodos, onSharedTodos } from '../state/sharedTodos'
 import { confirmDeleteTodo } from '../data/undo'
@@ -158,7 +158,6 @@ function detailDraft(todoId: string): DetailDraft {
 }
 
 const TodoDetail = ({ todoId, c, close }: DetailProps): ReactElement | null => {
-  const { Toggle, SelectField, DateField, TimeField } = api.ui.settings
   const [todos, setTodos] = React.useState<TodoRecord[]>(getSharedTodos)
   React.useEffect(() => onSharedTodos(setTodos), [])
   const todo = todos.find((t) => t.id === todoId)

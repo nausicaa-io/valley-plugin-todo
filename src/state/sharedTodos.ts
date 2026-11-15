@@ -5,7 +5,7 @@ import { api } from '../runtime'
  * Shared in-memory todo list so every panel instance stays in sync. The host
  * runtime preserves it across module re-imports and clears it on unload.
  */
-export type Listener = (todos: TodoRecord[]) => void
+type Listener = (todos: TodoRecord[]) => void
 
 interface SharedTodoStore {
   todos: TodoRecord[]

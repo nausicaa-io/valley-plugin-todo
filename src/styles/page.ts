@@ -23,22 +23,6 @@ export const pageCss = `/* ── To-Do page (main_workspace — Things-style se
   background: var(--surface-color-alt);
 }
 .todo-page-appbar-spacer { flex: 1 1 auto; min-width: 0; }
-.todo-page-appbar-title {
-  flex: 0 0 auto;
-  min-width: 0;
-  max-width: 30%;
-  margin: 0 var(--space-1) 0 0;
-  overflow: hidden;
-  font-family: var(--interface-font);
-  font-size: var(--small-font-size);
-  font-weight: var(--font-semi-bold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.todo-page-appbar .todo-search-wrap {
-  flex: 0 1 240px;
-  min-width: 120px;
-}
 .todo-page-appbar-actions {
   display: flex;
   align-items: center;
@@ -103,7 +87,6 @@ export const pageCss = `/* ── To-Do page (main_workspace — Things-style se
   font-size: var(--smaller-font-size);
   font-weight: var(--font-semi-bold);
 }
-.todo-filter-clear { grid-template-columns: minmax(0, 1fr); justify-items: center; }
 
 /* ── Task table ──────────────────────────────────────────────────────────── */
 .todo-table-shell {
@@ -252,7 +235,6 @@ export const pageCss = `/* ── To-Do page (main_workspace — Things-style se
   cursor: pointer;
 }
 .todo-table-cell-btn > span { overflow: hidden; text-overflow: ellipsis; }
-/* The row and cell an open editor belongs to, so it is clear what the popover edits. */
 /* Editing an existing row uses the new row's blue, so a row being edited always looks the same. */
 .todo-table-row.is-editing td { background: color-mix(in srgb, var(--accent-color) 6%, transparent); }
 .todo-table td.is-editing { box-shadow: inset 0 0 0 1px var(--accent-color); border-radius: 0; }
@@ -361,10 +343,6 @@ export const pageCss = `/* ── To-Do page (main_workspace — Things-style se
 .todo-table-page-btn svg { width: 14px; height: 14px; }
 .todo-table-page-btn:hover:not(:disabled) { background: var(--hover-bg); color: var(--title-color); }
 .todo-table-page-btn:disabled { opacity: 0.4; cursor: default; }
-
-@media (max-width: 640px) {
-  .todo-page-appbar .todo-search-wrap { flex-basis: 140px; min-width: 96px; }
-}
 
 /* ── The ＋ button ────────────────────────────────────────────────────────
    Anchored to the surface, not the scroller, so it stays put while the list

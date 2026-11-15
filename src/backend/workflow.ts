@@ -16,7 +16,7 @@ export const text = (value: unknown, name: string): string => {
 }
 const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value
 
-export function todoWorkflowValues(raw: Record<string, unknown>, settings: Record<string, unknown>): Partial<TodoRecord> {
+function todoWorkflowValues(raw: Record<string, unknown>, settings: Record<string, unknown>): Partial<TodoRecord> {
   const values: Record<string, unknown> = {}
   const allowed = ['title', 'dueDate', 'startTime', 'endTime', 'note', 'priority', 'status', 'completed', 'flagged']
   for (const key of allowed) if (raw[key] !== undefined) values[key] = raw[key]

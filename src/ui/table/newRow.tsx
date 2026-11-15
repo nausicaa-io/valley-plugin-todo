@@ -15,7 +15,7 @@ import { PRIORITY_ORDER, TableColumn, TodoColumn } from './columns'
 import { LocationEditor, NotesEditor, PriorityIcon, TagsEditor, notePreview } from './cells'
 
 /** One task per pasted line, with list markers and checkboxes stripped. */
-export function pastedTaskLines(text: string): string[] {
+function pastedTaskLines(text: string): string[] {
   return text.split(/\r?\n/)
     .map((line) => line.trim().replace(/^(?:[-*+•]|\d+[.)])\s+/, '').replace(/^\[[ xX]?\]\s*/, '').trim())
     .filter(Boolean)

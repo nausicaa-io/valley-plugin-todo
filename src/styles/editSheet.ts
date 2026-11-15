@@ -67,7 +67,6 @@ export const editSheetCss = `/* ── Edit sheet: one column, title, notes, the
   resize: none;
 }
 .todo-sheet-notes::placeholder { color: var(--text-tertiary); }
-.todo-sheet .todo-detail-note-links { margin: 0; padding-left: 34px; }
 .todo-sheet-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border-light); padding-top: 12px; }
 .todo-sheet-chip {
   display: inline-flex;
@@ -100,28 +99,6 @@ export const editSheetCss = `/* ── Edit sheet: one column, title, notes, the
 .todo-notes.is-plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .todo-sheet-cancel { margin-left: auto; background: transparent !important; color: var(--text-color); box-shadow: inset 0 0 0 1px var(--border-medium); }
 .todo-sheet-cancel:hover { background: var(--hover-bg) !important; }
-.todo-sheet-notes-wrap { position: relative; }
-.todo-sheet-notes-view { min-height: 24px; padding: 0 36px 0 34px; font-size: var(--small-font-size); cursor: text; }
-.todo-sheet-notes-view .todo-notes { color: var(--text-color); }
-.todo-sheet-notes-view .todo-notes img { max-width: 100%; border-radius: var(--radius-sm); }
-.todo-sheet-notes-wrap .todo-sheet-notes { padding-right: 36px; }
-.todo-sheet-notes-toggle {
-  position: absolute;
-  top: -2px;
-  right: 0;
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-.todo-sheet-notes-toggle:hover, .todo-sheet-notes-toggle.on { background: var(--hover-bg); color: var(--text-color); }
-.todo-sheet-notes-toggle svg { width: 14px; height: 14px; }
 .todo-sheet-muted { margin-left: auto; color: var(--text-tertiary); font-size: var(--smaller-font-size); }
 .todo-sheet-delete {
   display: inline-flex;
@@ -176,29 +153,6 @@ export const editSheetCss = `/* ── Edit sheet: one column, title, notes, the
 .todo-detail-footer > .todo-sheet-cancel { margin-left: 0; }
 .todo-sheet-times { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .todo-cell-editor > [data-plugin-widget], .todo-sheet-times > [data-plugin-widget] { width: 100% !important; }
-/* Links the note points at, as quiet chips under the notes. */
-.todo-detail-note-links { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.todo-detail-note-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  max-width: 100%;
-  height: 24px;
-  padding: 0 8px;
-  border: none;
-  border-radius: 12px;
-  background: var(--hover-bg);
-  color: var(--accent-color);
-  font: inherit;
-  font-size: var(--smaller-font-size);
-  cursor: pointer;
-}
-.todo-detail-note-link:hover { color: var(--title-color); }
-.todo-detail-note-link svg { flex: 0 0 auto; width: 12px; height: 12px; }
-.todo-detail-note-link > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.todo-detail-location { align-items: start; }
-.todo-detail-location > .todo-detail-label { display: flex; align-items: center; min-height: 30px; }
-.todo-detail-location > .todo-location { flex: 1 1 auto; min-width: 0; }
 
 /* ── Attachment cards ──────────────────────────────────────────────────────
    The one place a box is right: an attachment is a discrete object, not a row

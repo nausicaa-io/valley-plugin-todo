@@ -5,8 +5,8 @@ import type { TodoRecord } from '../types'
 import { ATTACHMENTS_DATASET, LINKS_DATASET, queryAll, SESSIONS_DATASET, STATUS_HISTORY_DATASET, TAGS_DATASET, TASKS_DATASET } from './datasets'
 
 /** Reads that find tasks by a few columns first and load whole records only for the ones that matter. */
-export type TaskReader = Pick<PluginBackendApi, 'data'>
-export interface TaskReadOptions {
+type TaskReader = Pick<PluginBackendApi, 'data'>
+interface TaskReadOptions {
   groups: ReturnType<typeof normalizeGroups>
   assertActive?: () => void
 }

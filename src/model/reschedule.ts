@@ -11,7 +11,7 @@ import { addDays, isoDay, parseLocalDate } from './sort'
  * Friday "This weekend" collapses into it. Offering a no-op is worse than
  * offering nothing; it looks like the app did something.
  */
-export type RescheduleId = 'tomorrow' | 'weekend' | 'pick'
+type RescheduleId = 'tomorrow' | 'weekend' | 'pick'
 
 export interface RescheduleAction {
   id: RescheduleId

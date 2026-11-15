@@ -134,29 +134,10 @@ export const filtersCss = `/* ── Filter surfaces ─────────
   gap: var(--space-3);
 }
 
-.todo-filter-control-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 30px;
-  color: var(--text-color);
-  font-size: var(--small-font-size);
-}
-
-.todo-filter-control-row.status {
-  align-items: stretch;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
 .todo-filter-divider {
   height: 1px;
   background: var(--border-light);
 }
-
-.todo-filter-direction,
-.todo-filter-direction:hover { background: var(--hover-bg); }
 
 .todo-status-filter-popover {
   width: 224px;
@@ -425,13 +406,6 @@ export const filtersCss = `/* ── Filter surfaces ─────────
 .todo-panel-date-section:first-child .todo-panel-date-head { border-top: none; }
 
 /* Distinct compact URL cards: smaller than attachments, but equally tangible. */
-.todo-linked-file-control {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  color: var(--text-tertiary);
-  font-size: var(--smaller-font-size);
-}
 .todo-detail-url-card {
   position: relative;
   display: flex;
@@ -486,8 +460,6 @@ export const filtersCss = `/* ── Filter surfaces ─────────
 }
 .todo-activity-list li { display: flex; flex-direction: column; gap: 2px; color: var(--text-color); font-size: var(--small-font-size); }
 .todo-activity-list time { color: var(--text-tertiary); font-size: var(--smaller-font-size); }
-
-.todo-detail-row-end .time-field { max-width: 126px; }
 
 .todo-detail-footer { display:flex; gap:var(--space-2); margin-top:var(--space-3); }
 `

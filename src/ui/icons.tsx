@@ -43,14 +43,14 @@ const FilledSvg = (props: IconProps & { children: ReactNode; viewBox?: string })
   )
 
 /** Material Design `MdCancel`, inlined to preserve the plugin's host React instance. */
-export const MdCancel = (p: IconProps): ReactElement => (
+const MdCancel = (p: IconProps): ReactElement => (
   <FilledSvg {...p}>
     <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z" />
   </FilledSvg>
 )
 
 /** Material Design `MdPauseCircle`, inlined to preserve the plugin's host React instance. */
-export const MdPauseCircle = (p: IconProps): ReactElement => (
+const MdPauseCircle = (p: IconProps): ReactElement => (
   <FilledSvg {...p} viewBox="2 2 20 20">
     <circle cx="12" cy="12" r="10" fill="#fff" />
     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
@@ -58,35 +58,35 @@ export const MdPauseCircle = (p: IconProps): ReactElement => (
 )
 
 /** In Progress — a circle half filled, the universal "started" mark. */
-export const StatusInProgress = (p: IconProps): ReactElement => (
+const StatusInProgress = (p: IconProps): ReactElement => (
   <FilledSvg {...p}>
     <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 0 1 0 16z" />
   </FilledSvg>
 )
 
 /** Waiting — a clock, i.e. blocked on someone else's move. */
-export const StatusWaiting = (p: IconProps): ReactElement => (
+const StatusWaiting = (p: IconProps): ReactElement => (
   <FilledSvg {...p}>
     <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5v5.3l3.6 2.1-.8 1.4L11 13V7z" />
   </FilledSvg>
 )
 
 /** Delegated — an arrow leaving toward a person. */
-export const StatusDelegated = (p: IconProps): ReactElement => (
+const StatusDelegated = (p: IconProps): ReactElement => (
   <FilledSvg {...p}>
     <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM7 11h5.2l-1.9-1.9 1.4-1.4L16.2 12l-4.5 4.3-1.4-1.4 1.9-1.9H7z" />
   </FilledSvg>
 )
 
 /** Deferred — a crescent moon: parked for someday, not dropped. */
-export const StatusDeferred = (p: IconProps): ReactElement => (
+const StatusDeferred = (p: IconProps): ReactElement => (
   <FilledSvg {...p}>
     <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm2.6 4.2a5.6 5.6 0 0 0 4.1 8.9 5.7 5.7 0 1 1-4.1-8.9z" />
   </FilledSvg>
 )
 
 /** The done check, as a filled disc — the completed twin of the outline states. */
-export const StatusCompleted = (p: IconProps): ReactElement => (
+const StatusCompleted = (p: IconProps): ReactElement => (
   <FilledSvg {...p}>
     <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.2 14.3-4-4 1.4-1.4 2.6 2.6 5.6-5.6L17.8 9z" />
   </FilledSvg>
@@ -439,6 +439,3 @@ export const Strikethrough = (p: IconProps): ReactElement => (
   <Svg {...p}><path d="M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6M4 12h16" /></Svg>
 )
 
-export const FilterX = (p: IconProps): ReactElement => (
-  <Svg {...p}><path d="M13 13.5V20l-4-2v-4.5L3 6V4h18v2l-2.5 3M17 14l4 4M21 14l-4 4" /></Svg>
-)

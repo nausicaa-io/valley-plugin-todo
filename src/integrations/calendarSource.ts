@@ -36,15 +36,6 @@ function asPriority(value: string | undefined, fallback: TodoPriority): TodoPrio
 }
 
 /**
- * A grouped todo carries its group's colour across, so one task is one colour in
- * both plugins. An explicit `todo.color` still wins — that is the per-task
- * override, and the group is only its default.
- *
- * A todo with no group deliberately sends **no** colour: absent means "the
- * calendar's own rules decide", which keeps colouring by priority and status
- * working for the ungrouped tasks that have always relied on it.
- */
-/**
  * What the todo carries, so a calendar can draw it on the chip instead of making
  * the user right-click every item to find out. One badge per menu entry below.
  */
@@ -57,6 +48,15 @@ function badges(todo: TodoRecord): CalendarItemBadge[] | undefined {
   return out.length > 0 ? out : undefined
 }
 
+/**
+ * A grouped todo carries its group's colour across, so one task is one colour in
+ * both plugins. An explicit `todo.color` still wins — that is the per-task
+ * override, and the group is only its default.
+ *
+ * A todo with no group deliberately sends **no** colour: absent means "the
+ * calendar's own rules decide", which keeps colouring by priority and status
+ * working for the ungrouped tasks that have always relied on it.
+ */
 function toItem(todo: TodoRecord, groups: TodoGroup[]): CalendarSourceItem | null {
   if (!todo.dueDate) return null
   return {
@@ -102,10 +102,6 @@ function merge(todo: TodoRecord, patch: CalendarItemPatch): TodoRecord {
   }
 }
 
-async function todoById(itemId: string): Promise<TodoRecord | null> {
-  return loadTodo(itemId)
-}
-
 /** `Archive/Images/Apple - Lantern.png` → `Apple - Lantern.png`. */
 function fileName(relPath: string): string {
   const cut = relPath.lastIndexOf('/')
@@ -114,9 +110,6 @@ function fileName(relPath: string): string {
 
 const ATTACHMENT_PREFIX = 'attachment:'
 const URL_PREFIX = 'url:'
-
-/** Same guard, same reason: no map plugin must cost the map entry, not the menu. */
-function canOpenLocation(): boolean { return true }
 
 /**
  * The menu the calendar shows on one of our todos.
@@ -167,7 +160,7 @@ function todoActions(todo: TodoRecord): CalendarItemAction[] {
       submenu: urls.map((url) => ({ id: `${URL_PREFIX}${url}`, label: url, icon: 'link' as const }))
     })
   }
-  if (todo.location && canOpenLocation()) {
+  if (todo.location) {
     openable.push({
       id: 'show-on-map',
       label: 'Show on map',
@@ -299,7 +292,7 @@ export function registerCalendarSource(): () => void {
     },
 
     update: async (itemId, patch) => {
-      const todo = await todoById(itemId)
+      const todo = await loadTodo(itemId)
       if (todo && patch.endDate && patch.endDate !== (patch.date ?? todo.dueDate)) return false
       return todo ? updateTodo(todo.id, merge(todo, patch), todo.updatedAt) : false
     },
@@ -307,7 +300,7 @@ export function registerCalendarSource(): () => void {
     remove: (itemId) => deleteTodo(itemId),
 
     open: async (itemId) => {
-      const todo = await todoById(itemId)
+      const todo = await loadTodo(itemId)
       await api.workspace.revealOwnPanel('left_sidebar')
       if (todo) {
         setView(todo.completed ? { kind: 'smart', id: 'completed' } : DEFAULT_VIEW)
@@ -318,12 +311,12 @@ export function registerCalendarSource(): () => void {
     configure: () => api.workspace.openOwnSettings(),
 
     actions: async (itemId) => {
-      const todo = await todoById(itemId)
+      const todo = await loadTodo(itemId)
       return todo ? todoActions(todo) : []
     },
 
     runAction: async (itemId, actionId) => {
-      const todo = await todoById(itemId)
+      const todo = await loadTodo(itemId)
       return todo ? runTodoAction(todo, actionId) : false
     }
   }

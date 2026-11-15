@@ -19,9 +19,15 @@ function hostWeekStart(): number {
  * for the same reason Today includes it.
  */
 export function endOfWeek(today: string, weekStart: number = hostWeekStart()): string {
-  const day = parseLocalDate(today).getDay()
-  return addDays(today, 6 - ((day - weekStart + 7) % 7))
+  // A list asks once per task; the answer only changes with the day or the host's first weekday.
+  if (weekEnd.today !== today || weekEnd.weekStart !== weekStart) {
+    const day = parseLocalDate(today).getDay()
+    weekEnd = { today, weekStart, end: addDays(today, 6 - ((day - weekStart + 7) % 7)) }
+  }
+  return weekEnd.end
 }
+
+let weekEnd = { today: '', weekStart: -1, end: '' }
 
 /**
  * What the sidebar selects and both surfaces show.
@@ -48,7 +54,7 @@ export type TodoView =
  */
 export const DEFAULT_VIEW: TodoView = { kind: 'smart', id: 'all' }
 
-export interface SmartListDef {
+interface SmartListDef {
   id: SmartListId
   labelKey: string
   /**
@@ -74,7 +80,7 @@ export const SMART_LISTS: SmartListDef[] = [
   { id: 'completed', labelKey: 'todo.view.completed', color: paletteRef('green'), dated: false }
 ]
 
-export const DEFAULT_SMART_LIST_ORDER: SmartListId[] = SMART_LISTS.map((list) => list.id)
+const DEFAULT_SMART_LIST_ORDER: SmartListId[] = SMART_LISTS.map((list) => list.id)
 
 export type SmartListTextColor = 'auto' | 'white' | 'black'
 
@@ -139,20 +145,6 @@ export function smartListForeground(list: SmartListDef, contrast: (color: string
   return contrast(list.color)
 }
 
-/**
- * Apply a view to one record. Pure, so the sidebar list, the page and the
- * counts beside each row cannot disagree about what a list contains.
- *
- * `Today` includes overdue on purpose — an overdue todo is the most today thing
- * there is, and a list that hides it is how things get missed. `All` means all
- * *open* todos; finished work has its own list.
- */
-export function matchesView(todo: TodoRecord, view: TodoView, today: string = isoDay(new Date())): boolean {
-  if (!matchesViewScope(todo, view, today)) return false
-  if (view.kind !== 'smart') return true
-  return view.id === 'completed' ? todo.completed : !todo.completed
-}
-
 const groupKeyCache = new WeakMap<object, { names: readonly string[]; count: number; revision: number; keys: Set<string> }>()
 
 /** The selected group keys of a groups view, built once per view object rather than per todo. */
@@ -166,13 +158,23 @@ function groupViewKeys(view: Extract<TodoView, { kind: 'groups' }>): Set<string>
   return keys
 }
 
-/** Apply every criterion of a view except the open/completed split. */
+/**
+ * Apply every criterion of a view except the open/completed split. Pure, so the
+ * sidebar list, the page and the counts beside each row cannot disagree about
+ * what a list contains.
+ *
+ * `Today` includes overdue on purpose — an overdue todo is the most today thing
+ * there is, and a list that hides it is how things get missed.
+ */
 export function matchesViewScope(todo: TodoRecord, view: TodoView, today: string = isoDay(new Date())): boolean {
   if (view.kind === 'groups') {
     if (!todo.group) return view.includeUngrouped === true
     return groupViewKeys(view).has(groupKey(todo.group))
   }
-  if (view.kind === 'tag') return (todo.tags ?? []).some((tag) => tag.replace(/^#/, '').toLowerCase() === view.name.toLowerCase())
+  if (view.kind === 'tag') {
+    const name = view.name.toLowerCase()
+    return todo.tags?.some((tag) => (tag.charCodeAt(0) === 35 ? tag.slice(1) : tag).toLowerCase() === name) === true
+  }
   if (view.kind === 'nogroup') return !todo.group
   switch (view.id) {
     case 'scheduled':
@@ -201,7 +203,7 @@ export function matchesVisibleView(
   return showCompleted || !todo.completed
 }
 
-export type ViewCounts = Record<SmartListId, number>
+type ViewCounts = Record<SmartListId, number>
 
 /** One pass for every badge — a `filter` per list over the same todos is waste. */
 export function viewCounts(todos: TodoRecord[], today: string = isoDay(new Date())): ViewCounts {
@@ -223,14 +225,7 @@ export function viewCounts(todos: TodoRecord[], today: string = isoDay(new Date(
   return counts
 }
 
-/** How many todos a group row shows — open only, so a done pile never inflates it. */
-export function groupCount(todos: TodoRecord[], name: string | null): number {
-  const keys = name === null ? null : groupKeysCovered(name)
-  return todos.filter((t) => !t.completed && (keys === null ? !t.group : keys.has(groupKey(t.group ?? ''))))
-    .length
-}
-
-export interface GroupCounts {
+interface GroupCounts {
   /** Todos per `groupKey` of their group; an ungrouped todo counts under `groupKey('')`. */
   byKey: Map<string, number>
   /** Todos without a group. */
@@ -239,7 +234,8 @@ export interface GroupCounts {
 
 /**
  * Every group row's count in one pass, so a list of groups costs one walk over
- * the todos instead of one per group. `openOnly` gives {@link groupCount}'s numbers.
+ * the todos instead of one per group. `openOnly` counts open todos only, so a
+ * done pile never inflates a row.
  */
 export function groupCounts(todos: readonly TodoRecord[], openOnly = true): GroupCounts {
   const byKey = new Map<string, number>()

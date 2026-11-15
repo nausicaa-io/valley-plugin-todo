@@ -1,6 +1,7 @@
 {
   "icon": "icon.svg",
   "main": "runtime/index.js",
+  "assets": "runtime/assets",
   "keepTabIcon": true,
   "noteDocuments": [
     {
@@ -3465,6 +3466,22 @@
     },
     "largeDataOperations": [
       "workflow.execute"
+    ],
+    "wasm": [
+      {
+        "id": "order",
+        "path": "runtime/assets/order.wasm",
+        "sha256": "a6bf5ce8a47a524aa656157290345a18e4895ba30824795af9ec89aa079705fb",
+        "target": "ui",
+        "memoryPagesMax": 256,
+        "exports": [
+          "order_rows",
+          "order_run",
+          "order_output",
+          "order_sections",
+          "order_reset"
+        ]
+      }
     ]
   },
   "indexState": "scoped",

@@ -10,8 +10,8 @@ import type { DocumentRevision } from './rpc'
 
 type OwnerApi = Pick<ValleyPluginApi, 'data' | 'pluginId'> & { settings?: Pick<ValleyPluginApi['settings'], 'get'> } & { documents: Pick<ValleyPluginApi['documents'], 'read' | 'update'> }
 type Revision = DocumentRevision
-export type TodoUpdateOptions = { exactStatusHistory?: boolean }
-export type TodoEventSink = (event: string, payload: { record: TodoRecord; previous?: TodoRecord }) => Promise<void>
+type TodoUpdateOptions = { exactStatusHistory?: boolean }
+type TodoEventSink = (event: string, payload: { record: TodoRecord; previous?: TodoRecord }) => Promise<void>
 
 function validateReminders(record: { reminderOffsets?: number[]; reminderTime?: string }): void {
   const offsets = record.reminderOffsets

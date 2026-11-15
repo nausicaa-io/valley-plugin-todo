@@ -60,47 +60,6 @@ export const panelCss = `/* ── Todo panel (ported from core App.css) ──�
 }
 
 /* A group with todos still in it: refused, but hoverable so the hint reads. */
-.todo-group-blocked {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.todo-group-blocked:hover {
-  background: transparent;
-  color: inherit;
-}
-
-.todo-focus-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  margin-top: 2px;
-  flex-shrink: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-.todo-focus-btn svg {
-  width: 13px;
-  height: 13px;
-}
-.todo-row:hover .todo-focus-btn {
-  opacity: 1;
-}
-.todo-focus-btn:hover {
-  background: var(--hover-bg);
-  color: var(--accent-color);
-}
-.todo-focus-btn:disabled {
-  opacity: 0;
-  cursor: default;
-}
 
 .todo-header-actions {
   display: flex;
@@ -110,77 +69,15 @@ export const panelCss = `/* ── Todo panel (ported from core App.css) ──�
   -webkit-app-region: no-drag;
 }
 
-.todo-completed-toggle {
-  height: 26px;
-  padding: 0 5px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-tertiary);
-  font-family: var(--interface-font);
-  font-size: var(--smaller-font-size);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.todo-completed-toggle:hover {
-  background: var(--hover-bg);
-  color: var(--text-color);
-}
-
-.todo-completed-toggle:focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: -2px;
-}
-
 /* horizontally scrollable due-date filter chips (mode="all") */
-.todo-due-chips {
-  display: flex;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-2) 0;
-  overflow-x: auto;
-  flex-shrink: 0;
-  scrollbar-width: none;
-}
 
-.todo-due-chips::-webkit-scrollbar {
-  display: none;
-}
-
-.todo-due-chip {
-  flex-shrink: 0;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--border-light);
-  border-radius: 999px;
-  background: var(--surface-color-alt);
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: var(--small-font-size);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.todo-smart-chip,
-.todo-date-chip,
-.todo-status-chip {
+.todo-smart-chip {
   box-sizing: border-box;
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--border-light);
   border-radius: 999px;
   font-size: var(--small-font-size);
-}
-
-.todo-due-chip:hover {
-  background: var(--hover-bg);
-  color: var(--title-color);
-}
-
-.todo-due-chip.active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-  color: var(--title-color);
 }
 
 /* compact rows — title + meta only; notes and tags are dropped in the markup */
@@ -199,57 +96,12 @@ export const panelCss = `/* ── Todo panel (ported from core App.css) ──�
   flex-shrink: 0;
 }
 
-/* filter bar (mode="all") */
-.todo-filters {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2) 5px 0;
-  flex-shrink: 0;
-}
-
-/* create input */
-.todo-create {
-  padding: var(--space-2) var(--space-2);
-  border-bottom: 1px solid var(--border-light);
-  flex-shrink: 0;
-}
-
 /* sort row (shared .flagged-notes-sort), scoped narrower for the todo panel */
 .todo-panel .flagged-notes-sort {
   padding-left: var(--space-2);
   padding-right: var(--space-2);
 }
-
-.todo-create input {
-  width: 100%;
-  min-width: 0;
-  height: 28px;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  background: var(--container-color);
-  color: var(--title-color);
-  font: inherit;
-  font-size: var(--small-font-size);
-  outline: none;
-}
-
-.todo-create input:focus {
-  border-color: var(--border-medium);
-}
-
-/* list */
 /* Calendar-day filter chip: text + a clear (×) icon. */
-.todo-date-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.todo-date-chip svg {
-  width: 12px;
-  height: 12px;
-}
 
 .todo-list {
   display: flex;
@@ -303,23 +155,20 @@ export const panelCss = `/* ── Todo panel (ported from core App.css) ──�
 .todo-compose-controls .todo-compose-flag[aria-pressed='true'] { color: var(--color-yellow); background: transparent; }
 .todo-compose-controls .todo-compose-chip > span { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-compose-schedule, .todo-compose-location, .todo-compose-attachments { margin-top: 2px; }
-.todo-compose-chip, .todo-compose-submit, .todo-compose-attach {
+.todo-compose-chip, .todo-compose-submit {
   min-height: 28px; padding: 5px 7px; display: inline-flex; gap: 5px; align-items: center; justify-content: center;
   border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary);
   font: inherit; font-size: var(--small-font-size); cursor: pointer;
 }
-.todo-compose-chip:hover, .todo-compose-attach:hover { background: var(--hover-bg); }
-.todo-compose-chip svg, .todo-compose-attach svg { width: 14px; height: 14px; flex-shrink: 0; }
+.todo-compose-chip:hover { background: var(--hover-bg); }
+.todo-compose-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
 .todo-compose-chip[aria-pressed='true'] { color: var(--color-yellow); background: var(--hover-bg); }
 .todo-compose-submit { margin-left: auto; padding-inline: 12px; background: var(--accent-color); color: var(--accent-button-text); }
 .todo-compose button:disabled { opacity: 0.4; cursor: default; }
 .todo-compose-error { color: var(--negative-color-highlight); font-size: var(--small-font-size); }
-.todo-location-input-slot { flex: 1 1 0; min-width: 0; }
-.todo-location-input.resource-picker { width: 100%; min-width: 0; }
-.todo-location-input .resource-picker-field, .todo-compose-attachment-picker .resource-picker-field { min-height: 30px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); background: transparent; gap: 6px; }
-.todo-location-input .resource-picker-field input, .todo-compose-attachment-picker .resource-picker-field input,
-.todo-location-input .resource-picker-field input:focus, .todo-compose-attachment-picker .resource-picker-field input:focus { width: 100%; min-width: 0; border: 0 !important; outline: 0 !important; box-shadow: none !important; background: transparent; padding: 4px 0; font: inherit; color: var(--text-color); }
-.todo-location-input .resource-picker-field > svg, .todo-compose-attachment-picker .resource-picker-field > svg { width: 14px; height: 14px; flex-shrink: 0; }
+.todo-compose-attachment-picker .resource-picker-field { min-height: 30px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); background: transparent; gap: 6px; }
+.todo-compose-attachment-picker .resource-picker-field input, .todo-compose-attachment-picker .resource-picker-field input:focus { width: 100%; min-width: 0; border: 0 !important; outline: 0 !important; box-shadow: none !important; background: transparent; padding: 4px 0; font: inherit; color: var(--text-color); }
+.todo-compose-attachment-picker .resource-picker-field > svg { width: 14px; height: 14px; flex-shrink: 0; }
 .todo-active-navigation { padding-bottom: 64px; }
 
 `

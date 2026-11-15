@@ -1,11 +1,12 @@
 import type { TodoPriority, TodoRecord } from '../types'
 import { formatIsoDateByPattern, formatIsoDateByShortPattern } from '@valley/plugin-sdk/datePattern'
-import { uiText } from '../localization'
 import { addDays, isoDay, parseLocalDate } from './dates'
+import { kernelOrder } from './orderKernel'
+import { PRIORITY_RANK, titleCollator } from './orderKeys'
 
 export { addDays, isoDay, parseLocalDate }
 
-export interface PriorityDef {
+interface PriorityDef {
   id: TodoPriority
   labelKey: string
   symbol: string
@@ -30,17 +31,11 @@ export const SORT_LABEL_KEYS: Record<SortField, string> = {
   name: 'todo.sort.name'
 }
 
-export const PRIORITY_RANK: Record<TodoPriority, number> = { high: 3, medium: 2, low: 1, normal: 0 }
-
-// One collator for every comparison: `localeCompare` with options builds a new
-// collator per call, which made sorting a few thousand titles take seconds.
-const titleCollator = new Intl.Collator(undefined, { sensitivity: 'base' })
-
 export function compareByName(a: TodoRecord, b: TodoRecord): number {
   return titleCollator.compare(a.title, b.title)
 }
 
-export function compareTodos(a: TodoRecord, b: TodoRecord, field: SortField): number {
+function compareTodos(a: TodoRecord, b: TodoRecord, field: SortField): number {
   if (field === 'name') {
     return compareByName(a, b)
   }
@@ -53,20 +48,25 @@ export function compareTodos(a: TodoRecord, b: TodoRecord, field: SortField): nu
     const byFlag = Number(!!b.flagged) - Number(!!a.flagged)
     return byFlag !== 0 ? byFlag : byStartTimeThenPriority(a, b)
   }
-  if (field === 'due') {
-    // No-deadline first, then ascending due date (most urgent → furthest).
-    // Higher priority breaks same-date (and no-date) ties, then title.
-    const ad = a.dueDate || ''
-    const bd = b.dueDate || ''
-    if (!ad && !bd) return byStartTimeThenPriority(a, b)
-    if (!ad) return -1
-    if (!bd) return 1
-    const byDate = ad.localeCompare(bd)
-    return byDate !== 0 ? byDate : byStartTimeThenPriority(a, b)
-  }
+  if (field === 'due') return byDueDate(a, b)
   const key = field === 'created' ? 'createdAt' : 'updatedAt'
   const byDate = a[key].localeCompare(b[key])
   return byDate !== 0 ? byDate : compareByName(a, b)
+}
+
+/**
+ * No-deadline first, then by due date: most urgent first, or newest first.
+ * Start time, then priority, then title break same-date (and no-date) ties in
+ * either direction.
+ */
+function byDueDate(a: TodoRecord, b: TodoRecord, newestFirst = false): number {
+  const ad = a.dueDate || ''
+  const bd = b.dueDate || ''
+  if (!ad && !bd) return byStartTimeThenPriority(a, b)
+  if (!ad) return -1
+  if (!bd) return 1
+  const byDate = newestFirst ? bd.localeCompare(ad) : ad.localeCompare(bd)
+  return byDate !== 0 ? byDate : byStartTimeThenPriority(a, b)
 }
 
 export function byPriorityThenName(a: TodoRecord, b: TodoRecord): number {
@@ -110,20 +110,16 @@ export function sortTodosByKey(todos: TodoRecord[], key: (todo: TodoRecord) => s
   })
 }
 
+/**
+ * `todos` by one field. The Rust kernel orders long lists; `compareTodos` is
+ * the definition of the order and sorts whatever the kernel does not take.
+ */
 export function sortTodos(todos: TodoRecord[], field: SortField, dir: SortDir): TodoRecord[] {
-  return [...todos].sort((a, b) => {
-    if (field === 'due' && dir === 'desc') {
-      const ad = a.dueDate || ''
-      const bd = b.dueDate || ''
-      if (!ad && !bd) return byStartTimeThenPriority(a, b)
-      if (!ad) return -1
-      if (!bd) return 1
-      const byNewestDate = bd.localeCompare(ad)
-      return byNewestDate !== 0 ? byNewestDate : byStartTimeThenPriority(a, b)
-    }
-    const r = compareTodos(a, b, field)
-    return dir === 'asc' ? r : -r
-  })
+  const fast = kernelOrder(todos, field, { descending: dir === 'desc' })
+  if (fast) return fast.ordered
+  // Newest due date first keeps undated tasks first and same-day tasks in start order; every other field flips whole.
+  if (field === 'due' && dir === 'desc') return [...todos].sort((a, b) => byDueDate(a, b, true))
+  return [...todos].sort(dir === 'asc' ? (a, b) => compareTodos(a, b, field) : (a, b) => -compareTodos(a, b, field))
 }
 
 export function formatDate(value: string, pattern = 'dd-mm-yyyy'): string {
@@ -142,7 +138,7 @@ export function formatDayHeader(value: string, locale?: string, pattern = 'ddd d
 }
 
 /** Relative day names the row shows instead of a date, supplied translated. */
-export interface DueLabels {
+interface DueLabels {
   today: string
   tomorrow: string
   yesterday: string

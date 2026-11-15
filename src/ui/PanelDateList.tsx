@@ -9,6 +9,7 @@ import { TodoSections } from './TodoSections'
 import { addDays, formatDayHeader } from '../model/sort'
 import {
   completionTimestamp,
+  newestCompletionFirst,
   localDayOfTimestamp,
   panelDateSections,
   todayIso,
@@ -60,8 +61,7 @@ export function PanelDateList({
     () => {
       if (!timeline) return panelDateSections(todos, mode, weekStartIndex(weekStart))
       const stamps = new Map(todos.map((todo) => [todo, completionTimestamp(todo)]))
-      const ordered = [...todos].sort((a, b) => stamps.get(b)!.localeCompare(stamps.get(a)!))
-      return panelDateSections(ordered, mode, weekStartIndex(weekStart), {
+      return panelDateSections(newestCompletionFirst(todos, stamps), mode, weekStartIndex(weekStart), {
         dateOf: (todo) => localDayOfTimestamp(stamps.get(todo)!)
       })
     },

@@ -136,7 +136,7 @@ function statusClass(status: TodoStatus): string {
 }
 
 /** The CSS foreground for a filled badge of this status. */
-export function statusForeground(status: TodoStatus, settings: TodoStatusSettings = getStatusSettings()): string {
+function statusForeground(status: TodoStatus, settings: TodoStatusSettings = getStatusSettings()): string {
   const choice = settings.textColors[status]
   if (choice === 'white') return '#ffffff'
   if (choice === 'black') return '#000000'
@@ -199,7 +199,7 @@ export function matchesStatusFilter(
   return filter === 'all' || filter.includes(effectiveStatus(todo))
 }
 
-export interface StatusMenuOption {
+interface StatusMenuOption {
   status: TodoStatus | null
   labelKey: string
   label: string

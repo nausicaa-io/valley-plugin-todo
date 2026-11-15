@@ -217,7 +217,6 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
     )
   }
 
-  const span = 3 + columns.length
   const sectionCounts = React.useMemo(() => {
     if (!sectionOf) return null
     const counts = new Map<TodoSectionId, number>()

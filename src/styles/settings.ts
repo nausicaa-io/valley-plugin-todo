@@ -43,12 +43,8 @@ export const settingsCss = `/* ── Settings: one bordered list per section, r
 .todo-icon-picker-svg > svg { width: 100%; height: 100%; }
 .todo-icon-picker-hint { margin: 0; color: var(--text-tertiary); font-size: var(--smaller-font-size); line-height: 1.4; overflow-wrap: anywhere; }
 .todo-status-restore { margin-top: 6px; }
-.todo-settings-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
-.todo-settings-row-actions svg { width: 15px; height: 15px; }
 .todo-settings-name-field { min-width: 0; }
 .todo-settings-text { box-sizing: border-box; width: 100%; min-width: 0; }
-.todo-status-add { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
-.todo-status-add > :first-child { flex: 1 1 auto; min-width: 0; }
 .todo-settings-head-glyph { display: inline-grid; place-items: center; }
 .todo-settings-head-glyph svg { width: 14px; height: 14px; }
 /* Same pressed look as the Markdown task strikethrough toggles. */
@@ -67,8 +63,7 @@ export const settingsCss = `/* ── Settings: one bordered list per section, r
 .todo-settings-head > span:nth-child(n + 5) { justify-self: center; }
 .todo-smart-list-settings .todo-settings-head > span:nth-child(n + 4) { justify-self: center; }
 .todo-settings-item.is-off .todo-settings-glyph,
-.todo-settings-item.is-off .todo-settings-chip,
-.todo-settings-item.is-off .todo-settings-preview { opacity: 0.45; }
+.todo-settings-item.is-off .todo-settings-chip { opacity: 0.45; }
 /* A switched-off status keeps its name readable, so only the add row's field looks empty. */
 .todo-settings-item.is-off .todo-settings-name input { color: var(--text-secondary); }
 .todo-settings-handle {
@@ -104,12 +99,9 @@ button.todo-settings-handle:active { cursor: grabbing; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.todo-settings-preview { display: flex; min-width: 0; }
 .todo-settings-text-select { width: 104px; min-width: 0; }
 .todo-settings-item > :nth-child(n + 5) { justify-self: center; }
 .todo-smart-list-settings .todo-settings-item > :nth-child(n + 4) { justify-self: center; }
-.todo-settings-end { display: flex; flex: 1 1 auto; justify-content: flex-end; min-width: 0; margin-left: auto; }
-.todo-settings-end > [data-plugin-widget] { flex: 0 0 auto; width: var(--todo-segmented-width, 100%) !important; }
 .todo-settings-item.drop-before::before,
 .todo-settings-item.drop-after::before {
   content: '';
@@ -126,28 +118,12 @@ button.todo-settings-handle:active { cursor: grabbing; }
 .todo-settings-item.drop-after::before { bottom: 0; transform: translateY(50%); }
 @container (max-width: 560px) {
   .todo-status-settings .todo-settings-item { grid-template-columns: 24px 30px minmax(0, 1fr) 30px 34px 30px 40px 30px; }
-  .todo-status-settings .todo-settings-preview { display: none; }
 }
-
-.todo-reminder-offsets { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 290px; max-width: 100%; }
 .todo-reminder-mode { width: 100%; }
 .todo-reminder-time { box-sizing: border-box; width: 96px; font-variant-numeric: tabular-nums; text-align: center; }
 .todo-reminder-time.invalid { border-color: var(--negative-color); }
-.todo-reminder-line {
-  display: grid;
-  grid-template-columns: 80px 170px 28px;
-  align-items: center;
-  gap: 6px;
-}
-.todo-reminder-line > * { min-width: 0; }
-.todo-reminder-number-frame, .todo-reminder-number, .todo-reminder-unit { width: 100%; min-width: 0; box-sizing: border-box; }
-.todo-reminder-add { align-self: flex-end; }
 .todo-reminder-note { color: var(--text-secondary); font-size: var(--smaller-font-size); }
 .todo-reminder-note.is-error { color: var(--negative-color); }
-.todo-detail .todo-reminder-offsets { width: auto; }
-.todo-detail .todo-reminder-line { grid-template-columns: 80px minmax(0, 1fr) 28px; }
-.todo-detail .todo-reminder-mode { width: auto; }
-.todo-detail .todo-reminder-add { align-self: flex-start; }
 
 /* The reorder hook's announcement is for screen readers only. */
 .settings-visually-hidden {

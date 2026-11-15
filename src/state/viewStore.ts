@@ -23,40 +23,65 @@ import type { SortDir, SortField } from '../model/sort'
  * here is what makes a click paint immediately rather than a frame after the
  * host echoes the write back (the same correctness argument as `groupStore.ts`).
  */
-type Listener = (view: TodoView) => void
-
-interface ViewStore {
-  view: TodoView | null
-  history: TodoView[]
-  historyIndex: number
-  listeners: Set<Listener>
+/**
+ * One shared value behind every surface: the session copy of a saved setting,
+ * read from the settings on first use and kept in the host runtime so it
+ * survives a module re-import. `set` only changes the copy and tells the
+ * listeners; each value below saves itself in its own way.
+ */
+interface SharedValue<T> {
+  get(): T
+  /** The session copy, or null before anything read it. */
+  peek(): T | null
+  set(value: T): void
+  subscribe(listener: (value: T) => void): () => void
+  /** Forget the copy, so the next read comes from the settings again. */
+  reset(): void
+  /** The value, re-rendering the calling component when it changes. */
+  use(): T
 }
 
-type CompletedListener = (show: boolean) => void
-
-type StatusFilterListener = (filter: TodoStatusFilter) => void
-
-interface CompletedStore {
-  show: boolean | null
-  listeners: Set<CompletedListener>
+interface Cell<T> {
+  value: T | null
+  listeners: Set<(value: T) => void>
 }
 
-interface StatusFilterStore {
-  filter: TodoStatusFilter | null
-  listeners: Set<StatusFilterListener>
-}
-
-interface SearchStore {
-  query: string | null
-  listeners: Set<(query: string) => void>
-  pending?: { timer: ReturnType<typeof setTimeout>; write: (value: string) => void; forget: () => void }
+function sharedValue<T, Extra extends object = object>(storeKey: string, read: () => T, extra?: () => Extra): SharedValue<T> & { cell(): Cell<T> & Extra } {
+  const cell = (): Cell<T> & Extra => api.runtime.getOrCreate(storeKey, () => ({ value: null, listeners: new Set(), ...extra?.() }) as Cell<T> & Extra)
+  const get = (): T => {
+    const c = cell()
+    if (c.value === null) c.value = read()
+    return c.value
+  }
+  const subscribe = (listener: (value: T) => void): (() => void) => {
+    const c = cell()
+    c.listeners.add(listener)
+    return () => { c.listeners.delete(listener) }
+  }
+  return {
+    cell,
+    get,
+    peek: () => cell().value,
+    set: (value) => {
+      const c = cell()
+      c.value = value
+      for (const listener of c.listeners) listener(value)
+    },
+    subscribe,
+    reset: () => { cell().value = null },
+    use: () => {
+      const [value, setValue] = React.useState<T>(get)
+      React.useEffect(() => subscribe(setValue), [])
+      return value
+    }
+  }
 }
 
 /** Typing updates the UI at once; the saved setting trails by this long. */
 export const SEARCH_PERSIST_DELAY_MS = 300
 
 /** Every table column sorts; the narrow lists offer only the shared fields. */
-export const TABLE_ONLY_SORT_FIELDS = ['group', 'notes', 'status', 'location', 'tags'] as const
+const TABLE_ONLY_SORT_FIELDS = ['group', 'notes', 'status', 'location', 'tags'] as const
 export type PageSortField = SortField | 'auto' | (typeof TABLE_ONLY_SORT_FIELDS)[number]
 
 export interface PageSort {
@@ -64,26 +89,16 @@ export interface PageSort {
   dir: SortDir
 }
 
-interface PageSortStore {
-  value: PageSort | null
-  listeners: Set<(value: PageSort) => void>
-}
-
-const STORE_KEY = 'todo.view'
-const COMPLETED_STORE_KEY = 'todo.showCompleted'
-const STATUS_FILTER_STORE_KEY = 'todo.statusFilter'
-const SEARCH_STORE_KEY = 'todo.search'
-const PAGE_SORT_STORE_KEY = 'todo.pageSort'
 /** Unchanged from the chip bar, so an existing selection survives the upgrade. */
-export const VIEW_SETTING_KEY = 'panelChip'
-export const SHOW_COMPLETED_SETTING_KEY = 'pageShowCompleted'
-export const STATUS_FILTER_SETTING_KEY = 'statusFilter'
+const VIEW_SETTING_KEY = 'panelChip'
+const SHOW_COMPLETED_SETTING_KEY = 'pageShowCompleted'
+const STATUS_FILTER_SETTING_KEY = 'statusFilter'
 export const DATE_BREAKDOWN_SETTING_KEY = 'dateBreakdown'
-export const SMART_LISTS_SETTING_KEY = 'smartLists'
-export const SEARCH_SETTING_KEY = 'pageSearch'
-export const PAGE_SORT_SETTING_KEY = 'pageSort'
+const SMART_LISTS_SETTING_KEY = 'smartLists'
+const SEARCH_SETTING_KEY = 'pageSearch'
+const PAGE_SORT_SETTING_KEY = 'pageSort'
 
-export interface PanelPresentation {
+interface PanelPresentation {
   compact: boolean
   sortField: SortField
   sortDir: SortDir
@@ -146,80 +161,62 @@ export function useDateBreakdown(): DateBreakdown {
   return value
 }
 
-function store(): ViewStore {
-  return api.runtime.getOrCreate(STORE_KEY, () => ({
-    view: null,
-    history: [],
-    historyIndex: -1,
-    listeners: new Set()
-  }))
-}
+const setting = (key: string): unknown => api.settings.get()[key]
+const savedSearch = (): string => { const saved = setting(SEARCH_SETTING_KEY); return typeof saved === 'string' ? saved.slice(0, 500) : '' }
 
-function completedStore(): CompletedStore {
-  return api.runtime.getOrCreate(COMPLETED_STORE_KEY, () => ({ show: null, listeners: new Set() }))
-}
-
-function statusFilterStore(): StatusFilterStore {
-  return api.runtime.getOrCreate(STATUS_FILTER_STORE_KEY, () => ({ filter: null, listeners: new Set() }))
-}
-
-function searchStore(): SearchStore {
-  return api.runtime.getOrCreate(SEARCH_STORE_KEY, () => ({ query: null, listeners: new Set() }))
-}
-
-function pageSortStore(): PageSortStore {
-  return api.runtime.getOrCreate(PAGE_SORT_STORE_KEY, () => ({ value: null, listeners: new Set() }))
-}
+/** The selected list, with the lists visited before it for the header's back and forward. */
+const view = sharedValue<TodoView, { history: TodoView[]; historyIndex: number }>('todo.view', () => parseView(setting(VIEW_SETTING_KEY)), () => ({ history: [], historyIndex: -1 }))
+const showCompleted = sharedValue<boolean>('todo.showCompleted', () => setting(SHOW_COMPLETED_SETTING_KEY) === true)
+const statusFilter = sharedValue<TodoStatusFilter>('todo.statusFilter', () => {
+  const raw = setting(STATUS_FILTER_SETTING_KEY)
+  const filter = normalizeStatusFilter(raw)
+  // A filter saved in the single-status spelling is saved again as a list.
+  if (typeof raw === 'string' && raw !== 'all' && filter !== 'all') void api.settings.set(STATUS_FILTER_SETTING_KEY, filter)
+  return filter
+})
+const search = sharedValue<string, { pending?: { timer: ReturnType<typeof setTimeout>; write: (value: string) => void; forget: () => void } }>('todo.search', savedSearch)
+const pageSort = sharedValue<PageSort>('todo.pageSort', () => normalizePageSort(setting(PAGE_SORT_SETTING_KEY)))
 
 export function getView(): TodoView {
-  const s = store()
-  if (!s.view) {
-    s.view = parseView(api.settings.get()[VIEW_SETTING_KEY])
-    s.history = [s.view]
-    s.historyIndex = 0
+  const current = view.get()
+  const cell = view.cell()
+  // The first read starts the history at the saved list.
+  if (cell.historyIndex < 0) {
+    cell.history = [current]
+    cell.historyIndex = 0
   }
-  return s.view
+  return current
 }
 
-export function setView(view: TodoView): void {
-  const s = store()
-  getView()
-  if (s.view && sameView(s.view, view)) return
-  const base = s.history.slice(0, s.historyIndex + 1)
-  s.history = [...base, view].slice(-20)
-  s.historyIndex = s.history.length - 1
-  s.view = view
-  void api.settings.set(VIEW_SETTING_KEY, serializeView(view))
-  for (const fn of s.listeners) fn(view)
+function showAndSave(next: TodoView): void {
+  view.set(next)
+  void api.settings.set(VIEW_SETTING_KEY, serializeView(next))
+}
+
+export function setView(next: TodoView): void {
+  if (sameView(getView(), next)) return
+  const cell = view.cell()
+  cell.history = [...cell.history.slice(0, cell.historyIndex + 1), next].slice(-20)
+  cell.historyIndex = cell.history.length - 1
+  showAndSave(next)
 }
 
 export function getViewHistoryState(): { canGoBack: boolean; canGoForward: boolean } {
-  const s = store()
   getView()
-  return {
-    canGoBack: s.historyIndex > 0,
-    canGoForward: s.historyIndex < s.history.length - 1
-  }
+  const { history, historyIndex } = view.cell()
+  return { canGoBack: historyIndex > 0, canGoForward: historyIndex < history.length - 1 }
 }
 
 export function goViewHistory(delta: -1 | 1): void {
-  const s = store()
   getView()
-  const nextIndex = s.historyIndex + delta
-  if (nextIndex < 0 || nextIndex >= s.history.length) return
-  s.historyIndex = nextIndex
-  s.view = s.history[nextIndex]
-  void api.settings.set(VIEW_SETTING_KEY, serializeView(s.view))
-  for (const fn of s.listeners) fn(s.view)
+  const cell = view.cell()
+  const index = cell.historyIndex + delta
+  if (index < 0 || index >= cell.history.length) return
+  cell.historyIndex = index
+  showAndSave(cell.history[index])
 }
 
-export function onView(fn: Listener): () => void {
-  const s = store()
-  s.listeners.add(fn)
-  return () => {
-    s.listeners.delete(fn)
-  }
-}
+export const onView = view.subscribe
 
 /**
  * Drop the cache on `register()`. Without this a realm switch shows the previous
@@ -227,14 +224,10 @@ export function onView(fn: Listener): () => void {
  */
 export function resetViewCache(): void {
   flushTodoSearch()
-  const viewStore = store()
-  viewStore.view = null
-  viewStore.history = []
-  viewStore.historyIndex = -1
-  completedStore().show = null
-  statusFilterStore().filter = null
-  searchStore().query = null
-  pageSortStore().value = null
+  const cell = view.cell()
+  cell.history = []
+  cell.historyIndex = -1
+  for (const value of [view, showCompleted, statusFilter, search, pageSort]) value.reset()
 }
 
 export function getSmartListSettings(): SmartListSettings {
@@ -253,21 +246,20 @@ export function useSmartListSettings(): SmartListSettings {
 
 /** Write the latest typed search now, if one is waiting. Safe to call at any time. */
 export function flushTodoSearch(): void {
-  const s = searchStore()
+  const s = search.cell()
   const pending = s.pending
   if (!pending) return
   s.pending = undefined
   clearTimeout(pending.timer)
   pending.forget()
-  if (s.query !== null) pending.write(s.query)
+  if (s.value !== null) pending.write(s.value)
 }
 
 export function setTodoSearch(query: string): void {
-  const s = searchStore()
+  const s = search.cell()
   const next = query.slice(0, 500)
-  if (s.query === next) return
-  s.query = next
-  for (const listener of s.listeners) listener(next)
+  if (s.value === next) return
+  search.set(next)
   if (next === '') {
     if (s.pending) {
       clearTimeout(s.pending.timer)
@@ -285,20 +277,7 @@ export function setTodoSearch(query: string): void {
 }
 
 export function useTodoSearch(): [string, (query: string) => void] {
-  const read = (): string => {
-    const s = searchStore()
-    if (s.query === null) s.query = typeof api.settings.get()[SEARCH_SETTING_KEY] === 'string'
-      ? String(api.settings.get()[SEARCH_SETTING_KEY]).slice(0, 500)
-      : ''
-    return s.query
-  }
-  const [query, setQuery] = React.useState(read)
-  React.useEffect(() => {
-    const s = searchStore()
-    s.listeners.add(setQuery)
-    return () => { s.listeners.delete(setQuery) }
-  }, [])
-  return [query, setTodoSearch]
+  return [search.use(), setTodoSearch]
 }
 
 function normalizePageSort(raw: unknown): PageSort {
@@ -309,32 +288,19 @@ function normalizePageSort(raw: unknown): PageSort {
   return { field, dir: value.dir === 'desc' ? 'desc' : 'asc' }
 }
 
-export function getPageSort(): PageSort {
-  const s = pageSortStore()
-  if (!s.value) s.value = normalizePageSort(api.settings.get()[PAGE_SORT_SETTING_KEY])
-  return s.value
-}
-
-export function setPageSort(value: PageSort): void {
-  const s = pageSortStore()
+function setPageSort(value: PageSort): void {
   const next = normalizePageSort(value)
-  if (s.value?.field === next.field && s.value.dir === next.dir) return
-  s.value = next
+  const current = pageSort.peek()
+  if (current?.field === next.field && current.dir === next.dir) return
+  pageSort.set(next)
   void api.settings.set(PAGE_SORT_SETTING_KEY, next)
-  for (const listener of s.listeners) listener(next)
 }
 
 export function usePageSort(): [PageSort, (value: PageSort) => void] {
-  const [value, setValue] = React.useState<PageSort>(getPageSort)
-  React.useEffect(() => {
-    const s = pageSortStore()
-    s.listeners.add(setValue)
-    return () => { s.listeners.delete(setValue) }
-  }, [])
-  return [value, setPageSort]
+  return [pageSort.use(), setPageSort]
 }
 
-export interface TodoVisibleState extends Record<string, unknown> {
+interface TodoVisibleState extends Record<string, unknown> {
   v: 1
   view: unknown
   showCompleted: boolean
@@ -347,12 +313,10 @@ export function readTodoVisibleState(view: TodoView = getView()): TodoVisibleSta
   return {
     v: 1,
     view: serializeView(view),
-    showCompleted: getShowCompleted(),
-    statusFilter: getStatusFilter(),
-    search: searchStore().query ?? (typeof api.settings.get()[SEARCH_SETTING_KEY] === 'string'
-      ? String(api.settings.get()[SEARCH_SETTING_KEY]).slice(0, 500)
-      : ''),
-    sort: getPageSort()
+    showCompleted: showCompleted.get(),
+    statusFilter: statusFilter.get(),
+    search: search.peek() ?? savedSearch(),
+    sort: pageSort.get()
   }
 }
 
@@ -368,76 +332,36 @@ export function applyTodoVisibleState(raw: Record<string, unknown>, keepView = f
   return true
 }
 
-export function getStatusFilter(): TodoStatusFilter {
-  const s = statusFilterStore()
-  if (s.filter === null) {
-    const raw = api.settings.get()[STATUS_FILTER_SETTING_KEY]
-    s.filter = normalizeStatusFilter(raw)
-    if (typeof raw === 'string' && raw !== 'all' && s.filter !== 'all') {
-      void api.settings.set(STATUS_FILTER_SETTING_KEY, s.filter)
-    }
-  }
-  return s.filter
-}
-
-export function setStatusFilter(filter: TodoStatusFilter): void {
-  const s = statusFilterStore()
+function setStatusFilter(filter: TodoStatusFilter): void {
   const next = normalizeStatusFilter(filter)
-  const previous = s.filter ?? getStatusFilter()
+  const previous = statusFilter.get()
   if (previous === 'all' && next === 'all') return
   if (previous !== 'all' && next !== 'all' && previous.length === next.length && previous.every((id, i) => id === next[i])) return
-  s.filter = next
+  statusFilter.set(next)
   void api.settings.set(STATUS_FILTER_SETTING_KEY, next)
-  for (const fn of s.listeners) fn(next)
 }
 
 export function useStatusFilter(): [TodoStatusFilter, (filter: TodoStatusFilter) => void] {
-  const [filter, setLocal] = React.useState<TodoStatusFilter>(getStatusFilter)
-  React.useEffect(() => {
-    const s = statusFilterStore()
-    s.listeners.add(setLocal)
-    const offSettings = api.settings.subscribe(() => {
-      const next = normalizeStatusFilter(s.filter ?? getStatusFilter())
-      setStatusFilter(next)
-    })
-    return () => {
-      s.listeners.delete(setLocal)
-      offSettings()
-    }
-  }, [])
+  const filter = statusFilter.use()
+  // A status removed or hidden in Settings leaves the filter.
+  React.useEffect(() => api.settings.subscribe(() => setStatusFilter(statusFilter.get())), [])
   return [filter, setStatusFilter]
 }
 
 export function useView(): TodoView {
-  const [view, setLocal] = React.useState<TodoView>(getView)
+  const [current, setLocal] = React.useState<TodoView>(getView)
   React.useEffect(() => onView(setLocal), [])
-  return view
-}
-
-export function getShowCompleted(): boolean {
-  const s = completedStore()
-  if (s.show === null) s.show = api.settings.get()[SHOW_COMPLETED_SETTING_KEY] === true
-  return s.show
+  return current
 }
 
 export function setShowCompleted(show: boolean): void {
-  const s = completedStore()
-  if (s.show === show) return
-  s.show = show
+  if (showCompleted.peek() === show) return
+  showCompleted.set(show)
   void api.settings.set(SHOW_COMPLETED_SETTING_KEY, show)
-  for (const fn of s.listeners) fn(show)
 }
 
 export function useShowCompleted(): [boolean, () => void] {
-  const [show, setLocal] = React.useState<boolean>(getShowCompleted)
-  React.useEffect(() => {
-    const s = completedStore()
-    s.listeners.add(setLocal)
-    return () => {
-      s.listeners.delete(setLocal)
-    }
-  }, [])
-  return [show, () => setShowCompleted(!getShowCompleted())]
+  return [showCompleted.use(), () => setShowCompleted(!showCompleted.get())]
 }
 
 export { DEFAULT_VIEW }

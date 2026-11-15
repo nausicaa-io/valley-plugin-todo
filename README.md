@@ -14,28 +14,33 @@ This is an external plugin and is not bundled with Valley. An installed copy liv
   - `domain/`: task records, validation, dataset ids and the writer the backend owns; no React.
   - `backend/`: backend registration, Workflow provider, reminders, the `completedAt` backfill and status icons.
   - `data/`: UI reads, the incremental task list, the backend RPC client and undoable writes.
-  - `model/`: views, sorting, sections, search, dates, groups and the status model.
-  - `state/`: settings-backed stores, the list controller and host-state hooks.
-  - `ui/` (with `ui/table/`), `commands/`, `integrations/` (Calendar source, reminder clicks) and `styles/`.
+  - `model/`: views, sorting, sections, search, dates, groups and the status model; `orderKeys.ts` and `orderKernel.ts` feed the Rust order kernel.
+  - `state/`: settings-backed stores, the list controller, the shared visible-task filter and host-state hooks.
+  - `ui/` (with `ui/table/`, `ui/panel/` for the sidebar's composer, Groups list and popovers, and `ui/settings/` with one file per settings section), `commands/`, `integrations/` (Calendar source, Footer details, reminder clicks) and `styles/`.
+  - `wasm/`: the Rust crate of the order kernel (`order.rs` holds the comparisons, `lib.rs` the exports; `abi/` is the vendored Valley module ABI).
 - `locales/`: English, German, Spanish, French, and Simplified Chinese catalogs.
 - `tests/`: package-owned checks using the portable SDK testkit.
-- `runtime/`: compiled installation artifact, including the package’s locale catalogs.
+- `runtime/`: compiled installation artifact, including the package’s locale catalogs and `runtime/assets/order.wasm`.
 - `vendor/`: pinned SDK, testkit, and build-tool archives for independent development.
 
 The package’s `manifest.name` and `manifest.description` catalog entries translate its identity, including while disabled. Missing translations fall back to this package’s English catalog. A plugin never falls back to Valley’s catalog or another plugin’s catalog.
 
 ## Development and releases
 
-Use Node 24.19.0 and npm 11.17.0. From this repository, run:
+Use Node 24.19.0 and npm 11.17.0, and Rust from `rustup` (the toolchain pinned in `rust-toolchain.toml`) with binaryen's `wasm-opt` at the version plugin-tools names. From this repository, run:
 
 ```sh
 npm ci
 npm run check
 ```
 
-The check validates types and package boundaries, runs the package tests, and rebuilds `runtime/`. It requires no Valley source checkout. Keep the rebuilt runtime, locale files, dependency lock, and vendored tools with each release. Increment the package and manifest versions together.
+The check validates types and package boundaries, builds the order kernel twice and requires identical bytes, rebuilds `runtime/`, and runs the package tests. It requires no Valley source checkout. A changed kernel has a new digest: put the one the build names into `config.json` → `runtime.wasm[0].sha256`. The crate's own unit tests run natively with `RUSTFLAGS="" cargo test --target <host triple>` in `src/wasm/` (the wasm linker flags in `.cargo/config.toml` do not apply to a native build). Keep the rebuilt runtime, locale files, dependency lock, and vendored tools with each release. Increment the package and manifest versions together.
 
 Valley release maintainers explicitly import the compiled artifact into the application’s `plugins.lock.json`; building Valley does not build or read this repository. All privileged work uses declared SDK capabilities, authenticated IPC, and explicit grants. Disabling or unloading the plugin releases its subscriptions and resources.
+
+## List order
+
+Long lists (32 to 100,000 tasks) are sorted and split into Overdue, Today, Upcoming, Someday and Completed by the Rust kernel in `src/wasm`, loaded through `api.wasm` when the plugin starts. TypeScript hands it nine numbers per task: due date, start time, priority, flag, completion, created, updated, completion time and the title's place in the collation order. The numbers are cached per record, and the title index is kept between sorts, so a new or renamed task costs one binary search instead of a collation sort of every title. The comparators in `model/sort.ts` and `model/sections.ts` remain the definition of every order: they sort short lists, lists the kernel has not loaded for yet, and any list holding a value outside the canonical shapes (`YYYY-MM-DD`, `YYYY-MM-DDTHH:MM`, `HH:MM`, `toISOString` instants). `tests/orderKernel.test.ts` loads the built module and requires the same order from both for every field, direction and section, ties included.
 
 Selected-task reads in version 3.1 query only that task and its relationships, retain complete paginated history, and coalesce concurrent reads. List ordering uses Set membership while preserving the existing stable display order. Ordinary completion timelines retain their existing status-history semantics.
 

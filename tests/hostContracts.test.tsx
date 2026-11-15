@@ -4,9 +4,9 @@ import { DEFAULT_PALETTE } from '@valley/plugin-sdk/palette'
 import type { ValleyPluginManifest } from '@valley/plugin-sdk/types'
 import { initRuntime } from '../src/runtime'
 import { registerTodoFence } from '../src/ui/fence'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { METADATA_PANEL_SEGMENT_V1, PLUGIN_SURFACE_V1, WORKSPACE_BOOKMARK_V1, WORKSPACE_DETAILS_V1 } from '@valley/plugin-sdk'
-import { createMockValleyApi } from './harness'
+import { createMockValleyApi as createMock, loadPackageWasm } from './harness'
 import * as plugin from '../src/index'
 import manifest from '../manifest.json'
 import config from '../config.json'
@@ -16,6 +16,11 @@ const id = manifest.id
 const withoutProperties = false
 const requiresWritePreview = true
 const declared = { ...manifest, ...config } as unknown as ValleyPluginManifest
+
+// The package declares its order kernel, so the host under test serves the built module as the app does.
+let orderModule: Awaited<ReturnType<typeof loadPackageWasm>>
+beforeAll(async () => { orderModule = await loadPackageWasm(process.cwd(), 'order') })
+const createMockValleyApi = (options: Parameters<typeof createMock>[0]): ReturnType<typeof createMock> => createMock({ ...options, wasm: { modules: [orderModule] } })
 
 afterEach(() => { document.head.querySelectorAll('style[id]').forEach((style) => style.remove()); delete document.documentElement.dataset.theme })
 

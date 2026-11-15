@@ -5,7 +5,6 @@ import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
 import { TodoPanel } from '../src/ui/TodoPanel'
 import { parseView } from '../src/model/views'
-import { injectStyles } from '../src/styles'
 import { METADATA_PANEL_SEGMENT_V1 } from '@valley/plugin-sdk'
 import { setView } from '../src/state/viewStore'
 

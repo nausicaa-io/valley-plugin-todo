@@ -1,7 +1,7 @@
 import { groupKey } from './groups'
 import { DEFAULT_VIEW, type TodoView } from './views'
 
-export interface ListSelection {
+interface ListSelection {
   names: string[]
   includeUngrouped: boolean
 }

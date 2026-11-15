@@ -47,7 +47,7 @@ export function groupMenuItems(names: readonly string[], groups: readonly TodoGr
   return [...items, ...names.filter((name) => !groupForName(groups, name)).map(row)]
 }
 
-export interface TodoMenuOptions {
+interface TodoMenuOptions {
   todo: TodoRecord
   groupNames: string[]
   setOpenId: (id: string | null) => void
@@ -63,7 +63,7 @@ export interface TodoMenuOptions {
  * a gesture is not reachable by keyboard or by a trackpad-less mouse, so the
  * menu keeps reschedule/flag/delete from being swipe-only.
  */
-export function openTodoMenu(target: UiMenuTarget, { todo, groupNames, setOpenId, onEdit, onPatch, onRequestDelete, disabled = false }: TodoMenuOptions): Promise<void> {
+function openTodoMenu(target: UiMenuTarget, { todo, groupNames, setOpenId, onEdit, onPatch, onRequestDelete, disabled = false }: TodoMenuOptions): Promise<void> {
   const currentStatus = effectiveStatus(todo)
   setOpenId(todo.id)
   const reschedule = rescheduleActions(todo.dueDate ?? '', isoDay(new Date()))

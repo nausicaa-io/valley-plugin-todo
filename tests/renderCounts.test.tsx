@@ -6,7 +6,8 @@ import { installTodoNotes, type TodoNotesMock } from './mockTodoNotes'
 import { TodoPanel } from '../src/ui/TodoPanel'
 import { Page } from '../src/ui/Page'
 import { initLocalization } from '../src/localization'
-import { countForGroup, groupCount, groupCounts } from '../src/model/views'
+import { countForGroup, groupCounts } from '../src/model/views'
+import { groupKey } from '../src/model/groups'
 
 let store: TodoNotesMock
 
@@ -236,10 +237,12 @@ describe('group counts', () => {
       { id: '7', completed: true },
       { id: '8', group: 'Moss', completed: true },
       { id: '9', group: 'WILDLIFE', completed: false }
-    ] as unknown as Parameters<typeof groupCount>[0]
+    ] as unknown as Parameters<typeof groupCounts>[0]
+    // The per-group filter this single pass replaced.
+    const groupCount = (name: string | null): number => todos.filter((t) => !t.completed && (name === null ? !t.group : groupKey(t.group ?? '') === groupKey(name))).length
     const counts = groupCounts(todos)
     for (const name of ['Fungi', 'fungi', 'FUNGI', ' Fungi ', 'Wildlife', 'wildlife', 'Moss', 'Absent', '', null]) {
-      expect(countForGroup(counts, name)).toBe(groupCount(todos, name))
+      expect(countForGroup(counts, name)).toBe(groupCount(name))
     }
     const all = groupCounts(todos, false)
     const total = (name: string | null): number => todos.filter((todo) => name === null ? !todo.group : (todo.group ?? '').trim().toLowerCase() === name.trim().toLowerCase()).length

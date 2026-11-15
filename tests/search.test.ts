@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { SEARCH_RESULT_ACTION_V1 } from '@valley/plugin-sdk'
 import { createMockValleyApi } from './harness'
-import { matchesSearch, parseSearch } from '../src/model/search'
+import { parseSearch, searchMatcher } from '../src/model/search'
+
+const matchesSearch = (query: string, tags: string[], ...textFields: string[]): boolean => searchMatcher(query)(tags, ...textFields)
 import { registerSearchCard } from '../src/ui/searchCard'
 
 describe('parseSearch', () => {

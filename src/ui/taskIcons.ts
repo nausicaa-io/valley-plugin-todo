@@ -8,7 +8,7 @@ const ELEMENTS = new Set(['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'line
 const ATTRIBUTES = new Set(['xmlns', 'viewBox', 'd', 'x', 'y', 'width', 'height', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'points', 'fill', 'fill-rule', 'clip-rule', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-opacity', 'opacity', 'transform'])
 
 /** Only drawing elements and attributes survive; the result scales to its box and follows `currentColor`. */
-export function sanitizeTaskIcon(source: string): string | null {
+function sanitizeTaskIcon(source: string): string | null {
   if (source.length > 64_000 || /<!DOCTYPE|<!ENTITY/i.test(source)) return null
   const document = new DOMParser().parseFromString(source, 'image/svg+xml')
   const root = document.documentElement
@@ -30,7 +30,7 @@ export function sanitizeTaskIcon(source: string): string | null {
  * status colour (`currentColor`) with the symbol cut out of it. The symbol is
  * scaled into the disc through a mask, so it shows whatever surface is behind.
  */
-export function statusDiscIcon(name: string, svg: string): string {
+function statusDiscIcon(name: string, svg: string): string {
   const document = new DOMParser().parseFromString(svg, 'image/svg+xml')
   const root = document.documentElement
   for (const node of root.querySelectorAll('*')) {
@@ -51,7 +51,7 @@ function registry(): Registry {
   return api.runtime.getOrCreate('todo.taskIcons', () => ({ icons: {}, revision: 0, listeners: new Set<() => void>(), pending: null }) as Registry)
 }
 
-export function refreshTaskIcons(): Promise<void> {
+function refreshTaskIcons(): Promise<void> {
   const current = registry()
   if (current.pending) return current.pending
   current.pending = api.backend.call<TaskIconsResult>('taskIcons', {}).then((result) => {

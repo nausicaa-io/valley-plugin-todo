@@ -7,7 +7,9 @@ import * as sort from '../src/model/sort'
 import { todayIso } from '../src/model/sections'
 import { groupKey } from '../src/model/groups'
 import { matchesViewScope, type TodoView } from '../src/model/views'
-import { matchesSearch, todoSearchMatcher } from '../src/model/search'
+import { searchMatcher, todoSearchMatcher } from '../src/model/search'
+
+const matchesSearch = (query: string, tags: string[], ...textFields: string[]): boolean => searchMatcher(query)(tags, ...textFields)
 import { getStatusSettings, normalizeStatusSettings } from '../src/state/statusStore'
 
 // Verbatim copies of the implementations this work package replaced.

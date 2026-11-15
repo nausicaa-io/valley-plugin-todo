@@ -4,7 +4,7 @@ import { installTodoNotes } from './mockTodoNotes'
 import { appendTodo, deleteTodo, setTodoStatus, updateTodo } from '../src/data/undo'
 import { loadTodo, loadTodos } from '../src/data/reads'
 import { normalizeTodoUrl } from '../src/domain/records'
-import type { TodoRecord, TodoSession } from '../src/types'
+import type { TodoRecord } from '../src/types'
 
 const NOW = '2026-06-01T12:00:00.000Z'
 

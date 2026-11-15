@@ -63,7 +63,7 @@ export function initRuntime(a: ValleyPluginApi): () => void {
  * a React key, so a repeat request restarts the flash instead of being
  * dropped as an unchanged value.
  */
-export interface TodoRevealRequest {
+interface TodoRevealRequest {
   todoId: string
   mode: 'focus' | 'edit' | 'create'
   nonce: number

@@ -8,7 +8,7 @@ export const SESSIONS_DATASET = 'todo.focus_sessions'
 export const STATUS_HISTORY_DATASET = 'todo.status_history'
 
 /** The part of the UI or backend API a paged dataset read needs. */
-export interface DatasetSource {
+interface DatasetSource {
   data: { dataset(id: string): { query(query: { select?: string[]; where?: DatasetWhere; limit: number; cursor?: string }): Promise<{ rows: DatasetRecord[]; cursor?: string }> } }
 }
 

@@ -28,6 +28,7 @@ import { startStatusVocabulary } from './state/statusStore'
 import { startTaskIcons } from './ui/taskIcons'
 import { startSharedTabTitle } from './state/tabs'
 import { registerTodoSurfaces } from './ui/surfaces'
+import { startOrderKernel } from './model/orderKernel'
 
 export function register(api: ValleyPluginApi): () => void {
   initLocalization(api)
@@ -36,6 +37,8 @@ export function register(api: ValleyPluginApi): () => void {
   const disposeStatusVocabulary = startStatusVocabulary()
   const disposeTaskIcons = startTaskIcons()
   const disposeTabTitle = startSharedTabTitle()
+  // Long lists are ordered by the Rust kernel once it loads; until then, and if it cannot, TypeScript orders them the same.
+  const disposeOrderKernel = startOrderKernel(api)
   let deliveryWarningOpen = false
   const offDeliveryWarning = api.backend.on('records.eventDeliveryFailed', () => {
     if (deliveryWarningOpen) return
@@ -85,6 +88,7 @@ export function register(api: ValleyPluginApi): () => void {
     disposeStatusVocabulary()
     disposeTaskIcons()
     disposeTabTitle()
+    disposeOrderKernel()
     disposeStyles()
   }
 }

@@ -35,14 +35,6 @@ export function viewTitle(view: TodoView): string {
   return uiText(smartListDef(view.id).labelKey)
 }
 
-/** The open list as the Info and Properties tabs name it: a group view lists every selected group. */
-export function viewSummary(view: TodoView): string {
-  if (view.kind === 'smart') return uiText(smartListDef(view.id).labelKey)
-  if (view.kind === 'groups') return [...view.names, ...(view.includeUngrouped ? [uiText('todo.chip.noGroup')] : [])].join(', ')
-  if (view.kind === 'tag') return `#${view.name}`
-  return uiText('todo.chip.noGroup')
-}
-
 /** Show a list in a tab pinned to it: `newTab` always opens one, otherwise its tab is revealed or the active tab takes it. */
 export function openViewTab(view: TodoView, newTab: boolean): void {
   api.workspace.openMainTab({ instanceId: viewTabInstance(view), title: viewTitle(view), newTab })

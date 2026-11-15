@@ -6,7 +6,7 @@ import type { DataRecord } from '@valley/plugin-sdk/types'
 import config from '../config.json'
 import { installTodoNotes } from './mockTodoNotes'
 import { initLocalization } from '../src/localization'
-import { getAllGroups, getGroupKinds, getGroups, startGroupUsageReporting } from '../src/state/groupStore'
+import { getAllGroups, getGroupKinds, getGroups, onGroupsChanged, setLocalGroups, startGroupUsageReporting } from '../src/state/groupStore'
 import { groupColorFor } from '../src/model/groups'
 import { editTodoValues } from '../src/commands/commands'
 import { Settings } from '../src/ui/Settings'
@@ -28,6 +28,41 @@ function install(settings: Record<string, unknown> = {}) {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+})
+
+describe('saving a To-Do-only group', () => {
+  const colourOf = (): string | undefined => getAllGroups().find((group) => group.name === 'Errands')?.color
+
+  it('shows the change at once, before the settings have saved it', async () => {
+    const { mock } = install()
+    const set = mock.api.settings.set.bind(mock.api.settings)
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    mock.api.settings.set = (async (key: string, value: unknown) => { await held; return set(key, value) }) as typeof mock.api.settings.set
+    const changed = vi.fn()
+    const off = onGroupsChanged(changed)
+    const saving = setLocalGroups([{ ...LOCAL[0], color: 'palette:red' }])
+    expect(colourOf()).toBe('palette:red')
+    expect(changed).toHaveBeenCalled()
+    expect(mock.api.settings.get().localGroups).toEqual(LOCAL)
+    release()
+    await saving
+    expect(colourOf()).toBe('palette:red')
+    expect((mock.api.settings.get().localGroups as typeof LOCAL)[0].color).toBe('palette:red')
+    off()
+  })
+
+  it('keeps the newest of two quick changes and goes back to the saved groups when a save fails', async () => {
+    const { mock } = install()
+    const first = setLocalGroups([{ ...LOCAL[0], color: 'palette:red' }])
+    const second = setLocalGroups([{ ...LOCAL[0], color: 'palette:green' }])
+    expect(colourOf()).toBe('palette:green')
+    await Promise.all([first, second])
+    expect(colourOf()).toBe('palette:green')
+    mock.api.settings.set = (async () => { throw new Error('refused') }) as typeof mock.api.settings.set
+    await expect(setLocalGroups([{ ...LOCAL[0], color: 'palette:blue' }])).rejects.toThrow('refused')
+    expect(colourOf()).toBe('palette:green')
+  })
 })
 
 describe('shared and To-Do-only group switches', () => {

@@ -51,9 +51,6 @@ export const rowsCss = `/* ── Rows ─────────────�
   color: var(--text-tertiary);
 }
 
-/* Which statuses strike their title through is a per-status setting; the
-   rules come from startStatusVocabulary. */
-
 /* ── The round check ──────────────────────────────────────────────────────
    A real <input type=checkbox>, painted: it keeps the accessible name, the
    click semantics and the 450 ms press-and-hold status menu that hangs off
@@ -343,9 +340,7 @@ export const rowsCss = `/* ── Rows ─────────────�
 .todo-group-text,
 .todo-priority-text,
 .todo-status-text,
-.todo-status-badge,
 .todo-attach-count,
-.todo-time-badge,
 .todo-location-meta,
 .todo-meta-glyph {
   display: inline-flex;

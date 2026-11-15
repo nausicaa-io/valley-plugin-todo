@@ -35,7 +35,7 @@ const KIND_LABEL_KEYS: Partial<Record<FileKind, string>> = {
  * Bytes as a person reads them. A local copy on purpose: the host's
  * `formatBytes` lives in the renderer, which the plugin import boundary refuses.
  */
-export function formatBytes(bytes: number): string {
+function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return ''
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let value = bytes

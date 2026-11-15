@@ -1,4 +1,4 @@
-export interface ParsedSearch {
+interface ParsedSearch {
   tags: string[]
   text: string
 }
@@ -18,15 +18,10 @@ export function parseSearch(query: string): ParsedSearch {
 }
 
 /**
- * Match a record against a search query.
- * Every `#tag` token must prefix-match one of the record's tags (AND), and any
- * remaining free text must be a substring of one of `textFields`.
+ * A matcher for one search query, parsed once for a whole list. Every `#tag`
+ * token must prefix-match one of the record's tags (AND), and any remaining
+ * free text must be a substring of one of `textFields`.
  */
-export function matchesSearch(query: string, tags: string[], ...textFields: string[]): boolean {
-  return searchMatcher(query)(tags, ...textFields)
-}
-
-/** {@link matchesSearch} with the query parsed once, for filtering a whole list. */
 export function searchMatcher(query: string): (tags: string[], ...textFields: string[]) => boolean {
   const parsed = parseSearch(query)
   if (!parsed.tags.length && !parsed.text) return () => true

@@ -10,7 +10,7 @@ import { todoStatusLabel } from '../localization'
  * colour chosen in Settings (the stylesheet from `startStatusVocabulary` sets
  * both); Text keeps the coloured glyph and label without a box.
  */
-export function StatusBadgeView({ status, style }: { status: TodoStatus; style: StatusStyle }): ReactElement {
+function StatusBadgeView({ status, style }: { status: TodoStatus; style: StatusStyle }): ReactElement {
   const def = statusDef(status)
   if (style === 'filled') {
     return <span className="todo-status-pill" data-status={status}>{todoStatusLabel(status)}</span>

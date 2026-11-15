@@ -1,5 +1,4 @@
 import type { DatasetRecord, DatasetWhere } from '@valley/plugin-sdk'
-import type { DocumentRevision } from '../domain/rpc'
 import { normalizeGroups } from '@valley/plugin-sdk/groups'
 import { React, api, captureTodoScope, type TodoRuntimeScope } from '../runtime'
 import type { TodoRecord, TodoStatusChange } from '../types'
@@ -26,8 +25,6 @@ function subscribeDatasets(datasets: string[], listener: () => void): () => void
   const detach = scope.onDispose(dispose)
   return () => { detach(); dispose() }
 }
-
-export function onChanged(listener: () => void): () => void { return subscribeDatasets(ALL_DATASETS, listener) }
 
 export function onTodoListChanged(listener: () => void): () => void { return subscribeDatasets(LIST_DATASETS, listener) }
 

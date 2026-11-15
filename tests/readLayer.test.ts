@@ -3,7 +3,7 @@ import type { DatasetRecord } from '@valley/plugin-sdk'
 import type { DataRecord } from '@valley/plugin-sdk/types'
 import { installTodoNotes } from './mockTodoNotes'
 import { isTodoListRecord, type TodoListRecord } from '../src/domain/completion'
-import { loadTodo, onChanged, onTodoListChanged } from '../src/data/reads'
+import { loadTodo, onTodoListChanged } from '../src/data/reads'
 import { loadTodoList } from '../src/data/listCache'
 import { rawUpdate } from '../src/data/client'
 import { updateTodo } from '../src/data/undo'
@@ -97,20 +97,16 @@ describe('UI read layer (todo-optimize WP4)', () => {
   it('calls a list listener once for one edit that touches several datasets, and never after unsubscribing', async () => {
     const { mock } = installTodoNotes(seed())
     const list = vi.fn()
-    const all = vi.fn()
     const offList = onTodoListChanged(list)
-    const offAll = onChanged(all)
     const [current] = await loadTodoList()
-    list.mockClear(); all.mockClear()
+    list.mockClear()
     expect(await updateTodo(current.id, { ...current, ...patchForStatus('completed'), urls: ['https://example.com/b'], tags: ['moss'] })).toBe(true)
     await Promise.resolve()
     expect(list).toHaveBeenCalledTimes(1)
-    expect(all).toHaveBeenCalledTimes(1)
     void mock.api.data.dataset('todo.task_tags').insert({ taskId: 'other', tag: 'late' })
     offList()
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(list).toHaveBeenCalledTimes(1)
-    offAll()
   })
 
   it('does not watch status history for the list: every history write updates the task row too', async () => {

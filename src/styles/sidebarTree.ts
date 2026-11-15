@@ -104,11 +104,6 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
   padding-inline: 7px;
 }
 
-.todo-tree-group {
-  display: flex;
-  flex-direction: column;
-}
-
 .todo-tree-row {
   display: flex;
   align-items: center;
@@ -186,18 +181,6 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
   height: 12px;
 }
 
-.todo-status-chip .todo-chip-clear {
-  width: 16px;
-  height: 16px;
-  margin-left: auto;
-  flex-basis: 16px;
-}
-
-.todo-status-chip .todo-chip-clear svg {
-  width: 16px;
-  height: 16px;
-}
-
 .todo-smart-chip.active .todo-tree-icon,
 .todo-smart-chip.active .todo-tree-count {
   color: inherit;
@@ -250,42 +233,6 @@ export const sidebarTreeCss = `/* ── Sidebar tree ────────�
 
 .todo-tree-row.active .todo-tree-count {
   color: inherit;
-}
-
-.todo-tree-disclosure {
-  margin-top: var(--space-1);
-  color: var(--text-tertiary);
-}
-
-.todo-tree-disclosure .todo-tree-label {
-  font-weight: var(--font-medium);
-}
-
-.todo-tree-chevron {
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  margin-left: auto;
-  flex-shrink: 0;
-  color: var(--text-tertiary);
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-
-.todo-tree-chevron.open {
-  transform: rotate(90deg);
-}
-
-.todo-tree-chevron svg {
-  width: 13px;
-  height: 13px;
-}
-
-.todo-tree-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 1px 0 5px;
 }
 
 

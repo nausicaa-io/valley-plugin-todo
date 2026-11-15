@@ -119,11 +119,10 @@ describe('statusMenuOptions', () => {
 })
 
 describe('status chip styling', () => {
-  it('gives inactive smart chips a surface and shares geometry with date and status chips', () => {
+  it('gives inactive smart chips a surface and their fixed geometry', () => {
     const dispose = injectStyles()
     const css = document.getElementById('notes-todo-styles')?.textContent ?? ''
-    expect(css).toContain('.todo-smart-chip,\n.todo-date-chip,\n.todo-status-chip')
-    expect(css).toMatch(/\.todo-smart-chip,\n\.todo-date-chip,\n\.todo-status-chip \{[\s\S]*height: 28px;[\s\S]*padding: 0 10px;[\s\S]*font-size: var\(--small-font-size\)/)
+    expect(css).toMatch(/\.todo-smart-chip \{[\s\S]*height: 28px;[\s\S]*padding: 0 10px;[\s\S]*font-size: var\(--small-font-size\)/)
     expect(css).toMatch(/\.todo-smart-chip \{[\s\S]*background: var\(--surface-color-alt\)/)
     expect(css).toMatch(/\.todo-page \{[\s\S]*background: var\(--surface-color-alt\)/)
     expect(css).toMatch(/\.todo-page-appbar \{[\s\S]*height: var\(--app-bar-height\)/)
@@ -144,7 +143,6 @@ describe('status chip styling', () => {
     expect(css).toMatch(/\.todo-completed-row \{[\s\S]*align-items: stretch;[\s\S]*flex-direction: column;/)
     expect(css).toMatch(/\.todo-completed-choice \{[\s\S]*min-width: 0;[\s\S]*white-space: nowrap;/)
     expect(css).toMatch(/\.todo-sort-option\.active \{[\s\S]*color: var\(--title-color\)/)
-    expect(css).toMatch(/\.todo-status-chip \.todo-chip-clear \{[\s\S]*margin-left: auto;[\s\S]*flex-basis: 16px/)
     expect(css).toMatch(/@keyframes todo-reveal-pulse \{[\s\S]*background-color: color-mix\(in srgb, var\(--accent-color\) 18%, transparent\)/)
     expect(css).toMatch(/\.todo-row\.todo-reveal-target \{\s*animation: todo-reveal-pulse/)
     dispose()

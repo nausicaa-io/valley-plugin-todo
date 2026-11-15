@@ -279,7 +279,6 @@ export const tableCss = `/* ── Main table ───────────�
 }
 .todo-page-search-input:focus,
 .todo-page-search-input:focus-visible { border: none; outline: none; box-shadow: none; }
-.todo-page-appbar-title { max-width: none; flex: 0 1 auto; }
 /* Focus after a click or a closed popover is a soft fill, never a blue ring. */
 .todo-table-sort:focus-visible,
 .todo-page-appbar-btn:focus-visible,
@@ -492,7 +491,5 @@ export const tableCss = `/* ── Main table ───────────�
 /* The trailing column holds only the flag of a row whose Flagged column is hidden. It scrolls with the table and has
    no surface of its own, so it never covers the last column and takes the row's hover, selection and editing colour. */
 .todo-table .todo-table-actions { width: 24px; }
-.todo-status-plain { color: var(--text-tertiary); font-size: var(--smaller-font-size); }
-.todo-table-row:not(:hover) .todo-status-plain { opacity: 0; }
 
 `
