@@ -1,15 +1,28 @@
 import { React, api } from '../../runtime'
-import type { ReactElement } from 'react'
+import type { CSSProperties, ReactElement } from 'react'
 import type { TodoPriority, TodoRecord } from '../../types'
 import { ArrowDown, ArrowRight, ArrowUp, Minus } from '../icons'
 import { LocationField } from '../LocationField'
 import { ClockTimeField, InlineCalendar } from '../DatePanel'
 import { TagChipsField } from '../TagChipsField'
 import { uiText } from '../../localization'
+import { paletteCssValue } from '@valley/plugin-sdk/palette'
+import { groupColorFor, groupPathLabel, parentGroupName, type TodoGroup } from '../../model/groups'
 
 export const PriorityIcon = ({ priority }: { priority: TodoPriority }): ReactElement => {
   const Glyph = priority === 'high' ? ArrowUp : priority === 'medium' ? ArrowRight : priority === 'low' ? ArrowDown : Minus
   return <Glyph className={`todo-table-priority-icon todo-priority-${priority}`} />
+}
+
+/** A group in the table's Group column: a subgroup reads behind its main group, "Valley · Plugins". */
+export function GroupPill({ name, groups }: { name: string; groups: TodoGroup[] }): ReactElement {
+  const parent = parentGroupName(name, groups)
+  return (
+    <span className="todo-table-group-pill" title={groupPathLabel(name, groups)} style={{ '--todo-group-color': paletteCssValue(groupColorFor(name, groups)) } as CSSProperties}>
+      <span className="todo-group-dot" aria-hidden="true" />
+      <span className="todo-table-group-name">{parent && <span className="todo-table-group-parent">{parent} · </span>}{name}</span>
+    </span>
+  )
 }
 
 /** Date and start time of one task, edited in place from its Due cell. */

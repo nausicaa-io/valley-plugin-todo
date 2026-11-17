@@ -2,6 +2,7 @@ import { startReminderOwner } from './reminders'
 import { readReminderCandidates } from './reminderQuery'
 import { startCompletionBackfill } from './backfill'
 import { readTodoIcons } from './icons'
+import { readMapTile } from './mapTiles'
 import { registerTodoWorkflow, text } from './workflow'
 import type { PluginBackendApi } from '@valley/plugin-sdk'
 import { createTodoDomain } from '../domain/writer'
@@ -17,6 +18,7 @@ export function register(api: PluginBackendApi): () => Promise<void> {
   const offReminders = startReminderOwner(api, () => readReminderCandidates(api), id => domain.patch(id, patchForStatus('completed', DEFAULT_STATUS_DONE)), ids => readReminderCandidates(api, ids))
   const offs = [
     api.rpc.handle('taskIcons', () => readTodoIcons(api)),
+    api.rpc.handle('map.tile', payload => readMapTile(api, payload)),
     api.rpc.handle('records.completionReady', () => backfill.ready()),
     api.rpc.handle('records.append', payload => domain.append((payload as RecordsAppendPayload).record)),
     api.rpc.handle('records.update', payload => {

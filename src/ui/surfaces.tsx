@@ -1,4 +1,4 @@
-import { METADATA_PANEL_SEGMENT_V1, provideBookmarkSurface, type PluginSurfaceSnapshot, type UiMenuItem, type ValleyPluginApi } from '@valley/plugin-sdk'
+import { METADATA_PANEL_SEGMENT_V1, provideBookmarkSurface, type MetadataPanelSegmentContext, type PluginProperty, type PluginSurfaceSnapshot, type UiMenuItem, type ValleyPluginApi } from '@valley/plugin-sdk'
 import type { SlotId } from '@valley/plugin-sdk/types'
 import type { PluginLinkState } from '@valley/plugin-sdk/paths'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
@@ -13,6 +13,7 @@ import { allGroups, groupColorFor, groupKey, groupKeysCovered, isSubgroupName } 
 import { allStatuses, effectiveStatus, statusDef } from '../state/statusStore'
 import { ChevronDown } from './icons'
 import { registerInfoDetails } from '../integrations/infoDetails'
+import { TASK_SEGMENT_ICON, TASK_SEGMENT_ID, TaskCard } from './TaskCard'
 import type { InteropValueSchema } from '@valley/plugin-sdk'
 
 const bookmarkStateSchema = {
@@ -153,9 +154,21 @@ export function setTodoSurfaceActions(actions: UiMenuItem[] | null, owner = ''):
 }
 
 export function selectTodoProperties(id: string | null, surface: SlotId): void {
+  if ((state().selected.get(surface) ?? null) === id) return
   if (id) state().selected.set(surface, id)
   else state().selected.delete(surface)
   notify()
+}
+
+/** The task a surface has selected: the row the main table marks and the right sidebar's Task tab shows. */
+export function useSelectedTodoId(surface: SlotId): string | null {
+  const subscribeSelected = React.useCallback((listener: () => void) => {
+    const listeners = state().listeners
+    listeners.add(listener)
+    return () => { listeners.delete(listener) }
+  }, [])
+  const read = (): string | null => state().selected.get(surface) ?? null
+  return React.useSyncExternalStore(subscribeSelected, read, read)
 }
 
 function snapshot(surface: SlotId, instanceId?: string): PluginSurfaceSnapshot {
@@ -217,17 +230,26 @@ function Properties(): React.ReactElement {
   </div></api.ui.ScrollPanel></div>
 }
 
+/** The selected task's fields, as the host reads Properties by machine. */
+async function inspectTask({ subject }: MetadataPanelSegmentContext): Promise<PluginProperty[]> {
+  const todo = subject?.item?.id ? await loadTodo(subject.item.id) : null
+  return todo ? Object.entries(todo).map(([id, value]) => ({ id, label: uiText(`todo.field.${id}`), value: (value ?? null) as never, readOnly: true })) : []
+}
+
 export function registerTodoSurfaces(pluginApi: ValleyPluginApi): () => void {
   const surfaces = ['main_workspace', 'left_sidebar', 'right_sidebar'] as const
   const offs = surfaces.map((surface) => provideBookmarkSurface(pluginApi, {
     id: `todo.${surface}`, surface, getSnapshot: (instanceId) => snapshot(surface, instanceId), subscribe, restore: (value, instanceId, options) => restore(value, surface, options?.background, instanceId)
   }, { stateSchema: bookmarkStateSchema, itemStateSchema: { ...bookmarkStateSchema, required: [...bookmarkStateSchema.required, "todoId"] }, description: (snapshot, item) => typeof snapshot.view.path === 'string' && snapshot.view.path ? snapshot.view.path : uiText(item ? 'bookmark.item' : 'bookmark.view') }))
+  // The Task tab: the row selected in the main table, shown when a row is clicked.
+  offs.push(pluginApi.interop.extensions.provide(METADATA_PANEL_SEGMENT_V1, {
+    id: TASK_SEGMENT_ID, label: 'Task', labelKey: 'todo.task.tab', icon: TASK_SEGMENT_ICON, pluginSurfaces: ['main_workspace'],
+    inspect: inspectTask,
+    render: () => <TaskCard />
+  }))
   offs.push(pluginApi.interop.extensions.provide(METADATA_PANEL_SEGMENT_V1, {
     id: 'todo.properties', label: 'Groups', labelKey: 'todo.view.myLists', icon: 'group', pluginSurfaces: ['main_workspace'],
-    inspect: async ({ subject }) => {
-      const todo = subject?.item?.id ? await loadTodo(subject.item.id) : null
-      return todo ? Object.entries(todo).map(([id, value]) => ({ id, label: uiText(`todo.field.${id}`), value: (value ?? null) as never, readOnly: true })) : []
-    },
+    inspect: inspectTask,
     render: () => <Properties />
   }))
   offs.push(registerInfoDetails())

@@ -4123,6 +4123,11 @@
   },
   "permissions": {
     "largeData": true,
+    "network": {
+      "hosts": [
+        "tile.openstreetmap.org"
+      ]
+    },
     "storage": {
       "metadata": [
         "assets/icons/todo-icon"

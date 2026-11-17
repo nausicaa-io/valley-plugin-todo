@@ -48,9 +48,10 @@ export interface TodoListController {
   /**
    * Create a todo (optimistic); `patch` pre-fills fields (quick-add due date /
    * priority, the group the active chip names). Resolves to the new record, or
-   * null when rejected/failed.
+   * null when rejected/failed. `background` saves beside whatever else is being
+   * created and never shows as `creating`: a table row saved because it was left.
    */
-  create: (title: string, filePath?: string, opts?: { patch?: Partial<TodoRecord> }) => Promise<TodoRecord | null>
+  create: (title: string, filePath?: string, opts?: { patch?: Partial<TodoRecord>; background?: boolean }) => Promise<TodoRecord | null>
   patchTodo: (id: string, patch: Partial<TodoRecord>, documentRevision?: DocumentRevision) => Promise<boolean>
   /** Delete a todo; ⌘Z restores it. */
   removeTodo: (id: string) => Promise<void>
@@ -168,14 +169,17 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
     async (
       rawTitle: string,
       filePath?: string,
-      opts?: { patch?: Partial<TodoRecord> }
+      opts?: { patch?: Partial<TodoRecord>; background?: boolean }
     ): Promise<TodoRecord | null> => {
-      if (creatingRef.current) return null
+      const foreground = !opts?.background
+      if (foreground && creatingRef.current) return null
       const title = rawTitle.trim()
       if (!title) return null
       const record = { ...newTodo(title, filePath), ...opts?.patch }
-      creatingRef.current = true
-      setCreating(true)
+      if (foreground) {
+        creatingRef.current = true
+        setCreating(true)
+      }
       displayOrderRef.current = [record.id, ...displayOrderRef.current]
       setSharedTodos([record, ...getSharedTodos()])
       setLastCreatedId(record.id)
@@ -192,8 +196,10 @@ export function useTodoListController(sortField: SortField, sortDir: SortDir, su
         rollback()
         return null
       } finally {
-        creatingRef.current = false
-        setCreating(false)
+        if (foreground) {
+          creatingRef.current = false
+          setCreating(false)
+        }
       }
     },
     []

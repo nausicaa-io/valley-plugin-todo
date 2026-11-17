@@ -395,5 +395,11 @@
   "todo.info.weekTodo": "Cette semaine à faire",
   "todo.info.weekCompleted": "Cette semaine terminées",
   "todo.info.allTodo": "Toutes à faire",
-  "todo.info.allCompleted": "Toutes terminées"
+  "todo.info.allCompleted": "Toutes terminées",
+  "todo.task.tab": "Tâche",
+  "todo.task.empty": "Sélectionnez une tâche dans le tableau pour la voir ici.",
+  "todo.task.mapCredit": "© Contributeurs OpenStreetMap",
+  "todo.task.mapOf": "Carte de {{p0}}",
+  "todo.task.zoomIn": "Zoom avant",
+  "todo.task.zoomOut": "Zoom arrière"
 }

@@ -395,5 +395,11 @@
   "todo.info.weekTodo": "This week to do",
   "todo.info.weekCompleted": "This week completed",
   "todo.info.allTodo": "All to do",
-  "todo.info.allCompleted": "All completed"
+  "todo.info.allCompleted": "All completed",
+  "todo.task.tab": "Task",
+  "todo.task.empty": "Select a task in the table to see it here.",
+  "todo.task.mapCredit": "© OpenStreetMap contributors",
+  "todo.task.mapOf": "Map of {{p0}}",
+  "todo.task.zoomIn": "Zoom in",
+  "todo.task.zoomOut": "Zoom out"
 }

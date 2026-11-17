@@ -52,12 +52,14 @@ describe('the sidebar tree', () => {
     store = installTodoNotes(RECORDS, { groups: CONFIGURED })
   })
 
-  it('registers one Properties segment, titled Groups with the group icon, and offers no groups in the sidebar filter', async () => {
+  it('registers the Task and Groups Properties segments, Groups with the group icon, and offers no groups in the sidebar filter', async () => {
     render(<TodoPanel />)
     await screen.findByText('Fungi Survey sheet')
     const segments = store.mock.api.interop.extensions.providers(METADATA_PANEL_SEGMENT_V1).map((entry) => entry.extension)
-    expect(segments.map((segment) => segment.id)).toEqual(['todo.properties'])
-    expect(segments[0]).toMatchObject({ label: 'Groups', labelKey: 'todo.view.myLists', icon: 'group' })
+    expect(segments.map((segment) => segment.id)).toEqual(['todo.task', 'todo.properties'])
+    expect(segments[0]).toMatchObject({ label: 'Task', labelKey: 'todo.task.tab' })
+    expect(segments[0].icon).toMatch(/^data:image\/svg\+xml,/)
+    expect(segments[1]).toMatchObject({ label: 'Groups', labelKey: 'todo.view.myLists', icon: 'group' })
     expandGroups()
     expect(screen.queryByRole('button', { name: /^Fungi/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Deselect all' })).toBeNull()

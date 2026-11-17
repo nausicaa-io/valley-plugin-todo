@@ -1,8 +1,7 @@
 import { React, api } from '../../runtime'
 import { groupMenuItems } from '../TodoMenu'
-import type { CSSProperties, ReactElement } from 'react'
+import type { ReactElement } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from '../../types'
-import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { allGroups, groupColorFor, type TodoGroup } from '../../model/groups'
 import { Flag, MapPin, TodoStatusGlyph } from '../icons'
 import { InlineCalendar } from '../DatePanel'
@@ -12,7 +11,7 @@ import { formatDueLabel, isoDay } from '../../model/sort'
 import type { TodoListController } from '../../state/controller'
 import { todoPriorityLabel, uiText } from '../../localization'
 import { PRIORITY_ORDER, TableColumn, TodoColumn } from './columns'
-import { LocationEditor, NotesEditor, PriorityIcon, TagsEditor, notePreview } from './cells'
+import { GroupPill, LocationEditor, NotesEditor, PriorityIcon, TagsEditor, notePreview } from './cells'
 
 /** One task per pasted line, with list markers and checkboxes stripped. */
 function pastedTaskLines(text: string): string[] {
@@ -23,7 +22,7 @@ function pastedTaskLines(text: string): string[] {
 
 interface NewRowFields { dueDate?: string; priority?: TodoPriority; group?: string; flagged?: boolean; note?: string; location?: TodoRecord['location']; tags?: string[]; status?: TodoStatus | null }
 
-/** One new row at the top of the table: a draft task until Enter adds it. */
+/** One new row at the top of the table: a draft until Enter adds it or leaving the row saves it. */
 export function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate, onRemove }: {
   order: TableColumn[]
   groups: TodoGroup[]
@@ -39,7 +38,6 @@ export function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate,
   const draftRef = React.useRef<HTMLInputElement>(null)
   const newRowRef = React.useRef<HTMLTableRowElement>(null)
   const newRowMenu = React.useRef(false)
-  const [newRowActive, setNewRowActive] = React.useState(true)
   // A new row takes the keyboard at once: the frame first (the + sits in the host header), then the title.
   React.useEffect(() => {
     const focus = (): void => {
@@ -52,49 +50,79 @@ export function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate,
     const timer = window.setTimeout(focus, 60)
     return () => window.clearTimeout(timer)
   }, [])
-  const addTasks = async (lines: string[]): Promise<void> => {
+  // What the row holds right now, for the saves that run outside a render (leaving the row, closing the tab).
+  const latest = React.useRef({ draft, draftFields, create: c.create, newTaskPatch })
+  latest.current = { draft, draftFields, create: c.create, newTaskPatch }
+  /** Enter is saving the row: its title field is disabled meanwhile, which must not count as leaving it. */
+  const adding = React.useRef(false)
+  /** The row was saved or discarded; nothing may save it a second time. */
+  const gone = React.useRef(false)
+  const createTasks = async (lines: string[], background: boolean): Promise<void> => {
+    const { draftFields: fields, create, newTaskPatch: viewPatch } = latest.current
     const today = isoDay(new Date())
     for (const line of lines) {
       const parsed = parseQuickAdd(line, today)
       if (!parsed.title) continue
-      const dueDate = parsed.dueDate || draftFields.dueDate
-      await c.create(parsed.title, undefined, {
+      const dueDate = parsed.dueDate || fields.dueDate
+      await create(parsed.title, undefined, {
+        background,
         patch: {
-          ...newTaskPatch?.(),
-          priority: parsed.priority !== 'normal' ? parsed.priority : draftFields.priority ?? parsed.priority,
+          ...viewPatch?.(),
+          priority: parsed.priority !== 'normal' ? parsed.priority : fields.priority ?? parsed.priority,
           ...(dueDate ? { dueDate } : {}),
-          ...(draftFields.group ? { group: draftFields.group } : {}),
-          ...(draftFields.flagged ? { flagged: true } : {}),
-          ...(draftFields.note?.trim() ? { note: draftFields.note } : {}),
-          ...(draftFields.location ? { location: draftFields.location } : {}),
-          ...(draftFields.tags?.length ? { tags: draftFields.tags } : {}),
-          ...(draftFields.status ? patchForStatus(draftFields.status) : {})
+          ...(fields.group ? { group: fields.group } : {}),
+          ...(fields.flagged ? { flagged: true } : {}),
+          ...(fields.note?.trim() ? { note: fields.note } : {}),
+          ...(fields.location ? { location: fields.location } : {}),
+          ...(fields.tags?.length ? { tags: fields.tags } : {}),
+          ...(fields.status ? patchForStatus(fields.status) : {})
         }
       })
     }
+  }
+  /** Enter and pasted lines: add the tasks and keep the row for the next one. */
+  const addTasks = async (lines: string[]): Promise<void> => {
+    adding.current = true
+    try { await createTasks(lines, false) } finally { adding.current = false }
     setDraft('')
     draftRef.current?.focus()
   }
-  const closeComposer = onRemove
-  // A row without a title is not a task yet: it goes away when you leave it.
-  const newRowPristine = !draft.trim()
-  // The row closes when focus moves elsewhere in the table while its title is empty.
+  /** Escape, or Enter on an empty title: the row goes away unsaved. */
+  const closeComposer = (): void => {
+    gone.current = true
+    onRemove()
+  }
+  /**
+   * Leaving the row saves it: a row with a title becomes a task with every field
+   * it was given, without Enter. A row without a title was never a task.
+   */
+  const leaveRow = (): void => {
+    if (gone.current || adding.current) return
+    gone.current = true
+    const title = latest.current.draft
+    if (title.trim()) void createTasks([title], true)
+    onRemove()
+  }
+  // A row with a title is also saved when its table goes away (the tab closes or shows another list).
+  React.useEffect(() => () => {
+    if (gone.current || adding.current || !latest.current.draft.trim()) return
+    gone.current = true
+    void createTasks([latest.current.draft], true)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const onNewRowBlur = (): void => {
     window.setTimeout(() => {
       // Focus outside this document is a host widget (the date panel, a menu): keep the row.
       // The table draws in its own surface document, not the plugin's controller document.
       const doc = newRowRef.current?.ownerDocument
       if (newRowMenu.current || !doc || !doc.hasFocus() || newRowRef.current?.contains(doc.activeElement)) return
-      if (newRowPristine) closeComposer()
-      else setNewRowActive(false)
+      leaveRow()
     }, 0)
   }
-  // Any click outside the row (and outside its own menus, which draw in the host) turns it plain.
+  // Any click outside the row (and outside its own menus, which draw in the host) leaves it.
   React.useEffect(() => {
     const onDown = (event: PointerEvent): void => {
       if (newRowMenu.current || newRowRef.current?.contains(event.target as Node)) return
-      if (newRowPristine) closeComposer()
-      else setNewRowActive(false)
+      leaveRow()
     }
     const doc = newRowRef.current?.ownerDocument
     doc?.addEventListener('pointerdown', onDown, true)
@@ -102,10 +130,7 @@ export function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate,
   })
   const wasActive = React.useRef(active)
   React.useEffect(() => {
-    if (wasActive.current && !active) {
-      if (newRowPristine) closeComposer()
-      else setNewRowActive(false)
-    }
+    if (wasActive.current && !active) leaveRow()
     wasActive.current = active
   })
   const newRowOpen = (open: Promise<unknown>): void => {
@@ -183,10 +208,7 @@ export function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate,
               ], { anchor: event.currentTarget, align: 'start' }))}
             >
               {draftFields.group ? (
-                <span className="todo-table-group-pill" title={draftFields.group} style={{ '--todo-group-color': paletteCssValue(groupColorFor(draftFields.group, groups)) } as CSSProperties}>
-                  <span className="todo-group-dot" aria-hidden="true" />
-                  <span className="todo-table-group-name">{draftFields.group}</span>
-                </span>
+                <GroupPill name={draftFields.group} groups={groups} />
               ) : <span className="todo-table-new-hint">{uiText('todo.table.group')}</span>}
             </button>
           </td>
@@ -277,7 +299,7 @@ export function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate,
     onSelect: () => setDraftFields((fields) => ({ ...fields, status: option.status }))
   })), { anchor }))
   return (
-              <tr className={'todo-table-new-row' + (newRowActive && active ? '' : ' is-idle')} ref={newRowRef} onBlur={onNewRowBlur} onFocus={() => { setNewRowActive(true); onActivate() }}>
+              <tr className="todo-table-new-row" ref={newRowRef} onBlur={onNewRowBlur} onFocus={onActivate}>
                 <td className="todo-table-select">
                   <button type="button" className="todo-table-new-status" disabled={c.creating} aria-label={uiText('todo.table.status')} title={newRowStatus?.label ?? uiText('todo.table.status')} onClick={(event) => pickNewRowStatus(event.currentTarget)}>
                     {newRowStatus ? <TodoStatusGlyph status={newRowStatus.status} dotCls={newRowStatus.cls} /> : <span className="todo-table-new-circle" aria-hidden="true" />}

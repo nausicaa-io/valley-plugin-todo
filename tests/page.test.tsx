@@ -288,8 +288,8 @@ describe('the To-Do page', () => {
     expect(screen.queryByLabelText('New todo title')).not.toBeInTheDocument()
   })
 
-  it('adds one more new row per +, focuses it, and drops a row left without a title', async () => {
-    store = installTodoNotes(RECORDS, { groups: CONFIGURED, panelChip: 'group:Fungi' })
+  it('saves a new row with a title when it is left, without Enter, and drops a row left without one', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED, panelChip: 'group:Fungi', pageColumns: ['due', 'flagged'] })
     render(<Page navigation={{ setController: vi.fn() }} />)
     await screen.findByText('Fungi Survey sheet')
     const add = document.querySelector<HTMLButtonElement>('.todo-page-add')!
@@ -297,21 +297,96 @@ describe('the To-Do page', () => {
     const first = await screen.findByLabelText('New todo title')
     await waitFor(() => expect(first).toHaveFocus())
     await act(async () => fireEvent.change(first, { target: { value: 'Keep this draft' } }))
+    // A field set without a title is part of the row, too.
+    await act(async () => fireEvent.click(first.closest('tr')!.querySelector('.todo-table-flag-btn')!))
 
+    // The next + leaves the titled row: it becomes a task, and one new empty row takes the keyboard.
+    await act(async () => fireEvent.pointerDown(add))
     await act(async () => fireEvent.click(add))
-    await waitFor(() => expect(screen.getAllByLabelText('New todo title')).toHaveLength(2))
-    // The newest row sits on top and is the only highlighted one.
-    const [second, older] = screen.getAllByLabelText('New todo title')
-    expect(older).toHaveValue('Keep this draft')
-    await waitFor(() => expect(second).toHaveFocus())
-    expect(second.closest('tr')).not.toHaveClass('is-idle')
-    expect(older.closest('tr')).toHaveClass('is-idle')
-
-    // Leaving the empty new row removes it; the titled row stays, plain.
-    await act(async () => fireEvent.pointerDown(document.body))
+    await waitFor(() => expect(store.records.find((record) => record.title === 'Keep this draft')).toMatchObject({ group: 'Fungi', flagged: true }))
     await waitFor(() => expect(screen.getAllByLabelText('New todo title')).toHaveLength(1))
-    expect(screen.getByLabelText('New todo title')).toHaveValue('Keep this draft')
-    expect(screen.getByLabelText('New todo title').closest('tr')).toHaveClass('is-idle')
+    const second = screen.getByLabelText('New todo title')
+    expect(second).toHaveValue('')
+    await waitFor(() => expect(second).toHaveFocus())
+    expect(titles()).toContain('Keep this draft')
+
+    // A row with fields but no title is no task: leaving it drops it.
+    await act(async () => fireEvent.click(second.closest('tr')!.querySelector('.todo-table-flag-btn')!))
+    const saved = store.records.length
+    await act(async () => fireEvent.pointerDown(document.body))
+    await waitFor(() => expect(screen.queryByLabelText('New todo title')).toBeNull())
+    expect(store.records).toHaveLength(saved)
+    expect(store.records.filter((record) => record.title === 'Keep this draft')).toHaveLength(1)
+  })
+
+  it('saves a titled new row when its table goes away', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED })
+    const view = render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Fungi Survey sheet')
+    await act(async () => fireEvent.click(document.querySelector<HTMLButtonElement>('.todo-page-add')!))
+    const input = await screen.findByLabelText('New todo title')
+    await act(async () => fireEvent.change(input, { target: { value: 'Typed, then the tab closed' } }))
+    view.unmount()
+    await waitFor(() => expect(store.records.some((record) => record.title === 'Typed, then the tab closed')).toBe(true))
+  })
+
+  it('selects a row on the first click, shows it in the Task tab and moves the selection with the arrow keys', async () => {
+    store = installTodoNotes(RECORDS, { groups: CONFIGURED })
+    render(<Page navigation={{ setController: vi.fn() }} instanceId="tab-1" />)
+    await screen.findByText('Fungi Survey sheet')
+    const row = (title: string): HTMLElement => screen.getByText(title).closest('tr')!
+    const first = titles()[0]
+    const second = titles()[1]
+
+    // The first click only selects: no title field, no cell editor.
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(`Edit title of ${first}`))
+      await new Promise((resolve) => setTimeout(resolve, 260))
+    })
+    expect(row(first)).toHaveAttribute('aria-selected', 'true')
+    expect(row(first)).toHaveFocus()
+    expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
+    expect(store.mock.api.workspace.showProperties).toHaveBeenLastCalledWith('tab-1', { segmentId: 'todo.task' })
+    expect(screen.getByText(/1 task|tasks/)).toBeInTheDocument()
+
+    await act(async () => fireEvent.keyDown(row(first), { key: 'ArrowDown' }))
+    await waitFor(() => expect(row(second)).toHaveAttribute('aria-selected', 'true'))
+    expect(row(first)).toHaveAttribute('aria-selected', 'false')
+    expect(row(second)).toHaveFocus()
+    await act(async () => fireEvent.keyDown(row(second), { key: 'ArrowUp' }))
+    await waitFor(() => expect(row(first)).toHaveAttribute('aria-selected', 'true'))
+
+    // A click on the selected row's title edits it in place.
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(`Edit title of ${first}`))
+      await new Promise((resolve) => setTimeout(resolve, 260))
+    })
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue(first)
+    await act(async () => fireEvent.keyDown(screen.getByRole('textbox', { name: 'Title' }), { key: 'Escape' }))
+    await act(async () => fireEvent.keyDown(row(first), { key: 'Escape' }))
+    expect(row(first)).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('names a subgroup behind its main group and sorts the Group column by that name', async () => {
+    store = installTodoNotes([
+      { id: 'a', title: 'Alpha', completed: false, group: 'Plugins' } as DataRecord,
+      { id: 'b', title: 'Beta', completed: false, group: 'Wildlife' } as DataRecord,
+      { id: 'c', title: 'Gamma', completed: false, group: 'Valley' } as DataRecord,
+      { id: 'd', title: 'Delta', completed: false } as DataRecord
+    ], {
+      groups: [
+        { id: 'group_wildlife', name: 'Wildlife', color: '#eab308' },
+        { id: 'group_valley', name: 'Valley', color: '#3b82f6' },
+        { id: 'group_plugins', name: 'Plugins', color: '#f97316', parent: 'group_valley' }
+      ],
+      pageSort: { field: 'group', dir: 'asc' }
+    })
+    render(<Page navigation={{ setController: vi.fn() }} />)
+    await screen.findByText('Alpha')
+    expect(screen.getByText('Alpha').closest('tr')!.querySelector('.todo-table-group-pill')).toHaveTextContent('Valley · Plugins')
+    expect(screen.getByText('Gamma').closest('tr')!.querySelector('.todo-table-group-pill')).toHaveTextContent(/^Valley$/)
+    // Valley, then its subgroup, then Wildlife; a task without a group stays last.
+    expect(titles()).toEqual(['Gamma', 'Alpha', 'Beta', 'Delta'])
   })
 
   it('hides done tasks until the Status filter includes them', async () => {
@@ -401,8 +476,12 @@ describe('the To-Do page', () => {
     expect(overdue).toHaveClass('is-overdue')
     expect(screen.getByText('Due today').closest('tr')!.querySelector('.todo-table-due')).toHaveTextContent('Today')
     const openLink = vi.spyOn(store.mock.api.links, 'open')
+    // The first click selects the row; the next one edits the cell.
+    await act(async () => fireEvent.click(overdue))
+    expect(store.mock.popovers.at(-1)).toBeFalsy()
     await act(async () => fireEvent.click(overdue))
     expect(store.mock.popovers.at(-1)).toBeTruthy()
+    await act(async () => fireEvent.click(screen.getByText('Future survey')))
     await act(async () => {
       fireEvent.click(screen.getByText('Future survey'))
       await new Promise((resolve) => setTimeout(resolve, 260))

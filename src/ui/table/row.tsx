@@ -1,7 +1,6 @@
 import { React, api, registerTodoRow } from '../../runtime'
-import type { CSSProperties, ReactElement } from 'react'
+import type { ReactElement } from 'react'
 import type { TodoRecord } from '../../types'
-import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { allGroups, groupColorFor, type TodoGroup } from '../../model/groups'
 import { Flag, MapPin } from '../icons'
 import { groupMenuItems, openTodoContextMenu } from '../TodoMenu'
@@ -12,11 +11,11 @@ import { formatDate, formatDueLabel } from '../../model/sort'
 import type { TodoRowActions } from '../../state/controller'
 import { todoPriorityLabel, uiText } from '../../localization'
 import { PRIORITY_ORDER, TableColumn, TodoColumn } from './columns'
-import { DueEditor, LocationEditor, NotesEditor, PriorityIcon, TagsEditor, notePreview } from './cells'
+import { DueEditor, GroupPill, LocationEditor, NotesEditor, PriorityIcon, TagsEditor, notePreview } from './cells'
 
 const ROW_CONTROLS = 'input, button, a, textarea, [contenteditable="true"]'
 
-export const TableRow = memoRow(function TableRow({ todo, groups, columns, actions, pending, env, selected, onPick }: {
+export const TableRow = memoRow(function TableRow({ todo, groups, columns, actions, pending, env, selected, current, onPick, onSelect, onMove, onClear }: {
   todo: TodoRecord
   groups: TodoGroup[]
   columns: TableColumn[]
@@ -25,8 +24,15 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
   pending: boolean
   env: RowEnv
   selected: boolean
+  /** The one selected row, shown in the right sidebar: only its cells edit on a click. */
+  current: boolean
   /** Toggles this row, or with `range` selects from the last picked row to it. */
   onPick: (todoId: string, range: boolean) => void
+  /** Selects this row alone. */
+  onSelect: (todoId: string) => void
+  /** Moves the selection to the row below (1) or above (-1). */
+  onMove: (todoId: string, step: 1 | -1) => void
+  onClear: () => void
 }): ReactElement {
   const rowRef = React.useRef<HTMLTableRowElement>(null)
   React.useEffect(() => rowRef.current ? registerTodoRow(todo.id, rowRef.current) : undefined, [todo.id])
@@ -49,6 +55,8 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
     : ''
   const overdue = !!todo.dueDate && !todo.completed && todo.dueDate.slice(0, 10) < today
 
+  const currentRef = React.useRef(current)
+  currentRef.current = current
   const [editingTitle, setEditingTitle] = React.useState(false)
   // A click edits the title in place; a double-click opens the full editor instead.
   const titleTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -112,10 +120,7 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
               ], { anchor: event.currentTarget, align: 'start' }))}
             >
               {todo.group ? (
-                <span className="todo-table-group-pill" title={todo.group} style={{ '--todo-group-color': paletteCssValue(groupColorFor(todo.group, groups)) } as CSSProperties}>
-                  <span className="todo-group-dot" aria-hidden="true" />
-                  <span className="todo-table-group-name">{todo.group}</span>
-                </span>
+                <GroupPill name={todo.group} groups={groups} />
               ) : placeholder('group', null, uiText('todo.table.group'))}
             </button>
           </td>
@@ -227,9 +232,7 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
         if (event.target !== event.currentTarget) return
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
           event.preventDefault()
-          let next = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling
-          while (next && !next.classList.contains('todo-table-row')) next = event.key === 'ArrowDown' ? next.nextElementSibling : next.previousElementSibling
-          ;(next as HTMLElement | null)?.focus()
+          onMove(todo.id, event.key === 'ArrowDown' ? 1 : -1)
         } else if (event.key === 'Enter') {
           event.preventDefault()
           actions.openDetail(todo.id)
@@ -237,12 +240,21 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
           event.preventDefault()
           onPick(todo.id, false)
         } else if (event.key === 'Escape') {
+          onClear()
           event.currentTarget.blur()
         }
       }}
+      onClickCapture={(event) => {
+        // The first click on a row selects it and nothing else: its cells edit only
+        // once it is the selected row. The status check and the flag are switches and always act at once.
+        if (current || api.ui.hasModKey(event) || event.shiftKey || (event.target as Element).closest('.todo-table-select, .todo-table-flag-btn')) return
+        event.stopPropagation()
+        onSelect(todo.id)
+        // The row takes the keyboard, so ↑ and ↓ move on from it.
+        event.currentTarget.focus({ preventScroll: true })
+      }}
       onClick={(event) => {
-        // A click only focuses the row; Cmd/Shift-click selects, a double-click
-        // opens the editor. The table never jumps to Calendar.
+        // Cmd/Shift-click selects several, a double-click opens the editor. The table never jumps to Calendar.
         if ((event.target as Element).closest(ROW_CONTROLS)) return
         if (api.ui.hasModKey(event) || event.shiftKey) onPick(todo.id, event.shiftKey)
       }}
@@ -282,6 +294,8 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
                 if (titleTimer.current) clearTimeout(titleTimer.current)
                 titleTimer.current = setTimeout(() => {
                   titleTimer.current = null
+                  // Deselected meanwhile (Escape, another row): the click no longer asks for an edit.
+                  if (!currentRef.current) return
                   setTitleDraft(todo.title)
                   setEditingTitle(true)
                 }, 220)

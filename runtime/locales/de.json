@@ -395,5 +395,11 @@
   "todo.info.weekTodo": "Diese Woche offen",
   "todo.info.weekCompleted": "Diese Woche erledigt",
   "todo.info.allTodo": "Alle offen",
-  "todo.info.allCompleted": "Alle erledigt"
+  "todo.info.allCompleted": "Alle erledigt",
+  "todo.task.tab": "Aufgabe",
+  "todo.task.empty": "Wähle in der Tabelle eine Aufgabe aus, um sie hier zu sehen.",
+  "todo.task.mapCredit": "© OpenStreetMap-Mitwirkende",
+  "todo.task.mapOf": "Karte von {{p0}}",
+  "todo.task.zoomIn": "Vergrössern",
+  "todo.task.zoomOut": "Verkleinern"
 }

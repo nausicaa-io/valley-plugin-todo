@@ -76,6 +76,18 @@ export function isSubgroupName(name: string, configured: readonly ValleyGroup[])
   return groupForName(configured, name)?.parent !== undefined
 }
 
+/** The main group a subgroup sits under, as the list spells it; undefined for a main group or a name the list does not have. */
+export function parentGroupName(name: string, configured: readonly ValleyGroup[]): string | undefined {
+  const parent = groupForName(configured, name)?.parent
+  return parent ? configured.find((group) => group.id === parent)?.name : undefined
+}
+
+/** A group as the table names it: a subgroup behind its main group, "Valley · Plugins". */
+export function groupPathLabel(name: string, configured: readonly ValleyGroup[]): string {
+  const parent = parentGroupName(name, configured)
+  return parent ? `${parent} · ${name}` : name
+}
+
 export function groupColorFor(name: string | null | undefined, configured: readonly ValleyGroup[]): string {
   return sdkGroupColorFor(name, groupForName(configured, name) ? configured : colorFallback())
 }

@@ -13,17 +13,22 @@ import { COLUMN_LABEL_KEYS, COLUMN_MIN_WIDTH, FIXED_EDGE_WIDTH, PAGE_SIZES, RESI
 import { ColumnResizer, SortHeader, StatusHeaderFilter } from './header'
 import { TableRow } from './row'
 import { NewTaskRow } from './newRow'
+import { selectTodoProperties, useSelectedTodoId } from '../surfaces'
+import { TASK_SEGMENT_ID } from '../TaskCard'
 
 /**
  * The main page's task table: the list row's status control and fields in the
- * list row's order, sortable column headers, Cmd/Shift-click selection with
- * bulk actions, a column picker and pagination. Columns, rows per page and the
+ * list row's order, sortable column headers, a selected row that the right
+ * sidebar's Task tab shows (a click selects, ↑ and ↓ move it), Cmd/Shift-click
+ * selection with bulk actions, a column picker and pagination. Columns, rows per page and the
  * priority filter persist in the plugin settings; the selection and the
  * current page are session state.
  */
 
-export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sectionOf, composeSignal = 0, newTaskPatch }: {
+export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sectionOf, composeSignal = 0, newTaskPatch, instanceId }: {
   todos: TodoRecord[]
+  /** The main tab this table is in, for revealing its Task tab in the right sidebar. */
+  instanceId?: string
   /** Bumped by the page's +: opens the empty row at the top of the table. */
   composeSignal?: number
   /** Fields a new task needs to belong to the current view (group, date, flag). */
@@ -148,16 +153,51 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
     })
   }
 
-  // The rows call one stable `pick`, which reads the page and the selection they were drawn with.
-  const pickState = React.useRef({ rows, selection })
-  pickState.current = { rows, selection }
+  // The one selected task: its row is marked and the right sidebar's Task tab shows it.
+  const currentId = useSelectedTodoId('main_workspace')
+  // The rows call stable callbacks, which read the page and the selection they were drawn with.
+  const pickState = React.useRef({ rows, selection, todos, pageSize, currentId, instanceId })
+  pickState.current = { rows, selection, todos, pageSize, currentId, instanceId }
   const pick = React.useCallback((id: string, range: boolean): void => {
-    const { rows: shown, selection: picked } = pickState.current
+    const { rows: shown, selection: picked, currentId: current } = pickState.current
     const to = shown.findIndex((todo) => todo.id === id)
     const from = range ? shown.findIndex((todo) => todo.id === pickAnchor.current) : -1
+    // The selected row counts as picked once a second row joins it.
+    if (!picked.size && current && current !== id && shown.some((todo) => todo.id === current)) select([current], true)
     if (from >= 0) select(shown.slice(Math.min(from, to), Math.max(from, to) + 1).map((todo) => todo.id), true)
     else select([id], !picked.has(id))
     pickAnchor.current = id
+  }, [])
+  /** A plain click: this row alone is selected, and the right sidebar turns to its Task tab. */
+  const selectRow = React.useCallback((id: string): void => {
+    setSelection((prev) => (prev.size ? new Set() : prev))
+    pickAnchor.current = id
+    selectTodoProperties(id, 'main_workspace')
+    api.workspace.showProperties(pickState.current.instanceId, { segmentId: TASK_SEGMENT_ID })
+  }, [])
+  // ↑ and ↓ move the selection through the whole list, turning the page when it leaves this one.
+  const [focusId, setFocusId] = React.useState<string | null>(null)
+  const moveRow = React.useCallback((id: string, step: 1 | -1): void => {
+    const { todos: all, pageSize: size } = pickState.current
+    const next = all[all.findIndex((todo) => todo.id === id) + step]
+    if (!next || !all.some((todo) => todo.id === id)) return
+    setSelection((prev) => (prev.size ? new Set() : prev))
+    pickAnchor.current = next.id
+    selectTodoProperties(next.id, 'main_workspace')
+    setPage(Math.floor(all.indexOf(next) / size))
+    setFocusId(next.id)
+  }, [])
+  React.useLayoutEffect(() => {
+    if (!focusId) return
+    const row = [...(tableRef.current?.querySelectorAll<HTMLElement>('.todo-table-row') ?? [])].find((candidate) => candidate.dataset.todoId === focusId)
+    if (!row) return
+    row.focus({ preventScroll: true })
+    row.scrollIntoView?.({ block: 'nearest' })
+    setFocusId(null)
+  }, [focusId, rows])
+  const clearRow = React.useCallback((): void => {
+    setSelection((prev) => (prev.size ? new Set() : prev))
+    selectTodoProperties(null, 'main_workspace')
   }, [])
   const env = useRowEnv()
   const rowGroups = useStructuralValue(groups)
@@ -256,15 +296,19 @@ export function TodoTable({ todos, groups, c, sort, onSort, resetKey, empty, sec
         actions={c.actions}
         pending={c.pendingIds.has(todo.id)}
         env={env}
-        selected={selection.has(todo.id)}
+        selected={selection.has(todo.id) || currentId === todo.id}
+        current={currentId === todo.id}
         onPick={pick}
+        onSelect={selectRow}
+        onMove={moveRow}
+        onClear={clearRow}
       />
     )
   }
 
   return (
     <div className="todo-table-shell">
-      <div className="todo-table-scroll" ref={scrollRef}>
+      <div className="todo-table-scroll" ref={scrollRef} onClick={(event) => { if (!(event.target as Element).closest('tr, button, input')) clearRow() }}>
         <table
           ref={tableRef}
           className="todo-table"

@@ -395,5 +395,11 @@
   "todo.info.weekTodo": "本周待办",
   "todo.info.weekCompleted": "本周已完成",
   "todo.info.allTodo": "全部待办",
-  "todo.info.allCompleted": "全部已完成"
+  "todo.info.allCompleted": "全部已完成",
+  "todo.task.tab": "任务",
+  "todo.task.empty": "在表格中选择一个任务即可在此查看。",
+  "todo.task.mapCredit": "© OpenStreetMap 贡献者",
+  "todo.task.mapOf": "{{p0}} 的地图",
+  "todo.task.zoomIn": "放大",
+  "todo.task.zoomOut": "缩小"
 }

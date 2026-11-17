@@ -100,6 +100,8 @@ describe('row render counts', () => {
     await settle()
     renders.reset()
 
+    // The first click selects the row, the second edits its title.
+    await act(async () => fireEvent.click(screen.getByLabelText('Edit title of Task 07')))
     await act(async () => fireEvent.click(screen.getByLabelText('Edit title of Task 07')))
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 260)) })
     const input = document.querySelector<HTMLInputElement>('.todo-table-title-input')!

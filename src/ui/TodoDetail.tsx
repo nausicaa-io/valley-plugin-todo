@@ -523,7 +523,7 @@ function PlaceEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: Par
 }
 
 /** "openstreetmap.org/#map=13/47.37/8.54" rather than the whole URL; the title keeps it all. */
-function shortUrl(url: string): string {
+export function shortUrl(url: string): string {
   try {
     const parsed = new URL(url)
     const rest = `${parsed.pathname === '/' ? '' : parsed.pathname}${parsed.search}${parsed.hash}`

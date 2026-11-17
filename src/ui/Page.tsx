@@ -7,7 +7,7 @@ import { useTodoListController } from '../state/controller'
 import { TodoDetailModal } from './TodoDetail'
 import { openManageGroups } from './GroupEditor'
 import { useGroups } from '../state/groupStore'
-import { allGroups } from '../model/groups'
+import { allGroups, groupPathLabel } from '../model/groups'
 import { groupMenuItems } from './TodoMenu'
 import { SECTION_ORDER, bucketTodos, completionTimelineSections, todayIso, type TodoSectionId } from '../model/sections'
 import type { TodoRecord } from '../types'
@@ -117,7 +117,10 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
   )
 
   const { ordered, sectionOf } = React.useMemo(() => {
-    const columnKey = TABLE_SORT_KEYS[sortField as keyof typeof TABLE_SORT_KEYS]
+    // Group sorts as the column reads: a subgroup with its main group, "Valley · Plugins".
+    const columnKey = sortField === 'group'
+      ? (todo: TodoRecord) => (todo.group ? groupPathLabel(todo.group, groups) : undefined)
+      : TABLE_SORT_KEYS[sortField as keyof typeof TABLE_SORT_KEYS]
     if (columnKey) return { ordered: sortTodosByKey(filtered, columnKey, sortDir), sectionOf: undefined }
     if (sortField !== 'auto') return { ordered: sortTodos(filtered, sortField as SortField, sortDir), sectionOf: undefined }
     if (view.kind === 'smart' && view.id === 'completed') {
@@ -130,7 +133,7 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
       ordered: SECTION_ORDER.flatMap((id) => buckets[id]),
       sectionOf: (todo: TodoRecord): TodoSectionId => bands.get(todo.id) ?? 'someday'
     }
-  }, [filtered, sortField, sortDir, view, today])
+  }, [filtered, sortField, sortDir, view, today, groups])
 
   const resetKey = [
     serializeView(view), search, JSON.stringify(statusFilter), priorities.join(), showCompleted,
@@ -283,6 +286,7 @@ export const Page = ({ navigation, instanceId }: MainWorkspaceViewProps): ReactE
           sectionOf={sectionOf}
           composeSignal={composeSignal}
           newTaskPatch={newTaskPatch}
+          instanceId={instanceId}
         />
       )}
 

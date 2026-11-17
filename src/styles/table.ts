@@ -28,7 +28,8 @@ export const tableCss = `/* ── Main table ───────────�
 .todo-table-status-filter svg { width: 16px; height: 16px; }
 
 /* The empty row + adds at the top of the table: type a task or paste several lines. */
-.todo-table-new-row:not(.is-idle) td { background: color-mix(in srgb, var(--accent-color) 6%, transparent); }
+/* It is the one tinted row until it is left: leaving saves it as a task, or drops it without a title. */
+.todo-table-new-row td { background: color-mix(in srgb, var(--accent-color) 6%, transparent); }
 .todo-table-new-circle {
   display: block;
   box-sizing: border-box;
@@ -53,12 +54,10 @@ export const tableCss = `/* ── Main table ───────────�
 .todo-table-new-input:focus-visible { border: none; outline: none; box-shadow: none; }
 .todo-table-new-input::placeholder { color: var(--text-tertiary); }
 .todo-table-new-hint { color: var(--text-tertiary); font-size: var(--smaller-font-size); }
-.todo-table-new-row:not(.is-idle) .todo-table-cell-btn.muted,
-.todo-table-new-row:not(.is-idle) .todo-table-flag-btn:not(.on) { opacity: 1; }
-.todo-table-new-row.is-idle .todo-table-new-hint { visibility: hidden; }
+.todo-table-new-row .todo-table-cell-btn.muted,
+.todo-table-new-row .todo-table-flag-btn:not(.on) { opacity: 1; }
 .todo-table-new-status { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%; background: transparent; cursor: pointer; }
 .todo-table-new-status:hover:not(:disabled) .todo-table-new-circle { border-color: var(--text-secondary); }
-.todo-table-new-row.is-idle .todo-table-new-circle { border-style: solid; }
 .todo-calendar { display: flex; flex-direction: column; gap: 4px; user-select: none; }
 .todo-calendar-head { display: flex; align-items: center; gap: 2px; padding: 0 2px 2px; }
 .todo-calendar-title { flex: 1 1 auto; font-weight: 600; font-size: var(--font-ui-small, 13px); color: var(--text-color); }
@@ -343,6 +342,8 @@ export const tableCss = `/* ── Main table ───────────�
   font-weight: var(--font-medium);
   white-space: nowrap;
 }
+/* The main group a subgroup sits under: same pill, quieter. */
+.todo-table-group-parent { opacity: 0.7; }
 .todo-table-status .todo-table-cell-btn { padding-left: 2px; }
 .todo-table-status .todo-table-cell-btn:hover:not(:disabled) { background: transparent; }
 .todo-table-status .todo-table-cell-btn:hover:not(:disabled) .todo-status-pill { filter: brightness(1.08); }
