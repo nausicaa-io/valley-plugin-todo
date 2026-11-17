@@ -58,26 +58,6 @@ export const tableCss = `/* ── Main table ───────────�
 .todo-table-new-row .todo-table-flag-btn:not(.on) { opacity: 1; }
 .todo-table-new-status { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%; background: transparent; cursor: pointer; }
 .todo-table-new-status:hover:not(:disabled) .todo-table-new-circle { border-color: var(--text-secondary); }
-.todo-calendar { display: flex; flex-direction: column; gap: 4px; user-select: none; }
-.todo-calendar-head { display: flex; align-items: center; gap: 2px; padding: 0 2px 2px; }
-.todo-calendar-title { flex: 1 1 auto; font-weight: 600; font-size: var(--font-ui-small, 13px); color: var(--text-color); }
-.todo-calendar-nav { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer; }
-.todo-calendar-nav:hover { background: var(--hover-bg); color: var(--text-color); }
-.todo-calendar-nav svg { width: 14px; height: 14px; }
-.todo-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.todo-calendar-weekday { display: grid; place-items: center; height: 22px; font-size: var(--smaller-font-size); color: var(--text-tertiary); }
-.todo-calendar-day { display: grid; place-items: center; height: 28px; padding: 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-color); font: inherit; font-size: var(--smaller-font-size); font-variant-numeric: tabular-nums; cursor: pointer; }
-.todo-calendar-day:hover { background: var(--hover-bg); }
-.todo-calendar-day.is-outside { color: var(--text-tertiary); }
-.todo-calendar-day.is-today { color: var(--accent-color); font-weight: 600; }
-.todo-calendar-day.is-selected { background: var(--accent-color); color: var(--text-on-accent, #fff); font-weight: 600; }
-.todo-calendar-day:focus-visible, .todo-calendar-nav:focus-visible, .todo-calendar-link:focus-visible { outline: 2px solid var(--accent-color); outline-offset: -2px; }
-.todo-calendar-foot { display: flex; justify-content: space-between; padding: 4px 2px 0; border-top: 1px solid var(--border-color); }
-.todo-calendar-link { padding: 2px 4px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--accent-color); font: inherit; font-size: var(--smaller-font-size); cursor: pointer; }
-.todo-calendar-link:hover:not(:disabled) { background: var(--hover-bg); }
-.todo-calendar-link:disabled { color: var(--text-tertiary); cursor: default; }
-.todo-clock-input { box-sizing: border-box; width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
-.todo-clock-input.is-invalid { border-color: var(--text-error, var(--color-red)); }
 
 /* Headers drag to reorder: the drop lands on the shared insertion line. */
 .todo-table th[draggable='true'] { cursor: grab; }

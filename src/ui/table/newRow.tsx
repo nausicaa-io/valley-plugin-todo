@@ -4,7 +4,6 @@ import type { ReactElement } from 'react'
 import type { TodoPriority, TodoRecord, TodoStatus } from '../../types'
 import { allGroups, groupColorFor, type TodoGroup } from '../../model/groups'
 import { Flag, MapPin, TodoStatusGlyph } from '../icons'
-import { InlineCalendar } from '../DatePanel'
 import { patchForStatus, statusMenuOptions } from '../../state/statusStore'
 import { parseQuickAdd } from '../../model/sections'
 import { formatDueLabel, isoDay } from '../../model/sort'
@@ -154,11 +153,9 @@ export function NewTaskRow({ order, groups, c, newTaskPatch, active, onActivate,
               className="todo-table-cell-btn todo-table-due-text"
               disabled={c.creating}
               aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.due') })}
-              onClick={(event) => newRowOpen(api.ui.openPopover(({ close }) => (
-                <div className="todo-cell-editor">
-                  <InlineCalendar value={due ?? ''} onChange={(value) => { setDraftFields((fields) => ({ ...fields, dueDate: value || undefined })); close() }} />
-                </div>
-              ), { anchor: event.currentTarget, align: 'start', gap: 4 }, { className: 'todo-cell-popover', ariaLabel: uiText('todo.field.dueDate'), width: 260 }))}
+              onClick={(event) => newRowOpen(api.ui.pickDateTime({ mode: 'date', value: due ?? '', ariaLabel: uiText('todo.field.dueDate') }, { anchor: event.currentTarget, align: 'start', gap: 4 }).then((value) => {
+                if (value !== null) setDraftFields((fields) => ({ ...fields, dueDate: value || undefined }))
+              }))}
             >
               {label ? <span>{label}</span> : <span className="todo-table-new-hint">{uiText('todo.table.due')}</span>}
             </button>

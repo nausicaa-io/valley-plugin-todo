@@ -156,7 +156,7 @@ export const TableRow = memoRow(function TableRow({ todo, groups, columns, actio
               disabled={pending}
               aria-label={uiText('todo.table.editCell', { p0: uiText('todo.table.due') })}
               title={todo.dueDate ? formatDate(todo.dueDate, dateFormat) : uiText('todo.field.dueDate')}
-              onClick={(event) => editIn('due', event.currentTarget, uiText('todo.field.dueDate'), () => <DueEditor todo={todo} onPatch={(next) => void patch(next)} />, 240)}
+              onClick={(event) => editIn('due', event.currentTarget, uiText('todo.field.dueDate'), () => <DueEditor todo={todo} onPatch={(next) => void patch(next)} />, 272)}
             >
               <span>{dueLabel}</span>
               {todo.startTime && <span className="todo-table-time">{todo.startTime}</span>}

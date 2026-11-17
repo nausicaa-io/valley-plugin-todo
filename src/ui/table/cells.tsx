@@ -3,7 +3,6 @@ import type { CSSProperties, ReactElement } from 'react'
 import type { TodoPriority, TodoRecord } from '../../types'
 import { ArrowDown, ArrowRight, ArrowUp, Minus } from '../icons'
 import { LocationField } from '../LocationField'
-import { ClockTimeField, InlineCalendar } from '../DatePanel'
 import { TagChipsField } from '../TagChipsField'
 import { uiText } from '../../localization'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
@@ -29,17 +28,21 @@ export function GroupPill({ name, groups }: { name: string; groups: TodoGroup[] 
 export function DueEditor({ todo, onPatch }: { todo: TodoRecord; onPatch: (patch: Partial<TodoRecord>) => void }): ReactElement {
   const [date, setDate] = React.useState(todo.dueDate?.slice(0, 10) ?? '')
   const [time, setTime] = React.useState(todo.startTime ?? '')
+  const { DateTimePicker, TimeField } = api.ui.settings
   return (
     <div className="todo-cell-editor">
-      <InlineCalendar
+      <DateTimePicker
+        mode="date"
         value={date}
+        ariaLabel={uiText('todo.field.dueDate')}
+        autoFocus
         onChange={(value) => {
           setDate(value)
           if (!value) setTime('')
           onPatch(value ? { dueDate: value } : { dueDate: '', startTime: undefined, endTime: undefined })
         }}
       />
-      <ClockTimeField
+      <TimeField
         value={time}
         disabled={!date}
         ariaLabel={uiText('todo.field.startTime')}

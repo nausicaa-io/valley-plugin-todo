@@ -1,5 +1,4 @@
 import { React, api, registerTodoRow } from '../runtime'
-import { InlineCalendar } from './DatePanel'
 import { renderInlineMarkdown } from './markdown'
 import type { ComponentType, MemoExoticComponent, ReactElement } from 'react'
 import type { TodoRecord } from '../types'
@@ -301,21 +300,9 @@ export const TodoRow = memoRow(function TodoRow({
     () => ({
       reschedule: (date) => void actions.patchTodo(todo.id, { dueDate: date }),
       pickDate: (anchor) => {
-        void api.ui.openPopover(
-          (ctx) => (
-            <div className="todo-swipe-datepick">
-              <InlineCalendar
-                value={todo.dueDate?.slice(0, 10) ?? ''}
-                onChange={(next) => {
-                  void actions.patchTodo(todo.id, { dueDate: next })
-                  ctx.close()
-                }}
-              />
-            </div>
-          ),
-          { anchor },
-          { ariaLabel: uiText('todo.swipe.date') }
-        )
+        void api.ui.pickDateTime({ mode: 'date', value: todo.dueDate?.slice(0, 10) ?? '', ariaLabel: uiText('todo.swipe.date') }, { anchor }).then((next) => {
+          if (next !== null) void actions.patchTodo(todo.id, { dueDate: next })
+        })
       },
       setStatus: (anchor) => openStatusMenu(anchor, todo, patch),
       toggleFlag: () => void actions.patchTodo(todo.id, { flagged: !todo.flagged }),

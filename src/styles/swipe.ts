@@ -162,10 +162,6 @@ export const swipeCss = `/* ── Swipe ─────────────
 .todo-swipe-details { --todo-swipe-bg: color-mix(in srgb, var(--text-secondary) 45%, var(--container-color-light)); }
 .todo-swipe-delete { --todo-swipe-bg: var(--negative-color-highlight); }
 
-.todo-swipe-datepick {
-  padding: var(--space-2);
-}
-
 .todo-list-rows {
   display: flex;
   flex-direction: column;
