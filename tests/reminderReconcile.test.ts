@@ -23,7 +23,7 @@ const task = (id: string, overrides: Partial<TodoRecord> = {}): TodoRecord => ({
 interface Scheduled { at: number; title: string; body: string; label: string }
 
 /** A fake notification host: the schedule it holds and every call it received. */
-function startOwner(seeded: TodoRecord[], options: { state?: unknown; language?: string; settings?: Record<string, unknown> } = {}) {
+function startOwner(seeded: TodoRecord[], options: { state?: unknown; language?: string; settings?: Record<string, unknown>; hostWake?: boolean } = {}) {
   const { mock } = installTodoNotes(seeded as unknown as DataRecord[], options.settings)
   keyDatasetChanges(mock)
   const io = countIo(mock)
@@ -37,9 +37,12 @@ function startOwner(seeded: TodoRecord[], options: { state?: unknown; language?:
   })
   const cancel = vi.fn(async (key: string) => { calls.push(`cancel ${key}`); host.delete(key) })
   const resumeListeners: (() => void)[] = []
+  const wakes = new Map<string, number | null>()
+  const wakeListeners: Array<(event: { key: string; at: number; firedAt: number; late: boolean }) => void> = []
   const api = {
     ...mock.api,
-    lifecycle: { onResume: (listener: () => void) => { resumeListeners.push(listener); return () => {} } },
+    lifecycle: { onResume: (listener: () => void) => { resumeListeners.push(listener); return () => {} },
+      ...(options.hostWake ? { wakeAt: vi.fn(async (key: string, at: number | null) => { wakes.set(key, at) }), onWake: (listener: (event: { key: string; at: number; firedAt: number; late: boolean }) => void) => { wakeListeners.push(listener); return () => { wakeListeners.splice(wakeListeners.indexOf(listener), 1) } } } : {}) },
     notifications: { schedule, cancel, onOccurrence: () => () => {} },
     i18n: { t: (key: string) => `${language}:${key}`, language: () => language },
     rpc: { handle: () => () => {}, emit: vi.fn() }
@@ -67,7 +70,7 @@ function startOwner(seeded: TodoRecord[], options: { state?: unknown; language?:
     for (const [key, value] of expected) expect(host.get(key)).toMatchObject(value)
   }
   const state = async () => JSON.parse((await mock.api.data.files.readText('reminder-state.json')) ?? 'null')
-  return { mock, io, domain, host, calls, schedule, cancel, begin, heldMatches, state, resume: () => resumeListeners.forEach((listener) => listener()), setLanguage: (value: string) => { language = value } }
+  return { mock, io, domain, host, calls, schedule, cancel, begin, heldMatches, state, wakes, wake: (key: string) => wakeListeners.forEach((listener) => listener({ key, at: Date.now(), firedAt: Date.now(), late: false })), resume: () => resumeListeners.forEach((listener) => listener()), setLanguage: (value: string) => { language = value } }
 }
 
 const reminded = (id: string, extra: Partial<TodoRecord> = {}): TodoRecord => task(id, { dueDate: day(2), startTime: '09:00', ...extra })
@@ -114,6 +117,24 @@ describe('reminder candidates', () => {
 })
 
 describe('reminder reconcile', () => {
+  it('leaves the day boundary to a host wake time and runs one full pass when it fires (GODS G6)', async () => {
+    const owner = startOwner([task('a', { dueDate: day(1), dueTime: '09:00' } as Partial<TodoRecord>)], { hostWake: true })
+    const stop = await owner.begin()
+    const now = new Date()
+    expect(owner.wakes.get('todo.day')).toBe(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() + 1000)
+    const before = owner.calls.length
+    owner.wake('other.key')
+    await flush()
+    expect(owner.calls.length).toBe(before)
+    owner.host.clear()
+    owner.wake('todo.day')
+    await flush()
+    expect(owner.wakes.get('todo.day')).toBeGreaterThan(Date.now())
+    await stop()
+    owner.wake('todo.day')
+    await flush()
+  })
+
   it('keeps the host schedule equal to a full read through due, time, offsets, complete, reopen and delete', async () => {
     const run = startOwner([reminded('a'), reminded('b', { reminderOffsets: [0, 30] }), task('c'), reminded('far', { dueDate: day(20) })])
     const stop = await run.begin()

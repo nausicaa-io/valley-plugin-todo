@@ -57,3 +57,7 @@ The backend publishes `workflow.provider` version `1.0.0` through the injected S
 The backend owns the serialized task writer for both the interface and Workflow. Revision-guarded document updates preserve relationship data, status history, and undo behavior. Events follow committed changes and carry the host's causal context. A Workflow action with a delivery failure after commit reports an uncertain outcome and must not be retried automatically. Interface saves retain their successful result and undo entry, with a separate event-delivery warning. Workflows require To-Do to be installed and enabled; no provider reads another plugin's files.
 
 Task list already emits one execution item per task. No collection selector is declared; tags, reminders, URLs and attachments remain attributes of each task.
+
+## When the backend runs
+
+The To-Do backend starts on first use and stops after ten idle minutes. Reminders are scheduled with the host, which wakes the backend for its own notification occurrences, actions and rings, for changes of the `todo.tasks` dataset and its settings, system resume, and at local midnight (a host wake time) for the next day's pass.

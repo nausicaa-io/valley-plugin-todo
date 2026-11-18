@@ -17,6 +17,7 @@ export function reminderTimes(record: TodoRecord, defaults: number[] = [10]): { 
 }
 
 const REMINDER_PREFIX = 'reminder:'
+const DAY_WAKE = 'todo.day'
 const PARTIAL_LIMIT = 200
 
 /** A 53-bit string hash (cyrb53): a changed title, note line or language changes it. */
@@ -176,18 +177,22 @@ export function startReminderOwner(api: PluginBackendApi, list: () => Promise<To
     request([event.targetItemId])
     return result
   })
-  // Reminder times are local wall-clock times: a new day (and with it a possible offset change) gets one full pass.
+  // Reminder times are local wall-clock times: a new day (and with it a possible offset change) gets one full pass. The day
+  // boundary is a host wake time (lifecycle.wakeAt), so the backend may sleep in between; a host without it keeps the timer.
   let dayTimer: ReturnType<typeof setTimeout> | undefined
+  const nextMidnight = (): number => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() + 1000 }
+  const hostWake = typeof api.lifecycle.wakeAt === 'function' && typeof api.lifecycle.onWake === 'function'
   const nextDay = (): void => {
-    const now = new Date()
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
-    dayTimer = setTimeout(() => { if (!active) return; reconcile(); nextDay() }, Math.max(1000, midnight - now.getTime() + 1000))
+    if (!active) return
+    if (hostWake) { void api.lifecycle.wakeAt(DAY_WAKE, nextMidnight()).catch(() => { if (active) api.rpc.emit('reminders.error', { code: 'REMINDER_DAY_WAKE_FAILED' }) }); return }
+    dayTimer = setTimeout(() => { if (!active) return; reconcile(); nextDay() }, Math.max(1000, nextMidnight() - Date.now()))
   }
+  const offWake = hostWake ? api.lifecycle.onWake(event => { if (event.key === DAY_WAKE && active) { reconcile(); nextDay() } }) : () => {}
   nextDay()
   reconcile()
   return async () => {
     active = false
-    clearTimeout(dayTimer); offData(); offSettings(); offResume(); offOccurrence(); offAction()
+    clearTimeout(dayTimer); offWake(); offData(); offSettings(); offResume(); offOccurrence(); offAction()
     await pending.catch(() => {})
   }
 }

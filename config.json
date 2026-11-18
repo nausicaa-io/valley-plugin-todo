@@ -3460,9 +3460,20 @@
     ],
     "activation": {
       "backend": [
-        "background",
         "capability"
-      ]
+      ],
+      "wake": {
+        "notifications": true,
+        "datasets": [
+          "todo.tasks"
+        ],
+        "settings": true,
+        "resume": true,
+        "timers": true
+      },
+      "idle": {
+        "stopAfterMs": 600000
+      }
     },
     "largeDataOperations": [
       "workflow.execute"
